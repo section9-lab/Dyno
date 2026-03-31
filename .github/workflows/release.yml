@@ -1,0 +1,93 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v1.0.0 这样的标签时触发
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        xcodebuild -version
+
+    - name: Resolve Package Dependencies
+      run: |
+        xcodebuild -resolvePackageDependencies \
+          -project dynotion.xcodeproj \
+          -scheme dynotion
+
+    - name: Build Release
+      run: |
+        xcodebuild -project dynotion.xcodeproj \
+          -scheme dynotion \
+          -configuration Release \
+          -archivePath $PWD/build/dynotion.xcarchive \
+          archive \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          SKIP_INSTALL=NO \
+          INSTALL_PATH=$(PWD)/build/Applications
+        
+        # 从 archive 中提取 app
+        mkdir -p build/dist
+        cp -R build/dynotion.xcarchive/Products$(PWD)/build/Applications/dynotion.app build/dist/
+
+    - name: Create DMG
+      run: |
+        # 创建临时目录
+        mkdir -p dmg_tmp
+        
+        # 复制 app 到临时目录
+        cp -R build/dist/dynotion.app dmg_tmp/
+        
+        # 创建符号链接到 Applications
+        ln -s /Applications dmg_tmp/Applications
+        
+        # 使用 hdiutil 创建 DMG
+        hdiutil create -volname "dynotion" \
+          -srcfolder dmg_tmp \
+          -ov -format UDZO \
+          build/dynotion.dmg
+        
+        # 清理临时目录
+        rm -rf dmg_tmp
+        
+        # 显示 DMG 信息
+        ls -lh build/dynotion.dmg
+
+    - name: Create ZIP (alternative)
+      run: |
+        cd build/dist
+        zip -r ../dynotion.zip dynotion.app
+        cd ../..
+        ls -lh build/dynotion.zip
+
+    - name: Generate Checksums
+      run: |
+        cd build
+        sha256sum dynotion.dmg > CHECKSUMS.txt
+        sha256sum dynotion.zip >> CHECKSUMS.txt
+        cat CHECKSUMS.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          build/dynotion.dmg
+          build/dynotion.zip
+          build/CHECKSUMS.txt
+        generate_release_notes: true
+        draft: false
