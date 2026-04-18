@@ -5,15 +5,17 @@
    <p align="center">
       Your personal coding assistant for macOS
    </p>
+   
+  [![GitHub Star](https://img.shields.io/github/stars/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Dyno/stargazers)
+  [![GitHub license](https://img.shields.io/github/license/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](LICENSE)
+  [![Release Version](https://img.shields.io/github/v/release/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Dyno/releases/latest)
+  ![GitHub Repo size](https://img.shields.io/github/repo-size/section9-lab/Dyno?style=rounded&color=white&labelColor=000000&label=dmg%20size)
+  
+  [![Kofi](https://img.shields.io/badge/Kofi-Jack-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/jack)
+  [![Patreon](https://img.shields.io/badge/Patreon-Jack-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/jack)
+
 </div>
 
-[![GitHub Star](https://img.shields.io/github/stars/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Dyno/stargazers)
-[![GitHub license](https://img.shields.io/github/license/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](LICENSE)
-[![Release Version](https://img.shields.io/github/v/release/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Dyno/releases/latest)
-![GitHub Repo size](https://img.shields.io/github/repo-size/section9-lab/Dyno?style=rounded&color=white&labelColor=000000&label=dmg%20size)
-
-[![Kofi](https://img.shields.io/badge/Kofi-Jack-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/jack)
-[![Patreon](https://img.shields.io/badge/Patreon-Jack-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/jack)
 
 ## 产品特性
 
