@@ -1,0 +1,42 @@
+{
+  "originHash" : "21e092c0aaea41f3ccd2de2bcbf773b2243f061a13303f4b4cc2eeb4672ae592",
+  "pins" : [
+    {
+      "identity" : "networkimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/NetworkImage",
+      "state" : {
+        "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
+        "version" : "6.0.1"
+      }
+    },
+    {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark",
+      "state" : {
+        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
+        "version" : "0.7.1"
+      }
+    },
+    {
+      "identity" : "swift-markdown-ui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/swift-markdown-ui",
+      "state" : {
+        "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
+        "version" : "2.4.1"
+      }
+    },
+    {
+      "identity" : "swiftagent",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/section9-lab/SwiftAgent.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "fdef59906aacf901d6be79095588bdc8605926cd"
+      }
+    }
+  ],
+  "version" : 3
+}
