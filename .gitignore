@@ -13,8 +13,6 @@ xcuserdata/
 DerivedData/
 
 # Local build outputs
-build/
-releases/*
 *.xcarchive
 *.dSYM
 *.dSYM.zip

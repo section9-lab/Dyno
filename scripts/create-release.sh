@@ -1,12 +1,12 @@
 #!/bin/bash
-# Create a Impulse release: notarize, create DMG, and upload to GitHub Releases
+# Notarize and publish an existing Impulse build to GitHub Releases
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/build"
+BUILD_DIR="$PROJECT_DIR/.build"
 EXPORT_PATH="$BUILD_DIR/export"
-RELEASE_DIR="$PROJECT_DIR/releases"
+DMG_DIR="$BUILD_DIR/dmg"
 APP_NAME="Impulse"
 APP_PATH="$EXPORT_PATH/$APP_NAME.app"
 GITHUB_REPO="section9-lab/Impulse"
@@ -64,14 +64,20 @@ fi
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST")
 BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST")
 TAG="v$VERSION"
-DMG_PATH="$RELEASE_DIR/$APP_NAME-$VERSION.dmg"
+DMG_PATH="$DMG_DIR/$APP_NAME-$VERSION.dmg"
 ZIP_PATH="$BUILD_DIR/$APP_NAME-$VERSION.zip"
 SIGNED_APP=true
 
-mkdir -p "$RELEASE_DIR"
+mkdir -p "$DMG_DIR"
 
 echo "Version: $VERSION (build $BUILD)"
 echo
+
+if [ ! -f "$DMG_PATH" ]; then
+    echo "ERROR: DMG not found at $DMG_PATH"
+    echo "Run ./scripts/build.sh first"
+    exit 1
+fi
 
 if ! codesign -dv "$APP_PATH" >/dev/null 2>&1; then
     SIGNED_APP=false
@@ -122,39 +128,8 @@ echo ' --password "xxxx-xxxx-xxxx-xxxx"'
     echo
 fi
 
-echo "=== Step 2: Creating DMG ==="
-rm -f "$DMG_PATH"
-
-if command -v create-dmg >/dev/null 2>&1; then
-    echo "Using create-dmg..."
-    create-dmg \
-        --volname "$APP_NAME" \
-        --window-size 600 400 \
-        --icon-size 100 \
-        --icon "$APP_NAME.app" 150 200 \
-        --app-drop-link 450 200 \
-        --hide-extension "$APP_NAME.app" \
-        "$DMG_PATH" \
-        "$APP_PATH"
-else
-    echo "Using hdiutil fallback (install create-dmg for a prettier DMG: brew install create-dmg)"
-    STAGING_DIR="$BUILD_DIR/dmg"
-    rm -rf "$STAGING_DIR"
-    mkdir -p "$STAGING_DIR"
-    cp -R "$APP_PATH" "$STAGING_DIR/"
-    ln -s /Applications "$STAGING_DIR/Applications"
-
-    hdiutil create \
-        -volname "$APP_NAME" \
-        -srcfolder "$STAGING_DIR" \
-        -ov \
-        -format UDZO \
-        "$DMG_PATH"
-
-    rm -rf "$STAGING_DIR"
-fi
-
-echo "DMG created: $DMG_PATH"
+echo "=== Step 2: Using existing DMG ==="
+echo "DMG: $DMG_PATH"
 echo
 
 if [ "$SKIP_NOTARIZATION" = false ]; then
