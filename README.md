@@ -7,6 +7,14 @@
    </p>
 </div>
 
+[![GitHub Star](https://img.shields.io/github/stars/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Dyno/stargazers)
+[![GitHub license](https://img.shields.io/github/license/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](LICENSE)
+[![Release Version](https://img.shields.io/github/v/release/section9-lab/Dyno?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Dyno/releases/latest)
+![GitHub Repo size](https://img.shields.io/github/repo-size/section9-lab/Dyno?style=rounded&color=white&labelColor=000000&label=dmg%20size)
+
+[![Kofi](https://img.shields.io/badge/Kofi-Jack-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/jack)
+[![Patreon](https://img.shields.io/badge/Patreon-Jack-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/jack)
+
 ## 产品特性
 
 **Dyno** 是一款专为 macOS 打造的原生 AI 编程助手，将强大的大语言模型与智能工具调用融为一体，助您高效完成代码编写、调试和理解任务。
