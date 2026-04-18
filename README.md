@@ -1,5 +1,5 @@
 <div align="center">
-<img src="Impulse/AppIcon.icon/impulse.png" alt="Impulse icon" width="120" height="120">
+<img src="Impulse/Resources/AppIcon.icon/impulse.png" alt="Impulse icon" width="120" height="120">
 <h1 align="center">Impulse</h1>
 <p align="center">
 A native personal assistant for coding and desk work on macOS.
@@ -45,7 +45,7 @@ Impulse uses sandboxed access controls so powerful capabilities stay inside expl
 ## Preview
 
 <p align="center">
-<img src="Impulse/AppIcon.icon/Assets/Image%201.jpg" alt="Impulse preview artwork" width="720">
+<img src="Impulse/Resources/AppIcon.icon/Assets/Image%201.jpg" alt="Impulse preview artwork" width="720">
 </p>
 
 ## System Requirements

@@ -1,5 +1,35 @@
+# macOS
 .DS_Store
 
-# Swift Package Manager
+# Xcode / workspace user state
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager / build caches
+.build/
+.swiftpm/
+DerivedData/
+
+# Local build outputs
+build/
 releases/*
-build/*
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.ipa
+*.pkg
+*.dmg
+
+# Editor / local tool state
+.idea/
+.vscode/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo

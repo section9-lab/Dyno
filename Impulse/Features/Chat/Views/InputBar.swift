@@ -1,12 +1,6 @@
 import AppKit
 import SwiftUI
 
-struct ModelOption: Identifiable {
-    let id: String
-    let displayName: String
-    let isInstalled: Bool
-}
-
 struct InputBar: View {
     @Binding var inputText: String
     let modelName: String

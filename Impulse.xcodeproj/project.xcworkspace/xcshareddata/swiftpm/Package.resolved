@@ -1,5 +1,5 @@
 {
-  "originHash" : "21e092c0aaea41f3ccd2de2bcbf773b2243f061a13303f4b4cc2eeb4672ae592",
+  "originHash" : "938c39c5208d8e2194db3d9e680be9bc83a6d05824212f090c14d412ab9caa7d",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -29,9 +29,9 @@
       }
     },
     {
-      "identity" : "swiftagent",
+      "identity" : "swiftcodingagent",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/section9-lab/SwiftAgent.git",
+      "location" : "https://github.com/section9-lab/SwiftCodingAgent.git",
       "state" : {
         "branch" : "main",
         "revision" : "fdef59906aacf901d6be79095588bdc8605926cd"

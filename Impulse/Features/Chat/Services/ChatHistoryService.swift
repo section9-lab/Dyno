@@ -7,13 +7,6 @@ import SwiftData
 /// - 不依赖 AgentSDK
 /// - 不处理模型调用
 /// - 仅处理 Item（业务消息）与会话语义
-struct ConversationThread: Identifiable {
-    let id: String
-    let title: String
-    let startedAt: Date
-    let messages: [Item]
-}
-
 struct ChatHistoryService {
     func buildConversations(from items: [Item]) -> [ConversationThread] {
         let sorted = items
