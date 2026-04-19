@@ -1,4 +1,4 @@
-import SwiftAgent
+import SwiftCodingAgent
 import Combine
 import Foundation
 import SwiftData

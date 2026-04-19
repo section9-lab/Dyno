@@ -1,4 +1,4 @@
-import SwiftAgent
+import SwiftCodingAgent
 import SwiftUI
 
 /// Isolated view that observes AgentManager for live tool executions and typing indicator.

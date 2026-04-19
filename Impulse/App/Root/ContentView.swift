@@ -7,7 +7,6 @@
 //  Created by jackwang on 2026/3/27.
 //
 
-import SwiftAgent
 import SwiftData
 import SwiftUI
 
@@ -16,21 +15,6 @@ struct ContentView: View {
     @Query(sort: \Item.timestamp) private var items: [Item]
     @StateObject private var vm = ChatViewModel()
     @StateObject private var agent = AgentManager.shared
-
-    private var modelOptions: [ModelOption] {
-        let provider = agent.registry.provider(for: agent.config.providerId)
-        var options = (provider?.models ?? []).map { model in
-            ModelOption(id: model.id, displayName: model.name, isInstalled: model.isLive)
-        }
-
-        // Ensure current model is in the list
-        if !agent.config.modelId.isEmpty,
-           !options.contains(where: { $0.id == agent.config.modelId }) {
-            options.insert(ModelOption(id: agent.config.modelId, displayName: agent.config.modelId, isInstalled: true), at: 0)
-        }
-
-        return options
-    }
 
     private var sortedConversations: [ConversationThread] {
         vm.sortedConversations(from: items)
@@ -106,10 +90,7 @@ struct ContentView: View {
 
                     InputBar(
                         inputText: $vm.inputText,
-                        modelName: agent.config.modelId,
-                        modelOptions: modelOptions,
                         isResponding: agent.isResponding,
-                        onSelectModel: selectModel,
                         onSend: sendMessage
                     )
                 }
@@ -212,17 +193,6 @@ struct ContentView: View {
     private func sendMessage() {
         vm.sendMessage(modelContext: modelContext, agent: agent, conversationItems: displayedItems) {
             persistConversationsToSessionFiles()
-        }
-    }
-
-    private func selectModel(_ modelId: String) {
-        guard modelId != agent.config.modelId else { return }
-
-        var next = agent.config
-        next.modelId = modelId
-
-        Task {
-            await agent.applyConfig(next)
         }
     }
 

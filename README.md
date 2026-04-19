@@ -45,7 +45,7 @@ Impulse uses sandboxed access controls so powerful capabilities stay inside expl
 ## Preview
 
 <p align="center">
-<img src="Impulse/Resources/AppIcon.icon/Assets/Image%201.jpg" alt="Impulse preview artwork" width="720">
+    Comming Soon
 </p>
 
 ## System Requirements
@@ -75,4 +75,4 @@ Download the latest release from GitHub:
 
 ## License
 
-MIT
+Apache License 2.0

@@ -12,12 +12,13 @@ final class OCRManager: ObservableObject, @unchecked Sendable {
     @Published var lastCapturedURL: URL?
     @Published var lastCapturedText: String?
 
-    func start(workspace: URL) {
+    func start(agentHomeDirectory: URL) {
         guard orchestrator == nil else { return }
 
-        print("📁 [OCR] 输出目录: \(workspace.path)/ocr-captures/")
+        let outputDirectory = agentHomeDirectory.appendingPathComponent("ocr-captures", isDirectory: true)
+        print("📁 [OCR] 输出目录: \(outputDirectory.path)")
 
-        let instance = OCRCaptureOrchestrator(workspace: workspace)
+        let instance = OCRCaptureOrchestrator(outputDirectory: outputDirectory)
 
         instance.onStatusChanged = { [weak self] status in
             switch status {

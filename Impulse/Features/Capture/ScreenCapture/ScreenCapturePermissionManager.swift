@@ -39,11 +39,15 @@ final class ScreenCapturePermissionManager: ObservableObject {
     }
 
     @discardableResult
-    func ensurePermissionForCapture() -> Bool {
+    func ensurePermissionForCapture(promptIfNeeded: Bool = true) -> Bool {
         // 每次触发截图时都先静默检查一次。
         checkPermission()
         if isGranted == true {
             return true
+        }
+
+        guard promptIfNeeded else {
+            return false
         }
 
         // 本次启动只主动请求一次，避免后台周期任务反复弹系统提示。
@@ -61,7 +65,7 @@ final class ScreenCapturePermissionManager: ObservableObject {
     }
 
     func requestPermission() {
-        _ = ensurePermissionForCapture()
+        _ = ensurePermissionForCapture(promptIfNeeded: true)
     }
 
     func updatePermissionState(granted: Bool) {

@@ -14,9 +14,8 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
 
 packages:
-  SwiftAgent:
-    url: https://github.com/section9-lab/SwiftCodingAgent.git
-    branch: main
+  SwiftCodingAgent:
+    path: ../SwiftCodingAgent
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: "2.4.0"

@@ -2,14 +2,18 @@ import Foundation
 
 extension URL {
     func agentDirectory() -> URL {
-        appendingPathComponent(".agent", isDirectory: true)
+        self
     }
 
     func agentSessionDirectory() -> URL {
-        agentDirectory().appendingPathComponent("session", isDirectory: true)
+        appendingPathComponent("session", isDirectory: true)
     }
 
     func agentSkillsDirectory() -> URL {
-        agentDirectory().appendingPathComponent("skills", isDirectory: true)
+        appendingPathComponent("skills", isDirectory: true)
+    }
+
+    func agentMemoryDirectory() -> URL {
+        appendingPathComponent("memory", isDirectory: true)
     }
 }

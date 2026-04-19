@@ -51,12 +51,6 @@ struct UserAccountPopover: View {
             Divider()
                 .padding(.horizontal, 16)
 
-            MenuItem(icon: "sparkles", title: "个性化")
-            MenuItem(icon: "person.circle", title: "个人资料")
-
-            Divider()
-                .padding(.horizontal, 16)
-
             MenuItem(icon: "gearshape", title: "设置", action: {
                 onSettings()
             })

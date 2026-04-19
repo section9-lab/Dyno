@@ -1,15 +1,15 @@
 import Foundation
 
 protocol AgentSessionStoring {
-    func load(workspace: String) throws -> [SessionConversationSnapshot]
-    func save(conversations: [SessionConversationSnapshot], workspace: String) throws
+    func load(agentHomeDirectory: String) throws -> [SessionConversationSnapshot]
+    func save(conversations: [SessionConversationSnapshot], agentHomeDirectory: String, projectDirectory: String) throws
 }
 
 final class AgentSessionStore: AgentSessionStoring {
     private let formatter = ISO8601DateFormatter()
 
-    func load(workspace: String) throws -> [SessionConversationSnapshot] {
-        let sessionDir = sessionDirectory(for: workspace)
+    func load(agentHomeDirectory: String) throws -> [SessionConversationSnapshot] {
+        let sessionDir = sessionDirectory(for: agentHomeDirectory)
         guard FileManager.default.fileExists(atPath: sessionDir.path) else { return [] }
 
         let files = try FileManager.default.contentsOfDirectory(at: sessionDir, includingPropertiesForKeys: nil)
@@ -125,8 +125,8 @@ final class AgentSessionStore: AgentSessionStoring {
         return snapshots.sorted { $0.startedAt > $1.startedAt }
     }
 
-    func save(conversations: [SessionConversationSnapshot], workspace: String) throws {
-        let sessionDir = sessionDirectory(for: workspace)
+    func save(conversations: [SessionConversationSnapshot], agentHomeDirectory: String, projectDirectory: String) throws {
+        let sessionDir = sessionDirectory(for: agentHomeDirectory)
         try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
 
         var currentFileNames = Set<String>()
@@ -136,7 +136,7 @@ final class AgentSessionStore: AgentSessionStoring {
             let fileName = "\(stamp)_\(conversation.id).jsonl"
             let url = sessionDir.appendingPathComponent(fileName)
             currentFileNames.insert(fileName)
-            try write(conversation: conversation, to: url, workspace: workspace)
+            try write(conversation: conversation, to: url, projectDirectory: projectDirectory)
         }
 
         let existing = try FileManager.default.contentsOfDirectory(at: sessionDir, includingPropertiesForKeys: nil)
@@ -147,7 +147,7 @@ final class AgentSessionStore: AgentSessionStoring {
         }
     }
 
-    private func write(conversation: SessionConversationSnapshot, to url: URL, workspace: String) throws {
+    private func write(conversation: SessionConversationSnapshot, to url: URL, projectDirectory: String) throws {
         var lines: [String] = []
 
         let header: [String: Any] = [
@@ -155,7 +155,7 @@ final class AgentSessionStore: AgentSessionStoring {
             "version": 3,
             "id": conversation.id,
             "timestamp": formatter.string(from: conversation.startedAt),
-            "cwd": workspace,
+            "cwd": projectDirectory,
         ]
         lines.append(jsonLine(header))
 
@@ -273,7 +273,7 @@ final class AgentSessionStore: AgentSessionStoring {
         return String(decoding: data, as: UTF8.self)
     }
 
-    private func sessionDirectory(for workspace: String) -> URL {
-        URL(fileURLWithPath: workspace).agentSessionDirectory()
+    private func sessionDirectory(for agentHomeDirectory: String) -> URL {
+        URL(fileURLWithPath: agentHomeDirectory).agentSessionDirectory()
     }
 }

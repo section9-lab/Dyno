@@ -21,7 +21,7 @@ final class OCRCaptureOrchestrator {
     private var outputDirectory: URL
     private var lastOCRText: String?
     private var lastFingerprint: [UInt8]? // 存储上一次的缩略图指纹
-    
+
     private var isRunning = false
     private var isProcessing = false
 
@@ -29,12 +29,12 @@ final class OCRCaptureOrchestrator {
     var onOCRCompleted: ((String, URL) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(workspace: URL) {
-        self.outputDirectory = workspace.appendingPathComponent("ocr-captures", isDirectory: true)
+    init(outputDirectory: URL) {
+        self.outputDirectory = outputDirectory
         // 用户停止滑动 2 秒后即视为开始阅读
         idleWatcher.threshold = 2.0
         idleWatcher.periodicInterval = 60.0
-        idleWatcher.forcedInterval = 600.0 
+        idleWatcher.forcedInterval = 600.0
     }
 
     func start() {
@@ -55,14 +55,15 @@ final class OCRCaptureOrchestrator {
     private func handleIdle() {
         guard !isProcessing else { return }
         isProcessing = true
-        
+
         Task { @MainActor in
             defer { isProcessing = false }
-            
+
             do {
                 onStatusChanged?(.capturing)
-                let image = try await screenCapture.captureScreen()
-                
+                // 后台 OCR 不应在应用启动后隐式触发系统录屏授权弹窗。
+                let image = try await screenCapture.captureScreen(promptIfNeeded: false)
+
                 // --- 视觉指纹检测 ---
                 let currentFingerprint = createFingerprint(from: image)
                 if let last = lastFingerprint, !isDifferent(last, currentFingerprint) {
@@ -119,7 +120,7 @@ final class OCRCaptureOrchestrator {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: [.init(rawValue: "kCGImageSourceShouldCache"): true]) else {
             return []
         }
-        
+
         // 使用 Core Graphics 缩放并提取像素
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let context = CGContext(
@@ -131,14 +132,14 @@ final class OCRCaptureOrchestrator {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )
-        
+
         guard let ctx = context else { return [] }
-        
+
         ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: 32, height: 32))
-        
+
         guard let data = ctx.data else { return [] }
         let pixelData = data.bindMemory(to: UInt8.self, capacity: 32 * 32 * 4)
-        
+
         var pixels = [UInt8]()
         // 采样每个像素的亮度 (R+G+B)/3
         for i in 0..<(32 * 32) {
@@ -149,23 +150,23 @@ final class OCRCaptureOrchestrator {
             let gray = UInt8((Int(red) + Int(green) + Int(blue)) / 3)
             pixels.append(gray)
         }
-        
+
         return pixels
     }
 
     // 比较两个指纹的平均差异
     private func isDifferent(_ old: [UInt8], _ new: [UInt8]) -> Bool {
         guard old.count == new.count, !old.isEmpty else { return true }
-        
+
         var diffCount = 0
         let threshold: Int = 15 // 灰度差异阈值
-        
+
         for i in 0..<old.count {
             if abs(Int(old[i]) - Int(new[i])) > threshold {
                 diffCount += 1
             }
         }
-        
+
         // 如果超过 2% 的像素发生了变化，则认为画面不同
         // 这个比例可以过滤掉光标闪烁或菜单栏时间跳动
         let changeRatio = Double(diffCount) / Double(old.count)
@@ -177,7 +178,7 @@ final class OCRCaptureOrchestrator {
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
-        
+
         let frontmostAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         for window in windowList {
             if let pid = window[kCGWindowOwnerPID as String] as? Int32,
@@ -198,17 +199,17 @@ final class OCRCaptureOrchestrator {
 
         let markdown = """
         # 屏幕捕获记录
-        
+
         - **时间**: \(Date())
         - **应用**: \(appName)
         - **窗口**: \(windowTitle)
-        
+
         ---
-        
+
         ## 识别内容
-        
+
         \(text)
-        
+
         ---
         """
         try markdown.write(to: fileURL, atomically: true, encoding: .utf8)

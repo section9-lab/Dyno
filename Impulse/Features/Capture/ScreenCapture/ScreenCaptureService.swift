@@ -20,8 +20,8 @@ final class ScreenCaptureService: @unchecked Sendable {
 
     private let permissionManager = ScreenCapturePermissionManager.shared
 
-    func captureScreen() async throws -> NSImage {
-        let hasPermission = permissionManager.ensurePermissionForCapture()
+    func captureScreen(promptIfNeeded: Bool = true) async throws -> NSImage {
+        let hasPermission = permissionManager.ensurePermissionForCapture(promptIfNeeded: promptIfNeeded)
 
         guard hasPermission else {
             throw CaptureError.permissionDenied
@@ -58,8 +58,8 @@ final class ScreenCaptureService: @unchecked Sendable {
         }
     }
 
-    func captureScreenToURL(_ url: URL) async throws -> URL {
-        let image = try await captureScreen()
+    func captureScreenToURL(_ url: URL, promptIfNeeded: Bool = true) async throws -> URL {
+        let image = try await captureScreen(promptIfNeeded: promptIfNeeded)
 
         guard let tiffData = image.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiffData),

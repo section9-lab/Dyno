@@ -1,5 +1,5 @@
 import Foundation
-import SwiftAgent
+import SwiftCodingAgent
 
 struct OllamaModel: AgentModel {
     let baseURL: URL
