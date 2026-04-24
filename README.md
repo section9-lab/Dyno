@@ -50,7 +50,7 @@ Impulse uses sandboxed access controls so powerful capabilities stay inside expl
 
 ## System Requirements
 
-- macOS 15.7 or later
+- macOS 14.0 or later
 
 ## Installation
 

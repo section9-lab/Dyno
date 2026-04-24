@@ -2,20 +2,21 @@ name: Impulse
 options:
   bundleIdPrefix: com.section9lab
   deploymentTarget:
-    macOS: "15.7"
+    macOS: "14.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MACOSX_DEPLOYMENT_TARGET: "15.7"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
     CODE_SIGN_STYLE: Automatic
     ENABLE_HARDENED_RUNTIME: YES
 
 packages:
   SwiftCodingAgent:
-    path: ../SwiftCodingAgent
+    url: https://github.com/section9-lab/SwiftCodingAgent
+    branch: main
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: "2.4.0"
