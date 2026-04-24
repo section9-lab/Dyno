@@ -33,14 +33,14 @@ struct ImpulseApp: App {
                     let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
                     let appPath = Bundle.main.bundleURL.path
                     let executablePath = Bundle.main.executableURL?.path ?? "unknown"
-                    let agentHomeDirectory = agent.agentHomeDirectoryURL
+                    let storageDirectory = agent.storageDirectoryURL
 
                     print("🔧 [APP] Bundle ID: \(bundleId)")
                     print("🔧 [APP] App Path: \(appPath)")
                     print("🔧 [APP] Executable Path: \(executablePath)")
-                    print("🔧 [APP] Agent home directory: \(agentHomeDirectory.path)")
+                    print("🔧 [APP] Impulse storage directory: \(storageDirectory.path)")
 
-                    ocrManager.start(agentHomeDirectory: agentHomeDirectory)
+                    ocrManager.start(storageDirectory: storageDirectory)
                 }
         }
         .modelContainer(sharedModelContainer)

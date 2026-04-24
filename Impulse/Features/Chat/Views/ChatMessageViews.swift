@@ -102,35 +102,35 @@ struct ToolExecutionMessageView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(
-                        systemName: execution.status == .success
-                            ? "checkmark.circle.fill" : "xmark.circle.fill"
-                    )
-                    .foregroundColor(execution.status == .success ? .green : .red)
-                    .frame(width: 14)
+            Image(
+              systemName: execution.status == .success
+                ? "checkmark.circle.fill" : "xmark.circle.fill"
+            )
+            .foregroundColor(execution.status == .success ? .green : .red)
+            .frame(width: 14)
 
-                    HStack(spacing: 6) {
-                        Image(systemName: toolIcon(for: execution.toolName))
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        Text(execution.toolName.uppercased())
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(width: 70, alignment: .leading)
+            HStack(spacing: 6) {
+              Image(systemName: messageToolIcon(for: execution.toolName))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+              Text(execution.toolName.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+            }
+            .frame(width: 70, alignment: .leading)
 
-                    Text(execution.summary)
-                        .font(
-                            .system(
-                                size: 11,
-                                design: execution.toolName == "bash" ? .monospaced : .default)
-                        )
-                        .textSelection(.enabled)
+            Text(execution.summary)
+              .font(
+                .system(
+                  size: 11,
+                  design: execution.toolName == "bash" ? .monospaced : .default)
+              )
+              .textSelection(.enabled)
 
-                    Spacer()
-                }
+            Spacer()
+          }
 
-                if execution.toolName == "bash" {
+          if execution.toolName == "bash" {
                     DisclosureGroup(isExpanded: $showFullOutput) {
                         ScrollView {
                             Text(execution.output.isEmpty ? "(无输出)" : execution.output)
@@ -170,15 +170,15 @@ struct ToolExecutionMessageView: View {
         .padding(.horizontal, 16)
     }
 
-    private func toolIcon(for name: String) -> String {
-        switch name {
-        case "read": return "doc.text"
-        case "write": return "square.and.pencil"
-        case "edit": return "pencil.and.scribble"
-        case "bash": return "terminal"
-        default: return "wrench.and.screwdriver"
-        }
+  private func messageToolIcon(for name: String) -> String {
+    switch name {
+    case "read": return "doc.text"
+    case "write": return "square.and.pencil"
+    case "edit": return "pencil.and.scribble"
+    case "bash": return "terminal"
+    default: return "wrench.and.screwdriver"
     }
+  }
 }
 
 struct PersistedToolExecutionMessageView: View {
@@ -196,35 +196,35 @@ struct PersistedToolExecutionMessageView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(
-                        systemName: execution.status == "success"
-                            ? "checkmark.circle.fill" : "xmark.circle.fill"
-                    )
-                    .foregroundColor(execution.status == "success" ? .green : .red)
-                    .frame(width: 14)
+            Image(
+              systemName: execution.status == "success"
+                ? "checkmark.circle.fill" : "xmark.circle.fill"
+            )
+            .foregroundColor(execution.status == "success" ? .green : .red)
+            .frame(width: 14)
 
-                    HStack(spacing: 6) {
-                        Image(systemName: toolIcon(for: execution.toolName))
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        Text(execution.toolName.uppercased())
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(width: 70, alignment: .leading)
+            HStack(spacing: 6) {
+              Image(systemName: persistedToolIcon(for: execution.toolName))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+              Text(execution.toolName.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+            }
+            .frame(width: 70, alignment: .leading)
 
-                    Text(execution.summary)
-                        .font(
-                            .system(
-                                size: 11,
-                                design: execution.toolName == "bash" ? .monospaced : .default)
-                        )
-                        .textSelection(.enabled)
+            Text(execution.summary)
+              .font(
+                .system(
+                  size: 11,
+                  design: execution.toolName == "bash" ? .monospaced : .default)
+              )
+              .textSelection(.enabled)
 
-                    Spacer()
-                }
+            Spacer()
+          }
 
-                if execution.toolName == "bash" {
+          if execution.toolName == "bash" {
                     DisclosureGroup(isExpanded: $showFullOutput) {
                         ScrollView {
                             Text(execution.output.isEmpty ? "(无输出)" : execution.output)
@@ -264,13 +264,13 @@ struct PersistedToolExecutionMessageView: View {
         .padding(.horizontal, 16)
     }
 
-    private func toolIcon(for name: String) -> String {
-        switch name {
-        case "read": return "doc.text"
-        case "write": return "square.and.pencil"
-        case "edit": return "pencil.and.scribble"
-        case "bash": return "terminal"
-        default: return "wrench.and.screwdriver"
-        }
+  private func persistedToolIcon(for name: String) -> String {
+    switch name {
+    case "read": return "doc.text"
+    case "write": return "square.and.pencil"
+    case "edit": return "pencil.and.scribble"
+    case "bash": return "terminal"
+    default: return "wrench.and.screwdriver"
     }
+  }
 }

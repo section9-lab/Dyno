@@ -5,13 +5,6 @@ import SwiftCodingAgent
 
 @MainActor
 final class AgentManager: ObservableObject {
-    enum ProjectDirectoryCheckStatus {
-        case idle
-        case info
-        case success
-        case failure
-    }
-
     static let shared = AgentManager()
 
     @Published var isResponding: Bool = false
@@ -20,44 +13,35 @@ final class AgentManager: ObservableObject {
     @Published var config: AgentServiceConfig
     @Published var latestToolExecutions: [AgentToolExecution] = []
     @Published var latestCompactionSummary: String?
-    @Published var projectDirectoryCheckMessage: String = ""
-    @Published var projectDirectoryCheckStatus: ProjectDirectoryCheckStatus = .idle
 
     let registry = ModelRegistry.shared
 
-    var agentHomeDirectoryURL: URL {
-        URL(fileURLWithPath: resolvedAgentHomeDirectoryPath)
+    static var storageDirectoryURL: URL {
+        URL(fileURLWithPath: AgentServiceConfig.defaultStorageDirectoryPath)
     }
 
-    var projectDirectoryURL: URL? {
-        let path = resolvedProjectDirectoryPath
+    var storageDirectoryURL: URL {
+        Self.storageDirectoryURL
+    }
+
+    @Published private(set) var activeProjectPath: String?
+
+    var activeProjectDirectoryURL: URL? {
+        let path = resolvedActiveProjectPath
         guard !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path)
     }
 
     var executionWorkingDirectoryURL: URL {
-        projectDirectoryURL ?? Self.defaultExecutionWorkspaceURL
+        activeProjectDirectoryURL ?? Self.defaultExecutionWorkspaceURL
     }
 
-    private var resolvedAgentHomeDirectoryPath: String {
-        Self.resolvedAgentHomeDirectoryPath(for: config)
-    }
-
-    private var resolvedProjectDirectoryPath: String {
-        Self.resolvedProjectDirectoryPath(for: config)
+    private var resolvedActiveProjectPath: String {
+        activeProjectPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private static var defaultExecutionWorkspaceURL: URL {
         URL(fileURLWithPath: AgentServiceConfig.defaultExecutionWorkspacePath)
-    }
-
-    private static func resolvedAgentHomeDirectoryPath(for config: AgentServiceConfig) -> String {
-        let path = config.agentHomeDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
-        return path.isEmpty ? AgentServiceConfig.defaultAgentHomeDirectoryPath : path
-    }
-
-    private static func resolvedProjectDirectoryPath(for config: AgentServiceConfig) -> String {
-        config.projectDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static let configStorageKey = "agent.service.config.v3"
@@ -65,12 +49,11 @@ final class AgentManager: ObservableObject {
     private var sdk: AgentSDK
     private let sandboxAccess = SandboxAccessManager.shared
     private let sessionStore: AgentSessionStoring = AgentSessionStore()
-    private var migratedLegacyAgentDataKeys: Set<String> = []
 
     private init() {
         let initialConfig = Self.loadConfig() ?? Self.defaultConfigFromEnvironment()
         self.config = initialConfig
-        self.sdk = Self.makeSDK(config: initialConfig)
+        self.sdk = Self.makeSDK(config: initialConfig, activeProjectPath: nil)
 
         registry.setApiKey(initialConfig.apiKey, for: initialConfig.providerId)
 
@@ -86,8 +69,6 @@ final class AgentManager: ObservableObject {
         config = newConfig
         latestToolExecutions = []
         latestCompactionSummary = nil
-        projectDirectoryCheckMessage = ""
-        projectDirectoryCheckStatus = .idle
 
         registry.setApiKey(newConfig.apiKey, for: newConfig.providerId)
 
@@ -100,51 +81,26 @@ final class AgentManager: ObservableObject {
         _ = sandboxAccess.authorizedRoots.count
         latestCompactionSummary = nil
         bootstrapAgentDirectory()
-        migrateLegacyAgentDataIfNeeded()
-        sdk = Self.makeSDK(config: config)
+        sdk = Self.makeSDK(config: config, activeProjectPath: activeProjectPath)
+    }
+
+    func setActiveProjectPath(_ path: String?) {
+        let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPath = (trimmed?.isEmpty == false) ? trimmed : nil
+        guard activeProjectPath != normalizedPath else { return }
+        activeProjectPath = normalizedPath
+        refreshRuntimeContext()
     }
 
     private func bootstrapAgentDirectory() {
-        let agentHomeDirectoryURL = agentHomeDirectoryURL
-        let sessionDir = agentHomeDirectoryURL.agentSessionDirectory()
-        let skillsDir = agentHomeDirectoryURL.agentSkillsDirectory()
-        let memoryDir = agentHomeDirectoryURL.agentMemoryDirectory()
+        let storageDirectoryURL = storageDirectoryURL
+        let sessionDir = storageDirectoryURL.agentSessionDirectory()
+        let skillsDir = storageDirectoryURL.agentSkillsDirectory()
+        let memoryDir = storageDirectoryURL.agentMemoryDirectory()
+        let rawMemoryDir = memoryDir.appendingPathComponent("raw", isDirectory: true)
 
-        for dir in [agentHomeDirectoryURL, sessionDir, skillsDir, memoryDir, Self.defaultExecutionWorkspaceURL] {
+        for dir in [storageDirectoryURL, sessionDir, skillsDir, memoryDir, rawMemoryDir, Self.defaultExecutionWorkspaceURL] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-    }
-
-    private func migrateLegacyAgentDataIfNeeded() {
-        guard let projectDirectoryURL else { return }
-
-        let legacyAgentDirectory = projectDirectoryURL.appendingPathComponent(".agent", isDirectory: true)
-        let targetAgentDirectory = agentHomeDirectoryURL
-        guard legacyAgentDirectory.standardizedFileURL.path != targetAgentDirectory.standardizedFileURL.path else { return }
-
-        let migrationKey = [legacyAgentDirectory.standardizedFileURL.path, targetAgentDirectory.standardizedFileURL.path].joined(separator: "->")
-        guard !migratedLegacyAgentDataKeys.contains(migrationKey) else { return }
-        migratedLegacyAgentDataKeys.insert(migrationKey)
-
-        copyDirectoryContentsIfNeeded(from: legacyAgentDirectory.appendingPathComponent("session", isDirectory: true), to: targetAgentDirectory.agentSessionDirectory())
-        copyDirectoryContentsIfNeeded(from: legacyAgentDirectory.appendingPathComponent("skills", isDirectory: true), to: targetAgentDirectory.agentSkillsDirectory())
-    }
-
-    private func copyDirectoryContentsIfNeeded(from source: URL, to destination: URL) {
-        guard FileManager.default.fileExists(atPath: source.path) else { return }
-        let existing = (try? FileManager.default.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
-        guard existing.isEmpty else { return }
-
-        do {
-            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-            let items = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil, options: [])
-            for item in items {
-                let target = destination.appendingPathComponent(item.lastPathComponent, isDirectory: false)
-                guard !FileManager.default.fileExists(atPath: target.path) else { continue }
-                try FileManager.default.copyItem(at: item, to: target)
-            }
-        } catch {
-            print("Failed to import legacy agent data from \(source.path): \(error)")
         }
     }
 
@@ -199,54 +155,23 @@ final class AgentManager: ObservableObject {
             : "⚠️ 已连接（\(liveModels.count) 个模型），但未发现 \(config.modelId)"
     }
 
-    // MARK: - Project Directory
+    // MARK: - Project/session persistence
 
-    func verifyProjectDirectoryAccess() async {
-        guard let projectDirectoryURL else {
-            projectDirectoryCheckStatus = .info
-            projectDirectoryCheckMessage = "ℹ️ 未设置项目目录；执行时将使用默认工作目录。"
-            return
-        }
-
-        let probeDir = projectDirectoryURL.appendingPathComponent(".impulse_project_probe", isDirectory: true)
-        let probeFile = probeDir.appendingPathComponent("probe.txt")
-
-        do {
-            try FileManager.default.createDirectory(at: probeDir, withIntermediateDirectories: true)
-            let content = "probe at \(Date())"
-            try content.write(to: probeFile, atomically: true, encoding: .utf8)
-            _ = try String(contentsOf: probeFile, encoding: .utf8)
-            try? FileManager.default.removeItem(at: probeFile)
-            try? FileManager.default.removeItem(at: probeDir)
-            projectDirectoryCheckStatus = .success
-            projectDirectoryCheckMessage = "✅ 项目目录可读写：\(projectDirectoryURL.path)"
-        } catch {
-            projectDirectoryCheckStatus = .failure
-            projectDirectoryCheckMessage = mapToUserFriendlySandboxMessage(error.localizedDescription)
-        }
+    func loadPersistedProjects() -> [ProjectSnapshot] {
+        (try? sessionStore.loadProjects(storageDirectory: storageDirectoryURL.path)) ?? []
     }
 
-    // MARK: - Agent session persistence
-
-    func loadPersistedConversations() -> [SessionConversationSnapshot] {
-        (try? sessionStore.load(agentHomeDirectory: resolvedAgentHomeDirectoryPath)) ?? []
-    }
-
-    func persistConversations(_ conversations: [SessionConversationSnapshot]) {
+    func persistProjects(_ projects: [ProjectSnapshot]) {
         do {
-            try sessionStore.save(
-                conversations: conversations,
-                agentHomeDirectory: resolvedAgentHomeDirectoryPath,
-                projectDirectory: executionWorkingDirectoryURL.path
-            )
+            try sessionStore.saveProjects(projects, storageDirectory: storageDirectoryURL.path)
         } catch {
-            print("Failed to persist session snapshots: \(error)")
+            print("Failed to persist project snapshots: \(error)")
         }
     }
 
     // MARK: - Agent execution
 
-    func chat(prompt: String, contextPrelude: String? = nil) async throws -> String {
+    func sendChat(prompt: String, contextPrelude: String? = nil) async throws -> String {
         isResponding = true
         latestToolExecutions = []
         latestCompactionSummary = nil
@@ -410,13 +335,13 @@ final class AgentManager: ObservableObject {
         return latestCompactionSummary
     }
 
-    private static func makeSDK(config: AgentServiceConfig) -> AgentSDK {
+    private static func makeSDK(config: AgentServiceConfig, activeProjectPath: String?) -> AgentSDK {
         let baseURL = URL(string: config.baseURL) ?? URL(string: "http://127.0.0.1:11434/v1")!
-        let agentHomeDirectoryURL = URL(fileURLWithPath: resolvedAgentHomeDirectoryPath(for: config))
-        let projectDirectoryPath = resolvedProjectDirectoryPath(for: config)
-        let workingDirectoryURL = projectDirectoryPath.isEmpty
+        let storageDirectoryURL = Self.storageDirectoryURL
+        let resolvedProjectPath = activeProjectPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let workingDirectoryURL = resolvedProjectPath.isEmpty
             ? defaultExecutionWorkspaceURL
-            : URL(fileURLWithPath: projectDirectoryPath)
+            : URL(fileURLWithPath: resolvedProjectPath)
 
         let sandboxRoots = SandboxAccessManager.shared.authorizedRoots
         var allowedRoots = [workingDirectoryURL]
@@ -428,7 +353,7 @@ final class AgentManager: ObservableObject {
         if let bundledSkills = Bundle.main.resourceURL?.appendingPathComponent("skills", isDirectory: true) {
             skillsDirs.append(bundledSkills)
         }
-        skillsDirs.append(agentHomeDirectoryURL.agentSkillsDirectory())
+        skillsDirs.append(storageDirectoryURL.agentSkillsDirectory())
 
         let allTools: [any AgentTool] = []
         let fileToolPolicy = ToolExecutionPolicy(
@@ -504,24 +429,13 @@ Think step by step. If you're unsure, read more files or ask the user.
             ?? ProcessInfo.processInfo.environment["OLLAMA_MODEL"]
             ?? ""
         let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
-        let agentHomeDirectory =
-            ProcessInfo.processInfo.environment["AGENT_HOME_DIRECTORY"]
-            ?? AgentServiceConfig.defaultAgentHomeDirectoryPath
-        let projectDirectory =
-            ProcessInfo.processInfo.environment["AGENT_PROJECT_DIRECTORY"]
-            ?? ProcessInfo.processInfo.environment["AGENT_SANDBOX_DIRECTORY"]
-            ?? ProcessInfo.processInfo.environment["AGENT_WORKSPACE"]
-            ?? ProcessInfo.processInfo.environment["AGENT_WORKDIR"]
-            ?? ""
 
         let providerId = base.contains("11434") ? "ollama" : "custom"
         return AgentServiceConfig(
             providerId: providerId,
             baseURL: base,
             apiKey: key,
-            modelId: model,
-            agentHomeDirectory: agentHomeDirectory,
-            projectDirectory: projectDirectory
+            modelId: model
         )
     }
 

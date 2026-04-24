@@ -3,7 +3,10 @@ import SwiftUI
 
 struct InputBar: View {
     @Binding var inputText: String
+    let projects: [ChatProject]
+    let selectedProjectPath: String?
     let isResponding: Bool
+    var onSelectProject: (ChatProject) -> Void
     var onSend: () -> Void
 
     @StateObject private var speechManager = SpeechRecognitionManager()
@@ -12,6 +15,15 @@ struct InputBar: View {
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isResponding
+    }
+
+    private var selectedProjectName: String {
+        guard let selectedProjectPath,
+              let selectedProject = projects.first(where: { $0.path == selectedProjectPath })
+        else {
+            return "Project"
+        }
+        return selectedProject.name
     }
 
     var body: some View {
@@ -66,6 +78,10 @@ struct InputBar: View {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(Color.black.opacity(0.04), lineWidth: 0.5)
             )
+            .zIndex(1)
+
+            projectSelectorTray
+                .padding(.top, -14)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 12)
@@ -78,6 +94,58 @@ struct InputBar: View {
         .onDisappear {
             removeOptionKeyMonitor()
         }
+    }
+
+    private var projectSelectorTray: some View {
+        HStack(spacing: 20) {
+            Menu {
+                ForEach(projects) { project in
+                    Button {
+                        onSelectProject(project)
+                    } label: {
+                        if project.path == selectedProjectPath {
+                            Label(project.name, systemImage: "checkmark")
+                        } else {
+                            Text(project.name)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder")
+                    Text(selectedProjectName)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+            }
+            .menuStyle(.borderlessButton)
+
+            HStack(spacing: 6) {
+                Image(systemName: "laptopcomputer")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+
+            Image(systemName: "point.3.connected.trianglepath.dotted")
+
+            Spacer()
+        }
+        .font(.system(size: 18, weight: .regular))
+        .foregroundColor(Color.gray.opacity(0.9))
+        .padding(.horizontal, 28)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .background(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 24,
+                bottomTrailingRadius: 24,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+            .fill(Color(red: 0.86, green: 0.86, blue: 0.87))
+        )
     }
 
     // MARK: - Mic Button

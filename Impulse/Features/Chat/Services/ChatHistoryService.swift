@@ -1,146 +1,334 @@
 import Foundation
 import SwiftData
 
-/// 业务层：负责聊天记录的会话划分、重命名/删除规则，以及与 session 快照之间的转换。
-///
-/// 说明：
-/// - 不依赖 AgentSDK
-/// - 不处理模型调用
-/// - 仅处理 Item（业务消息）与会话语义
 struct ChatHistoryService {
-    func buildConversations(from items: [Item]) -> [ConversationThread] {
-        let sorted = items
+    private let supportedKinds: Set<String> = ["user_message", "assistant_message", "tool_execution", "compaction_summary"]
+
+    func buildProjects(from items: [Item], persistedProjects: [ProjectSnapshot]) -> [ChatProject] {
+        let sortedItems = items
             .filter { supportedKinds.contains($0.kind) }
             .sorted { $0.timestamp < $1.timestamp }
 
-        var grouped: [String: [Item]] = [:]
-        var orderedIDs: [String] = []
-        var legacyIndex = 0
-        var currentLegacyID: String?
-
-        for message in sorted {
-            let conversationID: String
-            if !message.conversationID.isEmpty {
-                conversationID = message.conversationID
-                currentLegacyID = nil
-            } else {
-                if message.isUser || currentLegacyID == nil {
-                    currentLegacyID = "legacy-\(legacyIndex)"
-                    legacyIndex += 1
-                }
-                conversationID = currentLegacyID ?? "legacy-\(legacyIndex)"
-            }
-
-            if grouped[conversationID] == nil {
-                grouped[conversationID] = []
-                orderedIDs.append(conversationID)
-            }
-            grouped[conversationID, default: []].append(message)
+        var groupedByProject: [String: [String: [Item]]] = [:]
+        for item in sortedItems {
+            guard !item.projectPath.isEmpty, !item.conversationID.isEmpty else { continue }
+            groupedByProject[item.projectPath, default: [:]][item.conversationID, default: []].append(item)
         }
 
-        return orderedIDs.compactMap { conversationID in
-            guard let messages = grouped[conversationID], !messages.isEmpty else { return nil }
-            let orderedMessages = messages.sorted { $0.timestamp < $1.timestamp }
-            guard let first = orderedMessages.first else { return nil }
+        let persistedByPath = Dictionary(uniqueKeysWithValues: persistedProjects.map { ($0.path, $0) })
+        let orderedPaths = Array(Set(persistedProjects.map(\.path)).union(groupedByProject.keys)).sorted { lhs, rhs in
+            let lhsDate = persistedByPath[lhs]?.addedAt ?? groupedByProject[lhs]?.values.flatMap { $0 }.map(\.timestamp).min() ?? .distantPast
+            let rhsDate = persistedByPath[rhs]?.addedAt ?? groupedByProject[rhs]?.values.flatMap { $0 }.map(\.timestamp).min() ?? .distantPast
+            return lhsDate > rhsDate
+        }
 
-            let firstUser = orderedMessages.first(where: { $0.isUser })
-            let titleSource = firstUser?.content ?? first.content
-            let title = normalizedTitle(from: titleSource)
+        return orderedPaths.map { projectPath in
+            let persisted = persistedByPath[projectPath]
+            let groupedSessions = groupedByProject[projectPath] ?? [:]
+            let sessionIDs = Array(Set((persisted?.sessions.map(\.id) ?? []) + groupedSessions.keys))
 
-            return ConversationThread(
-                id: conversationID,
-                title: title,
-                startedAt: first.timestamp,
-                messages: orderedMessages
+            let sessions = sessionIDs.compactMap { sessionID -> ChatSession? in
+                let messages = (groupedSessions[sessionID] ?? []).sorted { $0.timestamp < $1.timestamp }
+                let snapshot = persisted?.sessions.first(where: { $0.id == sessionID })
+
+                if let snapshot {
+                    return ChatSession(
+                        id: snapshot.id,
+                        projectPath: projectPath,
+                        title: normalizedTitle(from: snapshot.title),
+                        startedAt: snapshot.startedAt,
+                        messages: messages
+                    )
+                }
+
+                guard let first = messages.first else { return nil }
+                let titleSource = messages.first(where: { $0.isUser })?.content ?? first.content
+                return ChatSession(
+                    id: sessionID,
+                    projectPath: projectPath,
+                    title: normalizedTitle(from: titleSource),
+                    startedAt: first.timestamp,
+                    messages: messages
+                )
+            }
+            .sorted { $0.startedAt > $1.startedAt }
+
+            return ChatProject(
+                id: projectPath,
+                path: projectPath,
+                name: URL(fileURLWithPath: projectPath).lastPathComponent.isEmpty ? projectPath : URL(fileURLWithPath: projectPath).lastPathComponent,
+                sessions: sessions,
+                kanbanTasks: persisted?.kanbanTasks ?? []
             )
         }
     }
 
-    func sortByRecency(_ conversations: [ConversationThread]) -> [ConversationThread] {
-        conversations.sorted { $0.startedAt > $1.startedAt }
+    func selectedProject(selectedPath: String?, projects: [ChatProject]) -> ChatProject? {
+        guard let selectedPath else { return nil }
+        return projects.first(where: { $0.path == selectedPath })
     }
 
-    func selectedConversation(
-        selectedID: String?,
-        conversations: [ConversationThread]
-    ) -> ConversationThread? {
-        guard let selectedID else { return nil }
-        return conversations.first(where: { $0.id == selectedID })
+    func selectedSession(
+        selectedProjectPath: String?,
+        selectedSessionID: String?,
+        projects: [ChatProject]
+    ) -> ChatSession? {
+        guard let project = selectedProject(selectedPath: selectedProjectPath, projects: projects),
+              let selectedSessionID
+        else {
+            return nil
+        }
+        return project.sessions.first(where: { $0.id == selectedSessionID })
     }
 
-    func displayedItems(selectedID: String?, conversations: [ConversationThread]) -> [Item] {
-        selectedConversation(selectedID: selectedID, conversations: conversations)?.messages ?? []
+    func displayedItems(
+        selectedProjectPath: String?,
+        selectedSessionID: String?,
+        projects: [ChatProject]
+    ) -> [Item] {
+        selectedSession(
+            selectedProjectPath: selectedProjectPath,
+            selectedSessionID: selectedSessionID,
+            projects: projects
+        )?.messages ?? []
+    }
+
+    func addProject(path: String, existingProjects: [ProjectSnapshot]) -> [ProjectSnapshot] {
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return existingProjects }
+        guard !existingProjects.contains(where: { $0.path == path }) else { return existingProjects }
+
+        var projects = existingProjects
+        projects.append(ProjectSnapshot(id: projectKey(for: path), path: path, addedAt: Date(), sessions: [], kanbanTasks: []))
+        return projects.sorted { $0.addedAt > $1.addedAt }
+    }
+
+    func removeProject(path: String, persistedProjects: [ProjectSnapshot], modelContext: ModelContext) -> [ProjectSnapshot] {
+        let messages = try? modelContext.fetch(FetchDescriptor<Item>())
+        messages?.filter { $0.projectPath == path }.forEach(modelContext.delete)
+        return persistedProjects.filter { $0.path != path }
+    }
+
+    func createSession(in projectPath: String, persistedProjects: [ProjectSnapshot]) -> (projects: [ProjectSnapshot], sessionID: String)? {
+        guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }) else { return nil }
+
+        var updatedProjects = persistedProjects
+        let sessionID = UUID().uuidString
+        let session = ProjectSessionSnapshot(
+            id: sessionID,
+            projectPath: projectPath,
+            title: "New Session",
+            startedAt: Date(),
+            messages: []
+        )
+        var project = updatedProjects[projectIndex]
+        project = ProjectSnapshot(
+            id: project.id,
+            path: project.path,
+            addedAt: project.addedAt,
+            sessions: [session] + project.sessions,
+            kanbanTasks: project.kanbanTasks
+        )
+        updatedProjects[projectIndex] = project
+        return (updatedProjects, sessionID)
     }
 
     @discardableResult
-    func renameConversation(
-        id: String,
+    func renameSession(
+        projectPath: String,
+        sessionID: String,
         newTitle: String,
-        conversations: [ConversationThread]
+        items: [Item],
+        persistedProjects: inout [ProjectSnapshot]
     ) -> Bool {
         let normalized = normalizedTitle(from: newTitle)
-        guard normalized != "(empty)",
-              let conversation = conversations.first(where: { $0.id == id })
+        guard normalized != "(empty)" else { return false }
+
+        if let firstUser = items
+            .filter({ $0.projectPath == projectPath && $0.conversationID == sessionID && $0.isUser })
+            .sorted(by: { $0.timestamp < $1.timestamp })
+            .first
+        {
+            firstUser.content = normalized
+        }
+
+        guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }),
+              let sessionIndex = persistedProjects[projectIndex].sessions.firstIndex(where: { $0.id == sessionID })
         else {
             return false
         }
 
-        if let firstUser = conversation.messages.first(where: { $0.isUser }) {
-            firstUser.content = normalized
-            return true
-        }
-
-        if let first = conversation.messages.first {
-            first.content = normalized
-            return true
-        }
-
-        return false
+        var project = persistedProjects[projectIndex]
+        var session = project.sessions[sessionIndex]
+        session = ProjectSessionSnapshot(
+            id: session.id,
+            projectPath: session.projectPath,
+            title: normalized,
+            startedAt: session.startedAt,
+            messages: session.messages
+        )
+        var sessions = project.sessions
+        sessions[sessionIndex] = session
+        project = ProjectSnapshot(
+            id: project.id,
+            path: project.path,
+            addedAt: project.addedAt,
+            sessions: sessions,
+            kanbanTasks: project.kanbanTasks
+        )
+        persistedProjects[projectIndex] = project
+        return true
     }
 
-    func deleteConversation(_ conversation: ConversationThread, from modelContext: ModelContext) {
-        for message in conversation.messages {
-            modelContext.delete(message)
-        }
-    }
+    func deleteSession(
+        projectPath: String,
+        sessionID: String,
+        persistedProjects: inout [ProjectSnapshot],
+        modelContext: ModelContext
+    ) {
+        let messages = try? modelContext.fetch(FetchDescriptor<Item>())
+        messages?.filter { $0.projectPath == projectPath && $0.conversationID == sessionID }.forEach(modelContext.delete)
 
-    func makeSessionSnapshots(from conversations: [ConversationThread]) -> [SessionConversationSnapshot] {
-        conversations.map { conversation in
-            SessionConversationSnapshot(
-                id: conversation.id,
-                title: conversation.title,
-                startedAt: conversation.startedAt,
-                messages: conversation.messages
-                    .filter { supportedKinds.contains($0.kind) }
-                    .map { message in
-                        SessionMessageSnapshot(
-                            role: message.isUser ? "user" : "assistant",
-                            content: message.content,
-                            timestamp: message.timestamp,
-                            kind: message.kind
-                        )
-                    }
+        guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }) else { return }
+        let project = persistedProjects[projectIndex]
+        let sessions = project.sessions.filter { $0.id != sessionID }
+        let filteredTasks = project.kanbanTasks.map { task in
+            let linked = task.linkedSessionIDs.filter { $0 != sessionID }
+            let primary = task.primarySessionID == sessionID ? linked.first : task.primarySessionID
+            return KanbanTaskSnapshot(
+                id: task.id,
+                projectPath: task.projectPath,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                primarySessionID: primary,
+                linkedSessionIDs: linked,
+                assigneeName: task.assigneeName,
+                notes: task.notes,
+                createdAt: task.createdAt,
+                updatedAt: task.updatedAt
             )
         }
+        persistedProjects[projectIndex] = ProjectSnapshot(
+            id: project.id,
+            path: project.path,
+            addedAt: project.addedAt,
+            sessions: sessions,
+            kanbanTasks: filteredTasks
+        )
     }
 
-    func restoreSnapshots(_ snapshots: [SessionConversationSnapshot], into modelContext: ModelContext) {
-        for snapshot in snapshots.reversed() {
-            for message in snapshot.messages where supportedKinds.contains(message.kind) {
-                modelContext.insert(
-                    Item(
-                        timestamp: message.timestamp,
-                        content: message.content,
-                        isUser: message.role == "user",
-                        kind: message.kind,
-                        conversationID: snapshot.id
-                    )
+    func updateSessionSnapshot(
+        projectPath: String,
+        sessionID: String,
+        items: [Item],
+        persistedProjects: inout [ProjectSnapshot]
+    ) {
+        guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }) else { return }
+
+        let messages = items
+            .filter { $0.projectPath == projectPath && $0.conversationID == sessionID && supportedKinds.contains($0.kind) }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        guard let first = messages.first else { return }
+        let titleSource = messages.first(where: { $0.isUser })?.content ?? first.content
+        let snapshot = ProjectSessionSnapshot(
+            id: sessionID,
+            projectPath: projectPath,
+            title: normalizedTitle(from: titleSource),
+            startedAt: first.timestamp,
+            messages: messages.map { message in
+                SessionMessageSnapshot(
+                    role: message.isUser ? "user" : "assistant",
+                    content: message.content,
+                    timestamp: message.timestamp,
+                    kind: message.kind
                 )
+            }
+        )
+
+        var project = persistedProjects[projectIndex]
+        var sessions = project.sessions.filter { $0.id != sessionID }
+        sessions.insert(snapshot, at: 0)
+        sessions.sort { $0.startedAt > $1.startedAt }
+        persistedProjects[projectIndex] = ProjectSnapshot(
+            id: project.id,
+            path: project.path,
+            addedAt: project.addedAt,
+            sessions: sessions,
+            kanbanTasks: project.kanbanTasks
+        )
+    }
+
+    func kanbanTasks(for projectPath: String, persistedProjects: [ProjectSnapshot]) -> [KanbanTaskSnapshot] {
+        persistedProjects.first(where: { $0.path == projectPath })?.kanbanTasks ?? []
+    }
+
+    func upsertKanbanTask(
+        _ task: KanbanTaskSnapshot,
+        persistedProjects: inout [ProjectSnapshot]
+    ) {
+        guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == task.projectPath }) else { return }
+        var project = persistedProjects[projectIndex]
+        var tasks = project.kanbanTasks.filter { $0.id != task.id }
+        tasks.append(task)
+        tasks.sort { lhs, rhs in
+            if lhs.status != rhs.status {
+                return lhs.status.rawValue < rhs.status.rawValue
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        persistedProjects[projectIndex] = ProjectSnapshot(
+            id: project.id,
+            path: project.path,
+            addedAt: project.addedAt,
+            sessions: project.sessions,
+            kanbanTasks: tasks
+        )
+    }
+
+    func deleteKanbanTask(
+        id: String,
+        projectPath: String,
+        persistedProjects: inout [ProjectSnapshot]
+    ) {
+        guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }) else { return }
+        var project = persistedProjects[projectIndex]
+        let tasks = project.kanbanTasks.filter { $0.id != id }
+        persistedProjects[projectIndex] = ProjectSnapshot(
+            id: project.id,
+            path: project.path,
+            addedAt: project.addedAt,
+            sessions: project.sessions,
+            kanbanTasks: tasks
+        )
+    }
+
+    func restoreSnapshots(_ projects: [ProjectSnapshot], into modelContext: ModelContext) {
+        for project in projects.reversed() {
+            for session in project.sessions.reversed() {
+                for message in session.messages where supportedKinds.contains(message.kind) {
+                    modelContext.insert(
+                        Item(
+                            timestamp: message.timestamp,
+                            content: message.content,
+                            isUser: message.role == "user",
+                            kind: message.kind,
+                            conversationID: session.id,
+                            projectPath: project.path
+                        )
+                    )
+                }
             }
         }
     }
 
-    private let supportedKinds: Set<String> = ["user_message", "assistant_message", "tool_execution", "compaction_summary"]
+    func projectKey(for path: String) -> String {
+        let data = Data(path.utf8)
+        let encoded = data.base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+        return encoded
+    }
 
     private func normalizedTitle(from raw: String) -> String {
         let singleLine = raw

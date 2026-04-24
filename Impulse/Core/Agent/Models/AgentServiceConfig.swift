@@ -5,31 +5,26 @@ struct AgentServiceConfig: Codable, Equatable {
     var baseURL: String
     var apiKey: String
     var modelId: String
-    var agentHomeDirectory: String
-    var projectDirectory: String
 
-    private static var defaultAppSupportDirectory: URL {
+    static var defaultAppSupportDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
     }
 
-    static var defaultAgentHomeDirectoryPath: String {
+    static var defaultStorageDirectoryPath: String {
         defaultAppSupportDirectory
             .appendingPathComponent("Impulse", isDirectory: true)
-            .appendingPathComponent(".agent", isDirectory: true)
             .path
     }
 
     static var defaultExecutionWorkspacePath: String {
-        defaultAppSupportDirectory
-            .appendingPathComponent("Impulse", isDirectory: true)
+        URL(fileURLWithPath: defaultStorageDirectoryPath)
             .appendingPathComponent("workspace", isDirectory: true)
             .path
     }
 
     enum CodingKeys: String, CodingKey {
         case providerId, baseURL, apiKey, modelId
-        case agentHomeDirectory, projectDirectory
         case sandboxDirectory, workspace
         case modelName, workdir, preset
     }
@@ -38,16 +33,12 @@ struct AgentServiceConfig: Codable, Equatable {
         providerId: String,
         baseURL: String,
         apiKey: String,
-        modelId: String,
-        agentHomeDirectory: String = Self.defaultAgentHomeDirectoryPath,
-        projectDirectory: String = ""
+        modelId: String
     ) {
         self.providerId = providerId
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.modelId = modelId
-        self.agentHomeDirectory = agentHomeDirectory
-        self.projectDirectory = projectDirectory
     }
 
     init(from decoder: Decoder) throws {
@@ -60,19 +51,6 @@ struct AgentServiceConfig: Codable, Equatable {
         modelId = (try? container.decode(String.self, forKey: .modelId))
             ?? (try? container.decode(String.self, forKey: .modelName))
             ?? ""
-
-        let legacyProjectDirectory =
-            (try? container.decode(String.self, forKey: .sandboxDirectory))
-            ?? (try? container.decode(String.self, forKey: .workspace))
-            ?? (try? container.decode(String.self, forKey: .workdir))
-            ?? ""
-
-        agentHomeDirectory =
-            (try? container.decode(String.self, forKey: .agentHomeDirectory))
-            ?? Self.defaultAgentHomeDirectoryPath
-        projectDirectory =
-            (try? container.decode(String.self, forKey: .projectDirectory))
-            ?? legacyProjectDirectory
     }
 
     func encode(to encoder: Encoder) throws {
@@ -81,7 +59,5 @@ struct AgentServiceConfig: Codable, Equatable {
         try container.encode(baseURL, forKey: .baseURL)
         try container.encode(apiKey, forKey: .apiKey)
         try container.encode(modelId, forKey: .modelId)
-        try container.encode(agentHomeDirectory, forKey: .agentHomeDirectory)
-        try container.encode(projectDirectory, forKey: .projectDirectory)
     }
 }

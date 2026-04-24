@@ -45,7 +45,8 @@ Impulse uses sandboxed access controls so powerful capabilities stay inside expl
 ## Preview
 
 <p align="center">
-    Comming Soon
+  <img src="public/ScreenShot_2026-04-24_203439_220.png" alt="Impulse project and session sidebar" width="48%">
+  <img src="public/ScreenShot_2026-04-24_203446_411.png" alt="Impulse chat workspace" width="48%">
 </p>
 
 ## System Requirements

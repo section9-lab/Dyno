@@ -1,5 +1,5 @@
 {
-  "originHash" : "fe06f32142f2c4988ca26e93c18f4c8c94ce900431eadc420d7efddbaeb3163c",
+  "originHash" : "96f07d86dd966f0f2cb8bfb7de1c46536fcc75b0cfa60bf9eb644b88769e7c96",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
         "version" : "2.4.1"
+      }
+    },
+    {
+      "identity" : "swiftcodingagent",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/section9-lab/SwiftCodingAgent",
+      "state" : {
+        "branch" : "main",
+        "revision" : "0cd89ed624a872112768161a4f2761e4fdd8bf1f"
       }
     }
   ],

@@ -9,8 +9,6 @@ struct ModelProviderConfigView: View {
     @State private var draftApiKey: String = ""
     @State private var draftBaseURL: String = ""
     @State private var draftModelId: String = ""
-    @State private var draftAgentHomeDirectory: String = ""
-    @State private var draftProjectDirectory: String = ""
     @State private var showAPIKey = false
     @State private var isDiscovering = false
 
@@ -26,12 +24,12 @@ struct ModelProviderConfigView: View {
         agent.registry.provider(for: selectedProviderId)
     }
 
-    private var agentHomeDirectoryURL: URL {
-        URL(fileURLWithPath: draftAgentHomeDirectory)
+    private var storageDirectoryURL: URL {
+        agent.storageDirectoryURL
     }
 
     private var canSave: Bool {
-        draftBaseURL.isNotBlank && draftModelId.isNotBlank && draftAgentHomeDirectory.isNotBlank
+        draftBaseURL.isNotBlank && draftModelId.isNotBlank
     }
 
     var body: some View {
@@ -39,7 +37,6 @@ struct ModelProviderConfigView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     modelConnectionCard
-                    projectDirectoryCard
                     agentStateCard
                     sandboxCard
                 }
@@ -61,10 +58,6 @@ struct ModelProviderConfigView: View {
             }
             .onAppear {
                 loadFromConfig()
-                refreshAgentEntries()
-            }
-            .onChange(of: draftAgentHomeDirectory) { _ in
-                expandedFolders = []
                 refreshAgentEntries()
             }
             .sheet(isPresented: $showCustomSheet) {
@@ -349,52 +342,33 @@ struct ModelProviderConfigView: View {
         }
     }
 
-    private var projectDirectoryCheckColor: Color {
-        switch agent.projectDirectoryCheckStatus {
-        case .success:
-            return .green
-        case .failure:
-            return .red
-        case .info, .idle:
-            return .secondary
-        }
-    }
-
-    // MARK: - Project Directory
-
-    private var projectDirectoryCard: some View {
-        SettingsCard(title: "项目目录") {
-            VStack(alignment: .leading, spacing: 10) {
-                labeledTextField("Project Directory", text: $draftProjectDirectory)
-
-                HStack {
-                    Button("测试读写权限") {
-                        Task { await agent.verifyProjectDirectoryAccess() }
-                    }
-                    if !agent.projectDirectoryCheckMessage.isEmpty {
-                        Text(agent.projectDirectoryCheckMessage)
-                            .font(.caption)
-                            .foregroundColor(projectDirectoryCheckColor)
-                            .lineLimit(2)
-                    }
-                    Spacer()
-                }
-
-                Text("这里是执行工具默认使用的项目上下文；留空时会退回到 Impulse 自己的默认工作目录。")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-
     private var visibleAgentEntries: [SandboxTreeRowEntry] {
         agentEntries
     }
 
     private var agentStateCard: some View {
-        SettingsCard(title: "Agent 自身目录") {
+        SettingsCard(title: "Impulse 数据目录") {
             VStack(alignment: .leading, spacing: 10) {
-                labeledTextField("Agent Home", text: $draftAgentHomeDirectory)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Storage Root")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text(storageDirectoryURL.path)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Active Project")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text(agent.activeProjectPath ?? "未选择")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(agent.activeProjectPath == nil ? .secondary : .primary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -409,6 +383,10 @@ struct ModelProviderConfigView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 Text("Impulse 的会话、skills 和后续 memory 都放在这里，不再跟项目目录绑定。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("当前执行工作区由左侧 Projects 中选中的项目决定。")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -565,21 +543,17 @@ struct ModelProviderConfigView: View {
 
     private func refreshAgentEntries() {
         var result: [SandboxTreeRowEntry] = []
-        let roots = [
-            ("session", agentHomeDirectoryURL.agentSessionDirectory()),
-            ("skills", agentHomeDirectoryURL.agentSkillsDirectory()),
-            ("memory", agentHomeDirectoryURL.agentMemoryDirectory()),
-        ]
+        let roots = agentChildren(of: storageDirectoryURL)
 
-        for (name, url) in roots {
-            appendAgentRows(for: url, name: name, depth: 0, into: &result, isRoot: true)
+        for url in roots {
+            appendAgentRows(for: url, name: url.lastPathComponent, depth: 0, into: &result, isRoot: true)
         }
 
         agentEntries = result
     }
 
     private func agentChildren(of url: URL) -> [URL] {
-        let rootPath = agentHomeDirectoryURL.standardizedFileURL.path
+        let rootPath = storageDirectoryURL.standardizedFileURL.path
         let targetPath = url.standardizedFileURL.path
         guard targetPath == rootPath || targetPath.hasPrefix(rootPath + "/") else { return [] }
 
@@ -603,7 +577,7 @@ struct ModelProviderConfigView: View {
         SettingsCard(title: "执行授权目录") {
             VStack(spacing: 10) {
                 if sandbox.entries.isEmpty {
-                    Text("未授权额外目录。默认只保证当前项目目录在执行时可访问。")
+                    Text("未授权额外目录。当前项目会作为默认执行目录，其它路径需要单独授权。")
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -704,10 +678,6 @@ struct ModelProviderConfigView: View {
         draftBaseURL = agent.config.baseURL
         draftApiKey = agent.config.apiKey
         draftModelId = agent.config.modelId
-        draftAgentHomeDirectory = agent.config.agentHomeDirectory.isEmpty
-            ? AgentServiceConfig.defaultAgentHomeDirectoryPath
-            : agent.config.agentHomeDirectory
-        draftProjectDirectory = agent.config.projectDirectory
     }
 
     private func selectProvider(_ provider: Provider) {
@@ -747,9 +717,7 @@ struct ModelProviderConfigView: View {
             providerId: selectedProviderId,
             baseURL: draftBaseURL,
             apiKey: draftApiKey,
-            modelId: draftModelId,
-            agentHomeDirectory: draftAgentHomeDirectory,
-            projectDirectory: draftProjectDirectory
+            modelId: draftModelId
         )
         Task {
             await agent.applyConfig(newConfig)
