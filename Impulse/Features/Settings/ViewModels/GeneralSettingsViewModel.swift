@@ -8,7 +8,7 @@ class GeneralSettingsViewModel: ObservableObject {
     @Published var voiceShortcut: String
 
     init(
-        language: String = "zh",
+        language: String = "en",
         theme: String = "auto",
         ocrEnabled: Bool = true,
         voiceShortcut: String = "Option"

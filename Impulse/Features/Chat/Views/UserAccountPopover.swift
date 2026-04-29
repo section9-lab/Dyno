@@ -2,9 +2,14 @@ import SwiftUI
 
 struct UserAccountPopover: View {
     @Binding var isPresented: Bool
+    let accountName: String
+    let accountSubtitle: LocalizedStringKey
+    let accountInitial: String
     var onSettings: () -> Void
     var onHelp: () -> Void
     var onLogout: () -> Void
+
+    private let contentInset: CGFloat = 12
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,16 +20,17 @@ struct UserAccountPopover: View {
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: 40, height: 40)
                         .overlay {
-                            Text("G")
+                            Text(accountInitial)
                                 .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(.white)
                         }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Guest")
+                        Text(accountName)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.primary)
-                        Text("个人账户")
+                            .lineLimit(1)
+                        Text(accountSubtitle)
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
@@ -49,23 +55,26 @@ struct UserAccountPopover: View {
             }
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, contentInset)
 
-            MenuItem(icon: "gearshape", title: "设置", action: {
+            MenuItem(icon: "gearshape", title: "settings.title", action: {
+                isPresented = false
                 onSettings()
             })
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, contentInset)
 
-            MenuItem(icon: "questionmark.circle", title: "帮助", hasChevron: true, action: {
+            MenuItem(icon: "questionmark.circle", title: "common.help", hasChevron: true, action: {
+                isPresented = false
                 onHelp()
             })
 
             Divider()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, contentInset)
 
-            MenuItem(icon: "arrow.right.square", title: "退出登录", isDestructive: true, action: {
+            MenuItem(icon: "arrow.right.square", title: "account.logout", isDestructive: true, action: {
+                isPresented = false
                 onLogout()
             })
         }
@@ -81,7 +90,7 @@ struct UserAccountPopover: View {
 
 private struct MenuItem: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey
     var hasChevron: Bool = false
     var isDestructive: Bool = false
     var action: (() -> Void)?
@@ -110,15 +119,16 @@ private struct MenuItem: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isHovered ? Color.gray.opacity(0.12) : Color.clear)
+                    .fill(isHovered ? Color.primary.opacity(0.055) : Color.clear)
             )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .padding(.horizontal, 12)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.1)) {
                 isHovered = hovering
@@ -135,6 +145,9 @@ private struct MenuItem: View {
 #Preview {
     UserAccountPopover(
         isPresented: .constant(true),
+        accountName: "Google User",
+        accountSubtitle: "account.google_user",
+        accountInitial: "G",
         onSettings: {},
         onHelp: {},
         onLogout: {}

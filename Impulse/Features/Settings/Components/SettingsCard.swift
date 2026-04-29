@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct SettingsCard<Content: View>: View {
-    let title: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    let title: LocalizedStringKey
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -12,11 +14,21 @@ struct SettingsCard<Content: View>: View {
             content
         }
         .padding(14)
-        .background(Color(red: 0.89, green: 0.89, blue: 0.90).opacity(0.8))
+        .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.black.opacity(0.04), lineWidth: 0.5)
+                .stroke(cardBorderColor, lineWidth: 0.5)
         )
+    }
+
+    private var cardBackgroundColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.145, green: 0.153, blue: 0.165).opacity(0.86)
+            : Color(red: 0.89, green: 0.89, blue: 0.90).opacity(0.8)
+    }
+
+    private var cardBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.04)
     }
 }

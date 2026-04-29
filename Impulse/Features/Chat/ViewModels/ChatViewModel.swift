@@ -25,9 +25,6 @@ final class ChatViewModel: ObservableObject {
 
     @Published private(set) var persistedProjects: [ProjectSnapshot] = []
 
-    @Published var newKanbanTitle: String = ""
-    @Published var newKanbanPriority: KanbanTaskPriority = .medium
-
     private let historyService = ChatHistoryService()
     private let sandboxAccess = SandboxAccessManager.shared
 
@@ -137,8 +134,8 @@ final class ChatViewModel: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-        panel.prompt = "Add Project"
-        panel.message = "选择一个本地目录作为项目"
+        panel.prompt = L10n.tr("chat.add_project")
+        panel.message = L10n.tr("chat.add_project_panel_message")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let normalizedPath = url.standardizedFileURL.path
@@ -198,9 +195,13 @@ final class ChatViewModel: ObservableObject {
         agent.persistProjects(updatedProjects)
     }
 
-    func createKanbanTask() {
+    func createKanbanTask(
+        title rawTitle: String,
+        priority: KanbanTaskPriority,
+        status: KanbanTaskStatus
+    ) {
         guard let projectPath = selectedProjectPath else { return }
-        let title = newKanbanTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
 
         let linkedSessionIDs = selectedSessionID.map { [$0] } ?? []
@@ -208,8 +209,8 @@ final class ChatViewModel: ObservableObject {
             id: UUID().uuidString,
             projectPath: projectPath,
             title: title,
-            status: .plan,
-            priority: newKanbanPriority,
+            status: status,
+            priority: priority,
             primarySessionID: selectedSessionID,
             linkedSessionIDs: linkedSessionIDs,
             assigneeName: "AI",
@@ -219,8 +220,6 @@ final class ChatViewModel: ObservableObject {
         )
 
         historyService.upsertKanbanTask(task, persistedProjects: &persistedProjects)
-        newKanbanTitle = ""
-        newKanbanPriority = .medium
     }
 
     func moveKanbanTask(
@@ -354,8 +353,15 @@ final class ChatViewModel: ObservableObject {
         Task {
             do {
                 let response = try await agent.sendChat(prompt: trimmedText, contextPrelude: contextPrelude)
+                let responseTimestamp = appendAgentToolExecutionItems(
+                    modelContext: modelContext,
+                    agent: agent,
+                    projectPath: projectPath,
+                    sessionID: session.id,
+                    startingAt: Date()
+                )
                 let aiResponse = Item(
-                    timestamp: Date(),
+                    timestamp: responseTimestamp,
                     content: response,
                     isUser: false,
                     kind: "assistant_message",
@@ -363,7 +369,7 @@ final class ChatViewModel: ObservableObject {
                     projectPath: projectPath
                 )
                 modelContext.insert(aiResponse)
-                appendAgentTraceItems(
+                appendAgentCompactionSummaryItemIfNeeded(
                     modelContext: modelContext,
                     agent: agent,
                     projectPath: projectPath,
@@ -372,9 +378,16 @@ final class ChatViewModel: ObservableObject {
                 )
                 persist()
             } catch {
+                let responseTimestamp = appendAgentToolExecutionItems(
+                    modelContext: modelContext,
+                    agent: agent,
+                    projectPath: projectPath,
+                    sessionID: session.id,
+                    startingAt: Date()
+                )
                 let errorResponse = Item(
-                    timestamp: Date(),
-                    content: "抱歉，出错了：\(error.localizedDescription)",
+                    timestamp: responseTimestamp,
+                    content: L10n.tr("chat.error_message", error.localizedDescription),
                     isUser: false,
                     kind: "assistant_message",
                     conversationID: session.id,
@@ -414,13 +427,20 @@ final class ChatViewModel: ObservableObject {
             do {
                 let summary = try await agent.compact(customInstructions: instructions)
                 let responseText = if let summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    "已完成上下文压缩。"
+                    L10n.tr("chat.compaction_completed")
                 } else {
-                    "当前内容不足以生成压缩摘要。"
+                    L10n.tr("chat.compaction_not_enough_content")
                 }
 
+                let responseTimestamp = appendAgentToolExecutionItems(
+                    modelContext: modelContext,
+                    agent: agent,
+                    projectPath: projectPath,
+                    sessionID: sessionID,
+                    startingAt: Date()
+                )
                 let responseItem = Item(
-                    timestamp: Date(),
+                    timestamp: responseTimestamp,
                     content: responseText,
                     isUser: false,
                     kind: "assistant_message",
@@ -428,7 +448,7 @@ final class ChatViewModel: ObservableObject {
                     projectPath: projectPath
                 )
                 modelContext.insert(responseItem)
-                appendAgentTraceItems(
+                appendAgentCompactionSummaryItemIfNeeded(
                     modelContext: modelContext,
                     agent: agent,
                     projectPath: projectPath,
@@ -437,9 +457,16 @@ final class ChatViewModel: ObservableObject {
                 )
                 persist()
             } catch {
+                let responseTimestamp = appendAgentToolExecutionItems(
+                    modelContext: modelContext,
+                    agent: agent,
+                    projectPath: projectPath,
+                    sessionID: sessionID,
+                    startingAt: Date()
+                )
                 let errorResponse = Item(
-                    timestamp: Date(),
-                    content: "抱歉，压缩失败：\(error.localizedDescription)",
+                    timestamp: responseTimestamp,
+                    content: L10n.tr("chat.compaction_failed", error.localizedDescription),
                     isUser: false,
                     kind: "assistant_message",
                     conversationID: sessionID,
@@ -494,13 +521,16 @@ final class ChatViewModel: ObservableObject {
         return sections.joined(separator: "\n\n")
     }
 
-    private func appendAgentTraceItems(
+    @discardableResult
+    private func appendAgentToolExecutionItems(
         modelContext: ModelContext,
         agent: AgentManager,
         projectPath: String,
         sessionID: String,
-        conversationItems: [Item]
-    ) {
+        startingAt timestamp: Date
+    ) -> Date {
+        var nextTimestamp = timestamp
+
         for execution in agent.latestToolExecutions {
             let payload = PersistedToolExecution(
                 id: execution.id,
@@ -514,7 +544,7 @@ final class ChatViewModel: ObservableObject {
             {
                 modelContext.insert(
                     Item(
-                        timestamp: Date(),
+                        timestamp: nextTimestamp,
                         content: text,
                         isUser: false,
                         kind: "tool_execution",
@@ -522,9 +552,20 @@ final class ChatViewModel: ObservableObject {
                         projectPath: projectPath
                     )
                 )
+                nextTimestamp = nextTimestamp.addingTimeInterval(0.001)
             }
         }
 
+        return nextTimestamp
+    }
+
+    private func appendAgentCompactionSummaryItemIfNeeded(
+        modelContext: ModelContext,
+        agent: AgentManager,
+        projectPath: String,
+        sessionID: String,
+        conversationItems: [Item]
+    ) {
         guard let summary = agent.latestCompactionSummary,
               !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {

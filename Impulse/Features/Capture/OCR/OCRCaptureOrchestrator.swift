@@ -18,7 +18,8 @@ final class OCRCaptureOrchestrator {
     private lazy var screenCapture: ScreenCaptureService = ScreenCaptureService()
     private lazy var ocrService: VisionOCRService = VisionOCRService()
 
-    private var outputDirectory: URL
+    private var screenshotDirectory: URL
+    private var markdownDirectory: URL
     private var lastOCRText: String?
     private var lastFingerprint: [UInt8]? // 存储上一次的缩略图指纹
 
@@ -29,8 +30,9 @@ final class OCRCaptureOrchestrator {
     var onOCRCompleted: ((String, URL) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(outputDirectory: URL) {
-        self.outputDirectory = outputDirectory
+    init(screenshotDirectory: URL, markdownDirectory: URL) {
+        self.screenshotDirectory = screenshotDirectory
+        self.markdownDirectory = markdownDirectory
         // 用户停止滑动 2 秒后即视为开始阅读
         idleWatcher.threshold = 2.0
         idleWatcher.periodicInterval = 60.0
@@ -63,6 +65,9 @@ final class OCRCaptureOrchestrator {
                 onStatusChanged?(.capturing)
                 // 后台 OCR 不应在应用启动后隐式触发系统录屏授权弹窗。
                 let image = try await screenCapture.captureScreen(promptIfNeeded: false)
+                let timestamp = makeTimestamp()
+                let screenshotURL = try saveScreenshot(image, timestamp: timestamp)
+                print("📸 [OCR] 原始截屏已保存: \(screenshotURL.path)")
 
                 // --- 视觉指纹检测 ---
                 let currentFingerprint = createFingerprint(from: image)
@@ -77,7 +82,7 @@ final class OCRCaptureOrchestrator {
                 print("📸 [OCR] 检测到画面变化，开始提取文字...")
                 onStatusChanged?(.recognizing)
 
-                let text = try await ocrService.recognizeText(from: image)
+                let text = try await ocrService.recognizeText(from: screenshotURL)
                 let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 guard !trimmedText.isEmpty else {
@@ -97,7 +102,13 @@ final class OCRCaptureOrchestrator {
                 let activeApp = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
                 let windowTitle = getActiveWindowTitle() ?? "Unknown Window"
 
-                let savedURL = try saveAsMarkdown(text: trimmedText, appName: activeApp, windowTitle: windowTitle)
+                let savedURL = try saveAsMarkdown(
+                    text: trimmedText,
+                    appName: activeApp,
+                    windowTitle: windowTitle,
+                    timestamp: timestamp,
+                    screenshotURL: screenshotURL
+                )
                 print("📸 [OCR] 已保存: \(activeApp) - \(windowTitle)")
                 onStatusChanged?(.completed(savedURL))
 
@@ -191,11 +202,26 @@ final class OCRCaptureOrchestrator {
         return nil
     }
 
-    private func saveAsMarkdown(text: String, appName: String, windowTitle: String) throws -> URL {
-        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+    private func makeTimestamp() -> String {
+        ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+    }
+
+    private func saveScreenshot(_ image: NSImage, timestamp: String) throws -> URL {
+        let filename = "ocr-\(timestamp).png"
+        let fileURL = screenshotDirectory.appendingPathComponent(filename)
+        return try screenCapture.write(image, to: fileURL)
+    }
+
+    private func saveAsMarkdown(
+        text: String,
+        appName: String,
+        windowTitle: String,
+        timestamp: String,
+        screenshotURL: URL
+    ) throws -> URL {
+        try FileManager.default.createDirectory(at: markdownDirectory, withIntermediateDirectories: true)
         let filename = "ocr-\(timestamp).md"
-        let fileURL = outputDirectory.appendingPathComponent(filename)
+        let fileURL = markdownDirectory.appendingPathComponent(filename)
 
         let markdown = """
         # 屏幕捕获记录
@@ -203,6 +229,7 @@ final class OCRCaptureOrchestrator {
         - **时间**: \(Date())
         - **应用**: \(appName)
         - **窗口**: \(windowTitle)
+        - **原始截屏**: \(screenshotURL.path)
 
         ---
 

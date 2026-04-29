@@ -3,27 +3,44 @@ import SwiftUI
 struct ModelSettingsView: View {
     @ObservedObject var agent: AgentManager
     @ObservedObject var viewModel: ModelSettingsViewModel
+    @State private var didRequestNetworkProviders = false
+    @State private var providerOptionsProviderId: String?
+
+    private let fieldWidth: CGFloat = 560
+    private let modelListWidth: CGFloat = 560
+    private let providerListWidth: CGFloat = 560
+    private let providerPageSize = 5
     
     private var currentProvider: Provider? {
         agent.registry.provider(for: viewModel.selectedProviderId)
     }
+
+    private var ollamaProvider: Provider? {
+        agent.registry.provider(for: "ollama")
+    }
+
+    private var customProviders: [Provider] {
+        agent.registry.providers.filter(\.isCustom)
+    }
+
+    private var catalogProviders: [Provider] {
+        agent.registry.providers.filter { provider in
+            provider.id != "ollama" && !provider.isCustom
+        }
+    }
+
+    private var visibleCatalogProviders: [Provider] {
+        Array(catalogProviders.prefix(viewModel.visibleProviderCount))
+    }
     
     var body: some View {
-        SettingsCard(title: "模型连接") {
+        SettingsCard(title: "settings.model.connection") {
             VStack(alignment: .leading, spacing: 14) {
                 connectionStatusRow
                 
                 Divider()
                 
                 providerSection
-                
-                if !viewModel.selectedProviderId.isEmpty {
-                    Divider()
-                    connectionFieldsSection
-                    
-                    Divider()
-                    modelPickerSection
-                }
             }
         }
         .sheet(isPresented: $viewModel.showCustomSheet) {
@@ -48,48 +65,268 @@ struct ModelSettingsView: View {
     
     private var providerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("模型提供商")
+            Text("settings.model.provider")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
-            Picker("选择提供商", selection: $viewModel.selectedProviderId) {
-                ForEach(agent.registry.providers) { provider in
-                    Text(provider.name).tag(provider.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .onChange(of: viewModel.selectedProviderId) { _, newValue in
-                guard let provider = agent.registry.provider(for: newValue) else { return }
-                selectProvider(provider)
-            }
-
-            HStack(spacing: 10) {
-                Button("添加自定义提供商") {
-                    viewModel.showCustomSheet = true
-                }
-                .buttonStyle(.bordered)
-
-                if let provider = currentProvider, provider.isCustom {
-                    Button("删除当前自定义提供商", role: .destructive) {
-                        agent.registry.removeCustomProvider(provider.id)
-                        if let fallback = agent.registry.providers.first {
-                            selectProvider(fallback)
-                        } else {
-                            viewModel.selectedProviderId = ""
-                            viewModel.draftBaseURL = ""
-                            viewModel.draftApiKey = ""
-                            viewModel.draftModelId = ""
-                        }
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if let ollamaProvider {
+                        providerRow(ollamaProvider, systemImage: "desktopcomputer")
                     }
-                    .buttonStyle(.bordered)
+
+                    providerDivider
+
+                    customProviderRows
+
+                    providerDivider
+
+                    ForEach(visibleCatalogProviders) { provider in
+                        providerRow(provider, systemImage: "cloud")
+                    }
+
+                    if viewModel.visibleProviderCount < catalogProviders.count {
+                        loadMoreProviderRow
+                            .onAppear {
+                                loadMoreProvidersIfNeeded()
+                            }
+                    }
                 }
+                .padding(6)
             }
+            .frame(width: providerListWidth, height: 238, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.62))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+                    )
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var customProviderRows: some View {
+        if customProviders.isEmpty {
+            Button {
+                viewModel.showCustomSheet = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.accentColor)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("settings.model.add_custom_provider")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.primary)
+                        Text("settings.model.custom_provider")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            ForEach(customProviders) { provider in
+                providerRow(provider, systemImage: "slider.horizontal.3")
+            }
+
+            Button {
+                viewModel.showCustomSheet = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("settings.model.add_custom_provider")
+                        .font(.system(size: 12.5, weight: .medium))
+                    Spacer()
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var providerDivider: some View {
+        Rectangle()
+            .fill(Color.black.opacity(0.08))
+            .frame(height: 1)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+    }
+
+    private var loadMoreProviderRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("settings.model.loading_more_providers")
+                .font(.system(size: 11.5))
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+    }
+
+    private func loadMoreProvidersIfNeeded() {
+        viewModel.loadMoreProviders(totalCount: catalogProviders.count, pageSize: providerPageSize)
+
+        guard !didRequestNetworkProviders,
+              viewModel.visibleProviderCount >= catalogProviders.count,
+              !agent.registry.isLoading
+        else { return }
+
+        didRequestNetworkProviders = true
+        Task {
+            await agent.registry.refresh()
+            viewModel.loadMoreProviders(totalCount: catalogProviders.count, pageSize: providerPageSize)
+        }
+    }
+
+    private func providerRow(_ provider: Provider, systemImage: String) -> some View {
+        let selected = provider.id == viewModel.selectedProviderId
+
+        return HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(selected ? Color.accentColor.opacity(0.16) : Color.black.opacity(0.05))
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(selected ? .accentColor : .secondary)
+            }
+            .frame(width: 26, height: 26)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(provider.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+
+                    if provider.isCustom {
+                        Text("settings.model.custom_provider")
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(Color.black.opacity(0.06))
+                            )
+                    }
+                }
+
+                Text(provider.baseURL)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: 8)
+
+            if provider.isCustom {
+                Button(role: .destructive) {
+                    deleteCustomProvider(provider)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
+            }
+
+            if selected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.accentColor)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary.opacity(0.85))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+        .onTapGesture {
+            selectProvider(provider)
+            providerOptionsProviderId = provider.id
+        }
+        .popover(
+            isPresented: Binding(
+                get: { providerOptionsProviderId == provider.id },
+                set: { isPresented in
+                    if !isPresented, providerOptionsProviderId == provider.id {
+                        providerOptionsProviderId = nil
+                    }
+                }
+            ),
+            arrowEdge: .trailing
+        ) {
+            providerOptionsPanel(providerId: provider.id)
+        }
+    }
+
+    @ViewBuilder
+    private func providerOptionsPanel(providerId: String) -> some View {
+        if let provider = agent.registry.provider(for: providerId) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.name)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+
+                        Text(provider.baseURL)
+                            .font(.system(size: 11.5))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        providerOptionsProviderId = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.secondary)
+                }
+
+                Divider()
+
+                connectionFieldsSection(provider: provider)
+
+                Divider()
+
+                modelPickerSection(provider: provider)
+            }
+            .padding(16)
+            .frame(width: 610, alignment: .leading)
         }
     }
     
-    private var connectionFieldsSection: some View {
+    private func connectionFieldsSection(provider: Provider) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("连接参数")
+            Text("settings.model.connection_parameters")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             
@@ -99,9 +336,9 @@ struct ModelSettingsView: View {
                 HStack(spacing: 10) {
                     Group {
                         if viewModel.showAPIKey {
-                            TextField("API Key（Ollama 可为空）", text: $viewModel.draftApiKey)
+                            TextField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.draftApiKey)
                         } else {
-                            SecureField("API Key（Ollama 可为空）", text: $viewModel.draftApiKey)
+                            SecureField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.draftApiKey)
                         }
                     }
                     .textFieldStyle(.roundedBorder)
@@ -113,52 +350,55 @@ struct ModelSettingsView: View {
                     }
                     .buttonStyle(.borderless)
                 }
+                .frame(maxWidth: fieldWidth, alignment: .leading)
                 
-                if let provider = currentProvider, !provider.envKeys.isEmpty {
-                    Text("环境变量：\(provider.envKeys.joined(separator: ", "))")
+                if !provider.envKeys.isEmpty {
+                    Text(String(format: L10n.tr("settings.model.env_vars"), provider.envKeys.joined(separator: ", ")))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
                 HStack {
-                    Spacer()
-                    Button("检测连接并发现模型") {
+                    Button("settings.model.discover_models") {
                         discoverModels()
                     }
                     .disabled(viewModel.isDiscovering)
+                    Spacer()
                 }
+                .frame(maxWidth: fieldWidth, alignment: .leading)
             }
         }
     }
     
-    private var modelPickerSection: some View {
+    private func modelPickerSection(provider: Provider) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("选择模型")
+            Text("settings.model.select_model")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             
             Group {
-                let models = currentProvider?.models ?? []
+                let models = provider.models
                 if models.isEmpty {
-                    Text("点击「检测连接并发现模型」获取可用模型列表")
+                    Text("settings.model.no_models_hint")
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    labeledTextField("或手动输入模型名", text: $viewModel.draftModelId)
+                    labeledTextField("settings.model.manual_model_name", text: $viewModel.draftModelId)
                 } else {
                     VStack(spacing: 0) {
                         let liveModels = models.filter(\.isLive)
                         let catalogModels = models.filter { !$0.isLive }
                         
                         if !liveModels.isEmpty {
-                            modelSection(title: "可用模型（\(liveModels.count)）", models: liveModels, live: true)
+                            modelSection(title: L10n.tr("settings.model.live_models_count", liveModels.count), models: liveModels, live: true)
                         }
                         
                         if !catalogModels.isEmpty {
-                            modelSection(title: "目录模型", models: catalogModels, live: false)
+                            modelSection(title: L10n.tr("settings.model.catalog_models"), models: catalogModels, live: false)
                         }
                     }
+                    .frame(maxWidth: modelListWidth, alignment: .leading)
                     .frame(maxHeight: 240)
                 }
             }
@@ -194,7 +434,7 @@ struct ModelSettingsView: View {
                                 Spacer()
                                 
                                 if model.reasoning {
-                                    Text("推理")
+                                    Text("settings.model.reasoning")
                                         .font(.system(size: 9))
                                         .padding(.horizontal, 5)
                                         .padding(.vertical, 1)
@@ -231,23 +471,26 @@ struct ModelSettingsView: View {
     
     private var addCustomProviderSheet: some View {
         VStack(spacing: 16) {
-            Text("添加自定义提供商")
+            Text("settings.model.add_custom_provider")
                 .font(.headline)
             
             VStack(alignment: .leading, spacing: 8) {
-                labeledTextField("名称", text: $viewModel.customName)
+                labeledTextField("settings.model.name", text: $viewModel.customName)
                 labeledTextField("Base URL", text: $viewModel.customBaseURL)
-                labeledTextField("API Key（可选）", text: $viewModel.customApiKey)
+                labeledTextField("settings.model.api_key_optional", text: $viewModel.customApiKey)
             }
             
             HStack {
-                Button("取消") { viewModel.showCustomSheet = false }
+                Button("common.cancel") { viewModel.showCustomSheet = false }
                 Spacer()
-                Button("添加") {
+                Button("common.add") {
                     let name = viewModel.customName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let url = viewModel.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty, !url.isEmpty else { return }
                     agent.registry.addCustomProvider(name: name, baseURL: url, apiKey: viewModel.customApiKey)
+                    if let provider = agent.registry.providers.last(where: { $0.isCustom && $0.name == name && $0.baseURL == url }) {
+                        selectProvider(provider)
+                    }
                     viewModel.customName = ""
                     viewModel.customBaseURL = ""
                     viewModel.customApiKey = ""
@@ -260,14 +503,16 @@ struct ModelSettingsView: View {
         .frame(width: 400)
     }
     
-    private func labeledTextField(_ title: String, text: Binding<String>) -> some View {
+    private func labeledTextField(_ title: LocalizedStringKey, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             TextField(title, text: text)
                 .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: fieldWidth, alignment: .leading)
         }
+        .frame(maxWidth: fieldWidth, alignment: .leading)
     }
     
     private func loadFromConfig() {
@@ -287,6 +532,20 @@ struct ModelSettingsView: View {
         viewModel.draftModelId = firstModel?.id ?? ""
         
         discoverModels()
+    }
+
+    private func deleteCustomProvider(_ provider: Provider) {
+        agent.registry.removeCustomProvider(provider.id)
+        if viewModel.selectedProviderId == provider.id {
+            if let fallback = ollamaProvider ?? agent.registry.providers.first {
+                selectProvider(fallback)
+            } else {
+                viewModel.selectedProviderId = ""
+                viewModel.draftBaseURL = ""
+                viewModel.draftApiKey = ""
+                viewModel.draftModelId = ""
+            }
+        }
     }
     
     private func discoverModels() {

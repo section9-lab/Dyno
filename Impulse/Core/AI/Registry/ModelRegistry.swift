@@ -28,6 +28,7 @@ final class ModelRegistry: ObservableObject {
     @Published var isLoading = false
 
     private static let cacheKey = "modelregistry.modelsdev.cache.v1"
+    private static let providersCacheKey = "modelregistry.modelsdev.providers.cache.v1"
     private static let customProvidersKey = "modelregistry.custom.providers.v1"
     private static let providerApiKeysKey = "modelregistry.apikeys.v1"
 
@@ -107,11 +108,36 @@ final class ModelRegistry: ObservableObject {
         // Start with featured providers
         var result = featuredProviders
 
-        // Merge models.dev cached data
-        if let cached = loadModelsdevCache() {
+        // Merge models.dev cached providers. Featured providers keep their local defaults.
+        if let cachedProviders = loadModelsdevProvidersCache() {
+            var existingIDs = Set(result.map(\.id))
+            for provider in cachedProviders where !existingIDs.contains(provider.id) {
+                guard !provider.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                result.append(provider)
+                existingIDs.insert(provider.id)
+            }
+        } else if let cached = loadModelsdevCache() {
+            for i in result.indices where cached[result[i].id] != nil {
+                result[i].models = cached[result[i].id] ?? []
+            }
+        }
+
+        if let cachedProviders = loadModelsdevProvidersCache() {
+            let cachedByID = Dictionary(uniqueKeysWithValues: cachedProviders.map { ($0.id, $0) })
             for i in result.indices {
-                if let catalogModels = cached[result[i].id] {
-                    result[i].models = catalogModels
+                guard let cached = cachedByID[result[i].id] else { continue }
+                result[i].models = cached.models
+                if result[i].envKeys.isEmpty {
+                    result[i] = Provider(
+                        id: result[i].id,
+                        name: result[i].name,
+                        baseURL: result[i].baseURL,
+                        apiKey: result[i].apiKey,
+                        envKeys: cached.envKeys,
+                        docURL: result[i].docURL ?? cached.docURL,
+                        models: result[i].models,
+                        isCustom: result[i].isCustom
+                    )
                 }
             }
         }
@@ -158,35 +184,58 @@ final class ModelRegistry: ObservableObject {
         // Parse and cache
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
 
-        var cache: [String: [ModelInfo]] = [:]
+        var modelCache: [String: [ModelInfo]] = [:]
+        var providerCache: [Provider] = []
 
-        for providerId in featuredProviderIDs {
-            guard let providerObj = root[providerId] as? [String: Any],
-                  let modelsObj = providerObj["models"] as? [String: [String: Any]]
-            else { continue }
+        for (providerId, rawProvider) in root {
+            guard let providerObj = rawProvider as? [String: Any] else { continue }
+            let apiURL = (providerObj["api"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !apiURL.isEmpty || featuredProviderIDs.contains(providerId) else { continue }
 
-            let models: [ModelInfo] = modelsObj.compactMap { (modelId, modelData) in
-                let name = (modelData["name"] as? String) ?? modelId
-                let toolCall = (modelData["tool_call"] as? Bool) ?? false
-                let reasoning = (modelData["reasoning"] as? Bool) ?? false
-                let limit = modelData["limit"] as? [String: Any]
-                let contextWindow = (limit?["context"] as? Int)
-                return ModelInfo(id: modelId, name: name, toolCall: toolCall, reasoning: reasoning, contextWindow: contextWindow)
-            }
-            .sorted { $0.id < $1.id }
+            let modelsObj = providerObj["models"] as? [String: [String: Any]] ?? [:]
+            let models = parseModelsdevModels(modelsObj)
+            let provider = Provider(
+                id: (providerObj["id"] as? String) ?? providerId,
+                name: (providerObj["name"] as? String) ?? providerId,
+                baseURL: apiURL,
+                envKeys: (providerObj["env"] as? [String]) ?? [],
+                docURL: providerObj["doc"] as? String,
+                models: models
+            )
 
-            cache[providerId] = models
+            providerCache.append(provider)
+            modelCache[provider.id] = models
         }
 
         // Save cache
-        if let encoded = try? JSONEncoder().encode(cache) {
+        if let encoded = try? JSONEncoder().encode(modelCache) {
             UserDefaults.standard.set(encoded, forKey: Self.cacheKey)
         }
+        if let encoded = try? JSONEncoder().encode(providerCache.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
+            UserDefaults.standard.set(encoded, forKey: Self.providersCacheKey)
+        }
+    }
+
+    private func parseModelsdevModels(_ modelsObj: [String: [String: Any]]) -> [ModelInfo] {
+        modelsObj.compactMap { (modelId, modelData) in
+            let name = (modelData["name"] as? String) ?? modelId
+            let toolCall = (modelData["tool_call"] as? Bool) ?? false
+            let reasoning = (modelData["reasoning"] as? Bool) ?? false
+            let limit = modelData["limit"] as? [String: Any]
+            let contextWindow = (limit?["context"] as? Int)
+            return ModelInfo(id: modelId, name: name, toolCall: toolCall, reasoning: reasoning, contextWindow: contextWindow)
+        }
+        .sorted { $0.id < $1.id }
     }
 
     private func loadModelsdevCache() -> [String: [ModelInfo]]? {
         guard let data = UserDefaults.standard.data(forKey: Self.cacheKey) else { return nil }
         return try? JSONDecoder().decode([String: [ModelInfo]].self, from: data)
+    }
+
+    private func loadModelsdevProvidersCache() -> [Provider]? {
+        guard let data = UserDefaults.standard.data(forKey: Self.providersCacheKey) else { return nil }
+        return try? JSONDecoder().decode([Provider].self, from: data)
     }
 
     // MARK: - Live Discovery

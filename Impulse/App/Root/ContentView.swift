@@ -2,10 +2,13 @@ import SwiftData
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.timestamp) private var items: [Item]
     @StateObject private var vm = ChatViewModel()
     @StateObject private var agent = AgentManager.shared
+    @StateObject private var approvals = ToolApprovalCenter.shared
+    @EnvironmentObject private var authSession: AuthSession
 
     private var projects: [ChatProject] {
         vm.makeProjects(from: items)
@@ -48,6 +51,9 @@ struct ContentView: View {
                         onDeleteSession: deleteSession,
                         onSettings: openSettings,
                         onHelp: openHelp,
+                        accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
+                        accountSubtitle: authSession.provider.accountTitleKey,
+                        accountInitial: authSession.user?.avatarInitial ?? "G",
                         onLogout: handleLogout
                     )
                     .frame(width: vm.sidebarWidth)
@@ -61,8 +67,6 @@ struct ContentView: View {
                             project: selectedProject,
                             selectedSession: selectedSession,
                             tasks: kanbanTasks,
-                            newTaskTitle: $vm.newKanbanTitle,
-                            newTaskPriority: $vm.newKanbanPriority,
                             onCreateTask: createKanbanTask,
                             onMoveTask: moveKanbanTask,
                             onLinkSelectedSession: linkSelectedSessionToKanbanTask,
@@ -131,9 +135,9 @@ struct ContentView: View {
                     )
                 }
             }
-            .background(Color(red: 0.95, green: 0.95, blue: 0.96))
+            .background(MetalParticleBackground(isDark: colorScheme == .dark))
             .navigationTitle("")
-            .toolbarBackground(Color(red: 0.95, green: 0.95, blue: 0.96), for: .windowToolbar)
+            .toolbarBackground(toolbarBackgroundColor, for: .windowToolbar)
             .toolbarBackground(.visible, for: .windowToolbar)
             .toolbar {
                 ToolbarItem(placement: .navigation) {
@@ -148,28 +152,40 @@ struct ContentView: View {
                         vm.toggleKanbanPanel()
                     } label: {
                         Label(
-                            vm.showKanbanPanel ? "Hide Board" : "Show Board",
+                            vm.showKanbanPanel ? "kanban.hide_board" : "kanban.show_board",
                             systemImage: vm.showKanbanPanel ? "rectangle.compress.vertical" : "rectangle.3.group"
                         )
                     }
                     .labelStyle(.iconOnly)
-                    .help("Toggle project Kanban")
+                    .help("kanban.toggle")
                 }
             }
             .sheet(isPresented: $vm.showConfigSheet) {
                 SettingsContainerView(agent: agent)
             }
-            .alert("Rename session", isPresented: $vm.showRenameDialog) {
-                TextField("Session title", text: $vm.renameDraft)
-                Button("Cancel", role: .cancel) {
+            .alert("chat.rename_session", isPresented: $vm.showRenameDialog) {
+                TextField("chat.session_title", text: $vm.renameDraft)
+                Button("common.cancel", role: .cancel) {
                     vm.renamingSessionID = nil
                 }
-                Button("Save") {
+                Button("common.save") {
                     applyRename()
                 }
                 .disabled(!vm.renameDraft.isNotBlank)
             } message: {
-                Text("Rename selected session")
+                Text("chat.rename_selected_session")
+            }
+            .alert(item: $approvals.pendingRequest) { request in
+                Alert(
+                    title: Text("Dangerous Operation"),
+                    message: Text("\(request.reason)\n\n\(request.summary)"),
+                    primaryButton: .destructive(Text("Run Once")) {
+                        approvals.approve(request)
+                    },
+                    secondaryButton: .cancel(Text("Reject")) {
+                        approvals.reject(request)
+                    }
+                )
             }
             .task {
                 vm.loadConversationsFromSessionFilesIfNeeded(items: items, modelContext: modelContext, agent: agent)
@@ -181,6 +197,7 @@ struct ContentView: View {
                     persistProjects()
                 }
             }
+            .frame(minWidth: 980, minHeight: 760)
             .animation(.easeInOut(duration: 0.2), value: vm.showKanbanPanel)
         }
     }
@@ -188,11 +205,11 @@ struct ContentView: View {
     private var emptyState: some View {
         VStack(spacing: 14) {
             if !projects.isEmpty {
-                Text("Select a session from the sidebar")
+                Text("chat.select_session_empty")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundColor(.primary.opacity(0.88))
             } else {
-                Text("No project available")
+                Text("chat.no_project_available")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundColor(.primary.opacity(0.88))
             }
@@ -201,11 +218,17 @@ struct ContentView: View {
         .padding(.top, 80)
     }
 
+    private var toolbarBackgroundColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.095, green: 0.098, blue: 0.106)
+            : Color(red: 0.95, green: 0.95, blue: 0.96)
+    }
+
     private var sidebarResizeHandle: some View {
         ZStack {
             Color.clear
             Rectangle()
-                .fill(Color.black.opacity(0.16))
+                .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.16))
                 .frame(width: 1)
         }
         .frame(width: 8)
@@ -284,8 +307,8 @@ struct ContentView: View {
         persistProjects()
     }
 
-    private func createKanbanTask() {
-        vm.createKanbanTask()
+    private func createKanbanTask(_ title: String, _ priority: KanbanTaskPriority, _ status: KanbanTaskStatus) {
+        vm.createKanbanTask(title: title, priority: priority, status: status)
         persistProjects()
     }
 
@@ -315,6 +338,98 @@ struct ContentView: View {
     }
 
     private func handleLogout() {
+        authSession.signOut()
+    }
+}
+
+struct MetalParticleBackground: View {
+    let isDark: Bool
+
+    private static let lightBaseColor = Color(red: 0.95, green: 0.95, blue: 0.96)
+    private static let darkBaseColor = Color(red: 0.095, green: 0.098, blue: 0.106)
+    private static let particles: [MetalParticle] = {
+        var generator = SeededRandomGenerator(seed: 0xA11E2026)
+        return (0..<1800).map { _ in
+            let intensity = Double.random(in: 0...1, using: &generator)
+            return MetalParticle(
+                x: Double.random(in: 0...1, using: &generator),
+                y: Double.random(in: 0...1, using: &generator),
+                size: intensity > 0.88 ? Double.random(in: 1.4...2.6, using: &generator) : Double.random(in: 0.6...1.2, using: &generator),
+                alpha: intensity > 0.82 ? Double.random(in: 0.16...0.32, using: &generator) : Double.random(in: 0.05...0.14, using: &generator),
+                isBright: intensity > 0.46
+            )
+        }
+    }()
+
+    var body: some View {
+        ZStack {
+            baseColor
+
+            LinearGradient(
+                stops: [
+                    .init(color: gradientStartColor, location: 0),
+                    .init(color: .clear, location: 0.42),
+                    .init(color: gradientEndColor, location: 1)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.softLight)
+
+            Canvas { context, size in
+                for particle in Self.particles {
+                    let rect = CGRect(
+                        x: particle.x * size.width,
+                        y: particle.y * size.height,
+                        width: particle.size,
+                        height: particle.size
+                    )
+                    let color = particle.isBright ? Color.white : Color.black
+                    context.opacity = particle.alpha
+                    context.fill(Path(ellipseIn: rect), with: .color(color))
+                }
+            }
+            .opacity(isDark ? 0.58 : 0.92)
+            .blendMode(.overlay)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    private var baseColor: Color {
+        isDark ? Self.darkBaseColor : Self.lightBaseColor
+    }
+
+    private var gradientStartColor: Color {
+        isDark ? Color.white.opacity(0.055) : Color.white.opacity(0.12)
+    }
+
+    private var gradientEndColor: Color {
+        isDark ? Color.black.opacity(0.18) : Color.black.opacity(0.035)
+    }
+}
+
+private struct MetalParticle {
+    let x: Double
+    let y: Double
+    let size: Double
+    let alpha: Double
+    let isBright: Bool
+}
+
+private struct SeededRandomGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        self.state = seed
+    }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+        value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+        return value ^ (value >> 31)
     }
 }
 

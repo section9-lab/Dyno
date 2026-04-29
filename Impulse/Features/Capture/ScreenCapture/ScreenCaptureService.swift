@@ -60,7 +60,10 @@ final class ScreenCaptureService: @unchecked Sendable {
 
     func captureScreenToURL(_ url: URL, promptIfNeeded: Bool = true) async throws -> URL {
         let image = try await captureScreen(promptIfNeeded: promptIfNeeded)
+        return try write(image, to: url)
+    }
 
+    func write(_ image: NSImage, to url: URL) throws -> URL {
         guard let tiffData = image.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiffData),
               let pngData = bitmap.representation(using: .png, properties: [:])
@@ -68,6 +71,8 @@ final class ScreenCaptureService: @unchecked Sendable {
             throw CaptureError.screenshotFailed
         }
 
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try pngData.write(to: url)
         return url
     }

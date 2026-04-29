@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Impulse a besoin d'accéder à votre microphone pour la saisie vocale.";
+"NSSpeechRecognitionUsageDescription" = "Impulse utilise la reconnaissance vocale pour transcrire votre saisie vocale.";
+"NSScreenCaptureUsageDescription" = "Impulse a besoin de l'accès à la capture d'écran pour analyser ce qui apparaît à l'écran.";

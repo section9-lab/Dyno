@@ -118,7 +118,7 @@ Impulse/
 
 ### AgentManager.swift
 - `static let shared` — Singleton access
-- `var agentHomeDirectoryURL: URL` — Returns `~/Library/Application Support/Impulse/.agent/`
+- `var storageDirectoryURL: URL` — Returns `~/Library/Application Support/Impulse/`
 - `var projectDirectoryURL: URL?` — User-configured project directory
 - `func applyConfig(_:)` — Apply new provider config; reinitializes SDK
 - `func chat(prompt:contextPrelude:)` — Main chat execution; handles tool polling
@@ -155,12 +155,13 @@ Impulse/
 
 **Dual persistence layer:**
 - SwiftData `Item` records → current UI state
-- JSONL snapshots under `~/Library/Application Support/Impulse/.agent/session/` → cross-restart continuity
+- Project JSONL snapshots under `~/Library/Application Support/Impulse/projects/<project>/sessions/` → cross-restart continuity
 
 **Agent storage is NOT in project directory:**
-- Agent Home: `~/Library/Application Support/Impulse/.agent/` (sessions, skills, memory, ocr-captures)
+- App data root: `~/Library/Application Support/Impulse/` (skills, memory; OCR writes under `memory/raw/`)
+- Project storage: `~/Library/Application Support/Impulse/projects/` (project metadata, kanban, sessions)
 - Default workspace: `~/Library/Application Support/Impulse/workspace/`
-- Legacy `.agent/` folders in projects are auto-migrated
+- Legacy `~/Library/Application Support/Impulse/.agent/` data is auto-migrated into the app data root
 
 **Sandboxing disabled** (`com.apple.security.app-sandbox: false`):
 - Uses security-scoped bookmarks (`SandboxAccessManager`) for write access

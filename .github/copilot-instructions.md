@@ -34,7 +34,7 @@ No repo-level SwiftLint/SwiftFormat command is currently configured.
 - `Core/Agent` is the runtime bridge to `SwiftCodingAgent`:
   - `AgentManager` owns provider/model config, SDK creation, connection checks, tool execution tracking, and compaction flow.
   - Tool execution is sandboxed to allowed roots (project directory + user-authorized roots from `SandboxAccessManager`).
-  - Agent session data is persisted independently of the project under Agent Home (`session/`, `skills/`, `memory/`).
+  - Agent data lives under the app data root (`skills/`, `memory/`); project session data lives under `projects/<project>/sessions/`.
 - `Core/AI` manages providers/models:
   - `ModelRegistry` merges featured providers, cached models.dev catalog data, and live `/models` discovery.
   - Settings UI (`Features/Settings`) edits provider config and writes it through `AgentManager.applyConfig`.
@@ -43,7 +43,7 @@ No repo-level SwiftLint/SwiftFormat command is currently configured.
   - Chat data is mirrored to JSONL session snapshots via `AgentSessionStore` for restart continuity.
   - Tool traces and compaction summaries are stored as first-class message kinds and rendered separately in the timeline.
 - `Features/Capture/OCR` is background screen OCR:
-  - `OCRManager` starts an `OCRCaptureOrchestrator` that captures on idle, deduplicates by visual fingerprint/text, and writes markdown captures under Agent Home (`ocr-captures/`).
+  - `OCRManager` starts an `OCRCaptureOrchestrator` that captures on idle, deduplicates by visual fingerprint/text, and writes captures under the app data root (`memory/raw/ocr-screenshots/` and `memory/raw/ocr-md/`).
 
 ## Key conventions in this codebase
 
@@ -54,11 +54,11 @@ No repo-level SwiftLint/SwiftFormat command is currently configured.
   - `compaction_summary`
 - **Conversation continuity is dual-layered**:
   1. SwiftData `Item` rows drive current UI state.
-  2. JSONL snapshots under Agent Home restore sessions across app restarts and preserve compaction/tool metadata.
+  2. Project JSONL snapshots under `~/Library/Application Support/Impulse/projects/<project>/sessions/` restore sessions across app restarts and preserve compaction/tool metadata.
 - **Agent storage is decoupled from project storage**:
-  - Agent Home defaults to `~/Library/Application Support/Impulse/.agent`.
+  - App data root defaults to `~/Library/Application Support/Impulse`.
   - Execution workspace defaults to `~/Library/Application Support/Impulse/workspace` when no project directory is configured.
-  - Legacy `.agent` data inside project directories is migrated into Agent Home.
+  - Legacy `~/Library/Application Support/Impulse/.agent` data is migrated into the app data root.
 - **Sandbox authorization is explicit and persistent**:
   - Extra writable roots are granted via security-scoped bookmarks (`SandboxAccessManager`) and merged into SDK `allowedRoots`.
   - Project directory access is actively probe-tested from settings.

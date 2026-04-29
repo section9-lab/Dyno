@@ -9,7 +9,7 @@ final class AgentManager: ObservableObject {
 
     @Published var isResponding: Bool = false
     @Published var isServiceConnected: Bool = false
-    @Published var connectionStatusText: String = "模型服务检测中..."
+    @Published var connectionStatusText: String = L10n.tr("agent.status.checking")
     @Published var config: AgentServiceConfig
     @Published var latestToolExecutions: [AgentToolExecution] = []
     @Published var latestCompactionSummary: String?
@@ -22,6 +22,10 @@ final class AgentManager: ObservableObject {
 
     var storageDirectoryURL: URL {
         Self.storageDirectoryURL
+    }
+
+    static var appDataDirectoryURL: URL {
+        URL(fileURLWithPath: AgentServiceConfig.defaultAppDataDirectoryPath)
     }
 
     @Published private(set) var activeProjectPath: String?
@@ -93,23 +97,80 @@ final class AgentManager: ObservableObject {
     }
 
     private func bootstrapAgentDirectory() {
+        migrateLegacyAgentDataIfNeeded()
+
         let storageDirectoryURL = storageDirectoryURL
-        let sessionDir = storageDirectoryURL.agentSessionDirectory()
         let skillsDir = storageDirectoryURL.agentSkillsDirectory()
         let memoryDir = storageDirectoryURL.agentMemoryDirectory()
         let rawMemoryDir = memoryDir.appendingPathComponent("raw", isDirectory: true)
 
-        for dir in [storageDirectoryURL, sessionDir, skillsDir, memoryDir, rawMemoryDir, Self.defaultExecutionWorkspaceURL] {
+        for dir in [Self.appDataDirectoryURL, storageDirectoryURL, skillsDir, memoryDir, rawMemoryDir, Self.defaultExecutionWorkspaceURL] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
     }
 
+    private func migrateLegacyAgentDataIfNeeded() {
+        let fileManager = FileManager.default
+        let legacyRoot = Self.appDataDirectoryURL.appendingPathComponent(".agent", isDirectory: true)
+        let newRoot = storageDirectoryURL
+
+        guard legacyRoot.standardizedFileURL.path != newRoot.standardizedFileURL.path else { return }
+        guard fileManager.fileExists(atPath: legacyRoot.path) else { return }
+        try? fileManager.createDirectory(at: newRoot, withIntermediateDirectories: true)
+
+        for directoryName in ["skills", "memory"] {
+            let legacyURL = legacyRoot.appendingPathComponent(directoryName, isDirectory: true)
+            let destinationURL = newRoot.appendingPathComponent(directoryName, isDirectory: true)
+            guard fileManager.fileExists(atPath: legacyURL.path) else { continue }
+
+            do {
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try mergeDirectoryContents(from: legacyURL, into: destinationURL)
+                    try removeDirectoryIfEmpty(legacyURL)
+                } else {
+                    try fileManager.moveItem(at: legacyURL, to: destinationURL)
+                }
+            } catch {
+                print("Failed to migrate legacy agent directory \(legacyURL.path): \(error)")
+            }
+        }
+
+        try? removeDirectoryIfEmpty(legacyRoot)
+    }
+
+    private func mergeDirectoryContents(from source: URL, into destination: URL) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let children = try fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey])
+
+        for child in children {
+            let target = destination.appendingPathComponent(child.lastPathComponent, isDirectory: false)
+            if fileManager.fileExists(atPath: target.path) {
+                let isDirectory = (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                if isDirectory {
+                    try mergeDirectoryContents(from: child, into: target)
+                    try removeDirectoryIfEmpty(child)
+                }
+            } else {
+                try fileManager.moveItem(at: child, to: target)
+            }
+        }
+    }
+
+    private func removeDirectoryIfEmpty(_ url: URL) throws {
+        let fileManager = FileManager.default
+        let remaining = try fileManager.contentsOfDirectory(atPath: url.path)
+        if remaining.isEmpty {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
     func refreshServiceStatus() async {
-        connectionStatusText = "正在检测模型服务..."
+        connectionStatusText = L10n.tr("agent.status.checking")
 
         guard !config.baseURL.isEmpty else {
             isServiceConnected = false
-            connectionStatusText = "❌ Base URL 未配置"
+            connectionStatusText = L10n.tr("agent.status.base_url_missing")
             return
         }
 
@@ -121,7 +182,7 @@ final class AgentManager: ObservableObject {
         if liveModels.isEmpty {
             guard let baseURL = URL(string: config.baseURL) else {
                 isServiceConnected = false
-                connectionStatusText = "❌ Base URL 无效"
+                connectionStatusText = L10n.tr("agent.status.base_url_invalid")
                 return
             }
 
@@ -136,14 +197,14 @@ final class AgentManager: ObservableObject {
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
                     isServiceConnected = true
-                    connectionStatusText = "✅ 已连接（\(config.modelId)）"
+                    connectionStatusText = L10n.tr("agent.status.connected", config.modelId)
                 } else {
                     isServiceConnected = false
-                    connectionStatusText = "❌ 服务不可用"
+                    connectionStatusText = L10n.tr("agent.status.service_unavailable")
                 }
             } catch {
                 isServiceConnected = false
-                connectionStatusText = "❌ 连接失败：\(error.localizedDescription)"
+                connectionStatusText = L10n.tr("agent.status.connection_failed", error.localizedDescription)
             }
             return
         }
@@ -151,19 +212,19 @@ final class AgentManager: ObservableObject {
         isServiceConnected = true
         let found = liveModels.contains { $0.id == config.modelId }
         connectionStatusText = found
-            ? "✅ 已连接（\(config.modelId)）"
-            : "⚠️ 已连接（\(liveModels.count) 个模型），但未发现 \(config.modelId)"
+            ? L10n.tr("agent.status.connected", config.modelId)
+            : L10n.tr("agent.status.connected_missing_model", liveModels.count, config.modelId)
     }
 
     // MARK: - Project/session persistence
 
     func loadPersistedProjects() -> [ProjectSnapshot] {
-        (try? sessionStore.loadProjects(storageDirectory: storageDirectoryURL.path)) ?? []
+        (try? sessionStore.loadProjects(storageDirectory: Self.appDataDirectoryURL.path)) ?? []
     }
 
     func persistProjects(_ projects: [ProjectSnapshot]) {
         do {
-            try sessionStore.saveProjects(projects, storageDirectory: storageDirectoryURL.path)
+            try sessionStore.saveProjects(projects, storageDirectory: Self.appDataDirectoryURL.path)
         } catch {
             print("Failed to persist project snapshots: \(error)")
         }
@@ -226,9 +287,9 @@ final class AgentManager: ObservableObject {
             let text = result.finalText.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 if !latestToolExecutions.isEmpty {
-                    return "本轮已执行 \(latestToolExecutions.count) 次工具调用。请继续让我完成最后一步。"
+                    return L10n.tr("agent.empty_after_tools", latestToolExecutions.count)
                 }
-                return "(模型返回空内容)"
+                return L10n.tr("agent.empty_model_response")
             }
             return text
         } catch AgentLoopError.maxStepsReached {
@@ -242,7 +303,7 @@ final class AgentManager: ObservableObject {
                 return lastAssistant.content
             }
 
-            return "我已经执行到步骤上限（\(latestToolExecutions.count) 次工具调用），还差最后收敛。你可以回复「继续」，我会基于当前上下文接着完成。"
+            return L10n.tr("agent.max_steps_reached", latestToolExecutions.count)
         }
     }
 
@@ -275,7 +336,7 @@ final class AgentManager: ObservableObject {
             let stableID = message.toolCallID ?? "\(name)-\(index)"
             let argsJSON = message.toolCallID.flatMap { argumentsByCallID[$0] }
             let summary = buildToolSummary(toolName: name, argumentsJSON: argsJSON)
-            let displayOutput = failed ? mapToUserFriendlySandboxMessage(trimmed) + "\n\n原始错误:\n\(trimmed)" : output
+            let displayOutput = failed ? mapToUserFriendlySandboxMessage(trimmed) + "\n\n" + L10n.tr("agent.raw_error") + ":\n\(trimmed)" : output
 
             return AgentToolExecution(
                 id: stableID,
@@ -310,15 +371,15 @@ final class AgentManager: ObservableObject {
     private func mapToUserFriendlySandboxMessage(_ raw: String) -> String {
         let lower = raw.lowercased()
         if lower.contains("outside authorized roots") {
-            return "❌ 目标路径超出当前项目或授权目录范围。请添加目录授权，或把操作限制在项目目录内。"
+            return L10n.tr("agent.sandbox_error.outside_roots")
         }
         if lower.contains("operation not permitted") || lower.contains("permission denied") {
-            return "❌ 当前执行环境拒绝访问该路径。请检查项目目录和授权目录配置。"
+            return L10n.tr("agent.sandbox_error.permission_denied")
         }
         if lower.contains("no such file") || lower.contains("cannot read file") {
-            return "❌ 文件不存在或不可访问。请确认路径正确，并且目录已被授权。"
+            return L10n.tr("agent.sandbox_error.file_missing")
         }
-        return "❌ 操作失败：\(raw)"
+        return L10n.tr("agent.sandbox_error.operation_failed", raw)
     }
 
     func compact(customInstructions: String? = nil) async throws -> String? {
@@ -362,7 +423,7 @@ final class AgentManager: ObservableObject {
         )
         let bashToolPolicy = ToolExecutionPolicy(
             allowedRoots: allowedRoots,
-            bash: .sandboxed(.init())
+            bash: .unrestricted
         )
         let toolExecutionContexts: [String: ToolExecutionContext] = [
             "read": ToolExecutionContext(
@@ -418,8 +479,11 @@ Think step by step. If you're unsure, read more files or ask the user.
                 bash: .disabled
             ),
             toolExecutionContexts: toolExecutionContexts,
-            maxSteps: 16,
-            skillsDirectories: skillsDirs
+            maxSteps: nil,
+            skillsDirectories: skillsDirs,
+            approvalHandler: { request in
+                await ToolApprovalCenter.shared.request(request)
+            }
         )
     }
 

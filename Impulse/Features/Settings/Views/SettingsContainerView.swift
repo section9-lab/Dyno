@@ -3,15 +3,25 @@ import SwiftUI
 struct SettingsContainerView: View {
     let agent: AgentManager
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var localization: LocalizationManager
+    @EnvironmentObject private var themeManager: ThemeManager
 
     @State private var selectedTab: SettingsTab = .general
 
-    enum SettingsTab: String, CaseIterable, Identifiable {
-        case general = "通用"
-        case model = "模型"
-        case sandbox = "文件"
+    enum SettingsTab: CaseIterable, Identifiable {
+        case general
+        case model
+        case sandbox
 
-        var id: String { rawValue }
+        var id: Self { self }
+
+        var titleKey: LocalizedStringKey {
+            switch self {
+            case .general: return "settings.tab.general"
+            case .model: return "settings.tab.model"
+            case .sandbox: return "settings.tab.files"
+            }
+        }
 
         var icon: String {
             switch self {
@@ -32,8 +42,8 @@ struct SettingsContainerView: View {
         let config = agent.config
 
         _generalSettings = StateObject(wrappedValue: GeneralSettingsViewModel(
-            language: "zh",
-            theme: "auto",
+            language: LocalizationManager.shared.language.rawValue,
+            theme: ThemeManager.shared.theme.rawValue,
             ocrEnabled: true,
             voiceShortcut: "Option"
         ))
@@ -54,22 +64,32 @@ struct SettingsContainerView: View {
         } detail: {
             detailContent
         }
+        .environment(\.locale, localization.locale)
+        .id(localization.language)
         .frame(minWidth: 800, minHeight: 600)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("取消") { dismiss() }
+                Button("common.cancel") { dismiss() }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("保存") {
+                Button("common.save") {
                     saveSettings()
                 }
             }
+        }
+        .onChange(of: generalSettings.language) { _, newValue in
+            guard let language = AppLanguage(rawValue: newValue) else { return }
+            localization.language = language
+        }
+        .onChange(of: generalSettings.theme) { _, newValue in
+            guard let theme = AppTheme(rawValue: newValue) else { return }
+            themeManager.theme = theme
         }
     }
     
     private var sidebar: some View {
         List(SettingsTab.allCases, selection: $selectedTab) { tab in
-            Label(tab.rawValue, systemImage: tab.icon)
+            Label(tab.titleKey, systemImage: tab.icon)
                 .tag(tab)
         }
         .listStyle(.sidebar)
@@ -80,23 +100,23 @@ struct SettingsContainerView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    sectionContainer(.general, title: "通用设置") {
+                    sectionContainer(.general, title: "settings.general.title") {
                         GeneralSettingsView(viewModel: generalSettings)
                     }
 
-                    sectionContainer(.model, title: "模型设置") {
+                    sectionContainer(.model, title: "settings.model.title") {
                         ModelSettingsView(agent: agent, viewModel: modelSettings)
                     }
 
-                    sectionContainer(.sandbox, title: "文件设置") {
+                    sectionContainer(.sandbox, title: "settings.files.title") {
                         SandboxSettingsView(agent: agent, viewModel: sandboxSettings)
                     }
                 }
                 .padding(20)
                 .frame(maxWidth: 900, alignment: .leading)
             }
-            .navigationTitle("设置")
-            .onChange(of: selectedTab) { tab in
+            .navigationTitle("settings.title")
+            .onChange(of: selectedTab) { _, tab in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     proxy.scrollTo(tab, anchor: .top)
                 }
@@ -106,7 +126,7 @@ struct SettingsContainerView: View {
 
     private func sectionContainer<Content: View>(
         _ tab: SettingsTab,
-        title: String,
+        title: LocalizedStringKey,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -118,10 +138,13 @@ struct SettingsContainerView: View {
     }
     
     private func saveSettings() {
-        let _ = generalSettings.getConfig()
+        let generalConfig = generalSettings.getConfig()
         let modelConfig = modelSettings.getConfig()
 
         var newConfig = agent.config
+        if let theme = AppTheme(rawValue: generalConfig.theme) {
+            themeManager.theme = theme
+        }
 
         if let model = modelConfig {
             newConfig.providerId = model.providerId

@@ -5,9 +5,7 @@ struct KanbanPanelView: View {
     let project: ChatProject?
     let selectedSession: ChatSession?
     let tasks: [KanbanTaskSnapshot]
-    @Binding var newTaskTitle: String
-    @Binding var newTaskPriority: KanbanTaskPriority
-    var onCreateTask: () -> Void
+    var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
     var onMoveTask: (KanbanTaskSnapshot, KanbanTaskStatus) -> Void
     var onLinkSelectedSession: (KanbanTaskSnapshot) -> Void
     var onDeleteTask: (KanbanTaskSnapshot) -> Void
@@ -18,7 +16,6 @@ struct KanbanPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
-            composer
 
             if let project {
                 HStack(alignment: .top, spacing: 14) {
@@ -28,6 +25,7 @@ struct KanbanPanelView: View {
                             tasks: tasks.filter { $0.status == status },
                             project: project,
                             selectedSession: selectedSession,
+                            onCreateTask: onCreateTask,
                             onMoveTask: onMoveTask,
                             onLinkSelectedSession: onLinkSelectedSession,
                             onDeleteTask: onDeleteTask
@@ -68,15 +66,15 @@ struct KanbanPanelView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("Project Board", systemImage: "square.grid.3x3.topleft.filled")
+                    Label("kanban.project_board", systemImage: "square.grid.3x3.topleft.filled")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
 
-                    Text(project?.name ?? "No project selected")
+                    Text(project?.name ?? L10n.tr("kanban.no_project_selected"))
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.primary)
 
-                    Text(project == nil ? "Select a project to organize work." : "Tasks stay attached to the project and can link to one or more sessions.")
+                    Text(project == nil ? L10n.tr("kanban.select_project_description") : L10n.tr("kanban.tasks_description"))
                         .font(.system(size: 12.5))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -98,51 +96,12 @@ struct KanbanPanelView: View {
                     }
 
                     HStack(spacing: 8) {
-                        headerMetric(title: "Tasks", value: "\(tasks.count)")
-                        headerMetric(title: "Sessions", value: "\(linkedSessionCount)")
+                        headerMetric(title: "kanban.tasks", value: "\(tasks.count)")
+                        headerMetric(title: "kanban.sessions", value: "\(linkedSessionCount)")
                     }
                 }
             }
         }
-    }
-
-    private var composer: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.secondary)
-
-                TextField("Add a task for this project", text: $newTaskTitle)
-                    .textFieldStyle(.plain)
-                    .onSubmit(onCreateTask)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
-
-            Picker("Priority", selection: $newTaskPriority) {
-                ForEach(KanbanTaskPriority.allCases) { priority in
-                    Text(priority.title).tag(priority)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(width: 120)
-
-            Button("Add Task") {
-                onCreateTask()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(project == nil || newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.55))
-        )
     }
 
     private var emptyState: some View {
@@ -151,10 +110,10 @@ struct KanbanPanelView: View {
             Image(systemName: "rectangle.3.group.bubble.left")
                 .font(.system(size: 30, weight: .medium))
                 .foregroundColor(.secondary)
-            Text("Select a project to open its board")
+            Text("kanban.select_project_to_open")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.primary)
-            Text("Tasks are organized at the project level and can stay linked to multiple sessions.")
+            Text("kanban.tasks_organized_description")
                 .font(.system(size: 12.5))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -172,7 +131,7 @@ struct KanbanPanelView: View {
         Set(tasks.flatMap(\.linkedSessionIDs)).count
     }
 
-    private func headerMetric(title: String, value: String) -> some View {
+    private func headerMetric(title: LocalizedStringKey, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.system(size: 15, weight: .semibold))
@@ -196,6 +155,7 @@ private struct KanbanColumnView: View {
     let tasks: [KanbanTaskSnapshot]
     let project: ChatProject
     let selectedSession: ChatSession?
+    var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
     var onMoveTask: (KanbanTaskSnapshot, KanbanTaskStatus) -> Void
     var onLinkSelectedSession: (KanbanTaskSnapshot) -> Void
     var onDeleteTask: (KanbanTaskSnapshot) -> Void
@@ -211,11 +171,11 @@ private struct KanbanColumnView: View {
                             .fill(status.tintColor)
                             .frame(width: 8, height: 8)
 
-                        Text(status.title)
+                        Text(status.localizedTitle)
                             .font(.system(size: 15, weight: .semibold))
                     }
 
-                    Text(status.subtitle)
+                    Text(status.localizedSubtitle)
                         .font(.system(size: 11.5))
                         .foregroundColor(.secondary)
                 }
@@ -249,6 +209,8 @@ private struct KanbanColumnView: View {
                             .draggable(task)
                         }
                     }
+
+                    KanbanColumnComposerView(status: status, onCreateTask: onCreateTask)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 4)
@@ -275,10 +237,10 @@ private struct KanbanColumnView: View {
 
     private var emptyDropState: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Drop task here")
+            Text("kanban.drop_task_here")
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundColor(.secondary)
-            Text(status.emptyHint)
+            Text(status.localizedEmptyHint)
                 .font(.system(size: 11.5))
                 .foregroundColor(.secondary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
@@ -289,6 +251,137 @@ private struct KanbanColumnView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.65), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
         )
+    }
+}
+
+private struct KanbanColumnComposerView: View {
+    let status: KanbanTaskStatus
+    var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
+
+    @State private var isExpanded = false
+    @State private var title = ""
+    @State private var priority: KanbanTaskPriority = .medium
+    @FocusState private var isTitleFocused: Bool
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        Group {
+            if isExpanded {
+                expandedComposer
+            } else {
+                collapsedButton
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: isExpanded)
+    }
+
+    private var collapsedButton: some View {
+        Button {
+            isExpanded = true
+            DispatchQueue.main.async {
+                isTitleFocused = true
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(status.tintColor)
+
+                Text("kanban.add_task")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundColor(.secondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.34))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(status.tintColor.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                )
+        )
+    }
+
+    private var expandedComposer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(status.tintColor)
+                    .frame(width: 7, height: 7)
+
+                Text(status.localizedTitle)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(.secondary)
+
+                Spacer()
+            }
+
+            TextField("kanban.add_task_placeholder", text: $title)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13.5, weight: .medium))
+                .focused($isTitleFocused)
+                .onSubmit(submit)
+                .onExitCommand(perform: collapse)
+
+            HStack(spacing: 8) {
+                Picker("kanban.priority", selection: $priority) {
+                    ForEach(KanbanTaskPriority.allCases) { priority in
+                        Text(priority.localizedTitle).tag(priority)
+                    }
+                }
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 104)
+
+                Spacer()
+
+                Button("common.cancel") {
+                    collapse()
+                }
+                .controlSize(.small)
+
+                Button("kanban.add_task") {
+                    submit()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(trimmedTitle.isEmpty)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(status.tintColor.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+
+    private func submit() {
+        guard !trimmedTitle.isEmpty else { return }
+        onCreateTask(trimmedTitle, priority, status)
+        title = ""
+        priority = .medium
+        isExpanded = false
+        isTitleFocused = false
+    }
+
+    private func collapse() {
+        title = ""
+        priority = .medium
+        isExpanded = false
+        isTitleFocused = false
     }
 }
 
@@ -354,7 +447,7 @@ private struct KanbanTaskCardView: View {
 
             HStack(spacing: 8) {
                 if selectedSession != nil {
-                    Button(isLinkedToSelectedSession ? "Session Linked" : "Link Current Session") {
+                    Button(isLinkedToSelectedSession ? L10n.tr("kanban.session_linked") : L10n.tr("kanban.link_current_session")) {
                         if !isLinkedToSelectedSession {
                             onLinkSelectedSession(task)
                         }
@@ -379,11 +472,11 @@ private struct KanbanTaskCardView: View {
         .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2)
         .contextMenu {
             if selectedSession != nil && !isLinkedToSelectedSession {
-                Button("Link Current Session", systemImage: "link.badge.plus") {
+                Button("kanban.link_current_session", systemImage: "link.badge.plus") {
                     onLinkSelectedSession(task)
                 }
             }
-            Button("Delete Task", systemImage: "trash", role: .destructive) {
+            Button("kanban.delete_task", systemImage: "trash", role: .destructive) {
                 onDeleteTask(task)
             }
         }
@@ -400,11 +493,11 @@ private struct KanbanTaskCardView: View {
     }
 
     private var linkedSessionsLabel: String {
-        task.linkedSessionIDs.count == 1 ? "1 session" : "\(task.linkedSessionIDs.count) sessions"
+        task.linkedSessionIDs.count == 1 ? L10n.tr("kanban.one_session") : L10n.tr("kanban.sessions_count", task.linkedSessionIDs.count)
     }
 
     private var priorityBadge: some View {
-        Text(task.priority.title)
+        Text(task.priority.localizedTitle)
             .font(.system(size: 10.5, weight: .semibold))
             .foregroundColor(priorityColor)
             .padding(.horizontal, 8)
@@ -428,25 +521,36 @@ private struct KanbanTaskCardView: View {
 }
 
 private extension KanbanTaskStatus {
-    var subtitle: String {
+    var localizedTitle: String {
         switch self {
         case .plan:
-            return "Scoped and ready to pick up."
+            return L10n.tr("kanban.status.plan")
         case .progress:
-            return "Work currently moving forward."
+            return L10n.tr("kanban.status.progress")
         case .done:
-            return "Completed work kept for reference."
+            return L10n.tr("kanban.status.done")
         }
     }
 
-    var emptyHint: String {
+    var localizedSubtitle: String {
         switch self {
         case .plan:
-            return "New project tasks start here."
+            return L10n.tr("kanban.status.plan.subtitle")
         case .progress:
-            return "Move active tasks here while they are underway."
+            return L10n.tr("kanban.status.progress.subtitle")
         case .done:
-            return "Drop finished tasks here to keep the board tidy."
+            return L10n.tr("kanban.status.done.subtitle")
+        }
+    }
+
+    var localizedEmptyHint: String {
+        switch self {
+        case .plan:
+            return L10n.tr("kanban.status.plan.empty_hint")
+        case .progress:
+            return L10n.tr("kanban.status.progress.empty_hint")
+        case .done:
+            return L10n.tr("kanban.status.done.empty_hint")
         }
     }
 
@@ -458,6 +562,19 @@ private extension KanbanTaskStatus {
             return Color(nsColor: .systemOrange)
         case .done:
             return Color(nsColor: .systemGreen)
+        }
+    }
+}
+
+private extension KanbanTaskPriority {
+    var localizedTitle: String {
+        switch self {
+        case .low:
+            return L10n.tr("kanban.priority.low")
+        case .medium:
+            return L10n.tr("kanban.priority.medium")
+        case .high:
+            return L10n.tr("kanban.priority.high")
         }
     }
 }

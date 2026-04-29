@@ -42,8 +42,8 @@ final class SandboxAccessManager: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-        panel.prompt = "授权"
-        panel.message = "选择允许 Agent 读写的目录"
+        panel.prompt = L10n.tr("settings.files.authorize")
+        panel.message = L10n.tr("settings.files.authorize_panel_message")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         addAuthorizedDirectory(url)
@@ -84,8 +84,8 @@ final class SandboxAccessManager: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-        panel.prompt = "重新授权"
-        panel.message = "为该条目重新授权目录"
+        panel.prompt = L10n.tr("settings.files.reauthorize")
+        panel.message = L10n.tr("settings.files.reauthorize_panel_message")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 

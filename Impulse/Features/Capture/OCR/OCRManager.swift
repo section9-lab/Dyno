@@ -15,12 +15,21 @@ final class OCRManager: ObservableObject, @unchecked Sendable {
     func start(storageDirectory: URL) {
         guard orchestrator == nil else { return }
 
-        let outputDirectory = storageDirectory
+        let rawDirectory = storageDirectory
             .agentMemoryDirectory()
             .appendingPathComponent("raw", isDirectory: true)
-        print("📁 [OCR] 输出目录: \(outputDirectory.path)")
+        let screenshotDirectory = rawDirectory
+            .appendingPathComponent("ocr-screenshots", isDirectory: true)
+        let markdownDirectory = rawDirectory
+            .appendingPathComponent("ocr-md", isDirectory: true)
 
-        let instance = OCRCaptureOrchestrator(outputDirectory: outputDirectory)
+        print("📁 [OCR] 截屏目录: \(screenshotDirectory.path)")
+        print("📁 [OCR] 文本目录: \(markdownDirectory.path)")
+
+        let instance = OCRCaptureOrchestrator(
+            screenshotDirectory: screenshotDirectory,
+            markdownDirectory: markdownDirectory
+        )
 
         instance.onStatusChanged = { [weak self] status in
             switch status {

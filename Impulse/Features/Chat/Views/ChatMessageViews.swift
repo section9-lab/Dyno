@@ -5,7 +5,7 @@ import SwiftUI
 
 struct ChatWelcomeHeader: View {
     var body: some View {
-        Text("Hi there! How can I help you today?")
+        Text("chat.welcome")
             .font(.system(size: 28, weight: .semibold))
             .foregroundColor(.primary.opacity(0.88))
             .frame(maxWidth: .infinity)
@@ -15,6 +15,8 @@ struct ChatWelcomeHeader: View {
 }
 
 struct TypingIndicatorView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var animating = false
 
     var body: some View {
@@ -37,7 +39,7 @@ struct TypingIndicatorView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
             .background(
-                Capsule().fill(Color.white.opacity(0.55))
+                Capsule().fill(colorScheme == .dark ? Color.white.opacity(0.07) : Color.white.opacity(0.55))
             )
             Spacer()
         }
@@ -47,6 +49,8 @@ struct TypingIndicatorView: View {
 }
 
 struct MessageView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let item: Item
 
     var body: some View {
@@ -58,7 +62,7 @@ struct MessageView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .padding(.horizontal, 28)
                         .padding(.vertical, 16)
-                        .background(Color.white.opacity(0.55))
+                        .background(userMessageBackground)
                         .foregroundColor(.primary)
                         .clipShape(Capsule())
 
@@ -85,174 +89,70 @@ struct MessageView: View {
             .padding(.horizontal, 16)
         }
     }
+
+    private var userMessageBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.075) : Color.white.opacity(0.55)
+    }
 }
 
 struct ToolExecutionMessageView: View {
     let execution: AgentToolExecution
-    @State private var showFullOutput = false
-
-    private var outputPreview: String {
-        execution.output
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .newlines)
-            .first ?? ""
-    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-            Image(
-              systemName: execution.status == .success
-                ? "checkmark.circle.fill" : "xmark.circle.fill"
-            )
-            .foregroundColor(execution.status == .success ? .green : .red)
-            .frame(width: 14)
-
-            HStack(spacing: 6) {
-              Image(systemName: messageToolIcon(for: execution.toolName))
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-              Text(execution.toolName.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.secondary)
-            }
-            .frame(width: 70, alignment: .leading)
-
-            Text(execution.summary)
-              .font(
-                .system(
-                  size: 11,
-                  design: execution.toolName == "bash" ? .monospaced : .default)
-              )
-              .textSelection(.enabled)
-
-            Spacer()
-          }
-
-          if execution.toolName == "bash" {
-                    DisclosureGroup(isExpanded: $showFullOutput) {
-                        ScrollView {
-                            Text(execution.output.isEmpty ? "(无输出)" : execution.output)
-                                .font(.system(size: 11, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(8)
-                        }
-                        .frame(maxHeight: 220)
-                        .background(Color(NSColor.textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 8))
-                                .rotationEffect(.degrees(showFullOutput ? 90 : 0))
-                            Text("Full cmd result")
-                        }
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .contentShape(Rectangle())
-                    }
-                } else {
-                    Text(outputPreview)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(NSColor.controlColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            Spacer(minLength: 60)
-        }
-        .padding(.horizontal, 16)
+        ToolExecutionCard(
+            toolName: execution.toolName,
+            statusSucceeded: execution.status == .success,
+            summary: execution.summary,
+            output: execution.output
+        )
     }
-
-  private func messageToolIcon(for name: String) -> String {
-    switch name {
-    case "read": return "doc.text"
-    case "write": return "square.and.pencil"
-    case "edit": return "pencil.and.scribble"
-    case "bash": return "terminal"
-    default: return "wrench.and.screwdriver"
-    }
-  }
 }
 
 struct PersistedToolExecutionMessageView: View {
     let execution: PersistedToolExecution
-    @State private var showFullOutput = false
 
-    private var outputPreview: String {
-        execution.output
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .newlines)
-            .first ?? ""
+    var body: some View {
+        ToolExecutionCard(
+            toolName: execution.toolName,
+            statusSucceeded: execution.status == "success",
+            summary: execution.summary,
+            output: execution.output
+        )
     }
+}
+
+private struct ToolExecutionCard: View {
+    let toolName: String
+    let statusSucceeded: Bool
+    let summary: String
+    let output: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 8) {
-            Image(
-              systemName: execution.status == "success"
-                ? "checkmark.circle.fill" : "xmark.circle.fill"
-            )
-            .foregroundColor(execution.status == "success" ? .green : .red)
-            .frame(width: 14)
+                    Image(systemName: statusSucceeded ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(statusSucceeded ? .green : .red)
+                        .frame(width: 14)
 
-            HStack(spacing: 6) {
-              Image(systemName: persistedToolIcon(for: execution.toolName))
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-              Text(execution.toolName.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.secondary)
-            }
-            .frame(width: 70, alignment: .leading)
-
-            Text(execution.summary)
-              .font(
-                .system(
-                  size: 11,
-                  design: execution.toolName == "bash" ? .monospaced : .default)
-              )
-              .textSelection(.enabled)
-
-            Spacer()
-          }
-
-          if execution.toolName == "bash" {
-                    DisclosureGroup(isExpanded: $showFullOutput) {
-                        ScrollView {
-                            Text(execution.output.isEmpty ? "(无输出)" : execution.output)
-                                .font(.system(size: 11, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(8)
-                        }
-                        .frame(maxHeight: 220)
-                        .background(Color(NSColor.textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 8))
-                                .rotationEffect(.degrees(showFullOutput ? 90 : 0))
-                            Text("Full cmd result")
-                        }
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .contentShape(Rectangle())
+                    HStack(spacing: 6) {
+                        Image(systemName: toolIcon(for: toolName))
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                        Text(toolName.uppercased())
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
                     }
-                } else {
-                    Text(outputPreview)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    .frame(width: 70, alignment: .leading)
+
+                    Text(summary)
+                        .font(.system(size: 11, design: toolName == "bash" ? .monospaced : .default))
+                        .textSelection(.enabled)
+
+                    Spacer()
                 }
+
+                ToolOutputPreview(toolName: toolName, output: output)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -264,13 +164,66 @@ struct PersistedToolExecutionMessageView: View {
         .padding(.horizontal, 16)
     }
 
-  private func persistedToolIcon(for name: String) -> String {
-    switch name {
-    case "read": return "doc.text"
-    case "write": return "square.and.pencil"
-    case "edit": return "pencil.and.scribble"
-    case "bash": return "terminal"
-    default: return "wrench.and.screwdriver"
+    private func toolIcon(for name: String) -> String {
+        switch name {
+        case "read": return "doc.text"
+        case "write": return "square.and.pencil"
+        case "edit": return "pencil.and.scribble"
+        case "bash": return "terminal"
+        default: return "wrench.and.screwdriver"
+        }
     }
-  }
+}
+
+private struct ToolOutputPreview: View {
+    private let collapsedLineLimit = 3
+    private let expandedLineLimit = 10
+
+    let toolName: String
+    let output: String
+
+    @State private var isExpanded = false
+
+    private var displayOutput: String {
+        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedOutput.isEmpty ? L10n.tr("tool.no_output") : trimmedOutput
+    }
+
+    private var hasExpandableOutput: Bool {
+        displayOutput.components(separatedBy: .newlines).count > collapsedLineLimit
+    }
+
+    private var fontDesign: Font.Design {
+        switch toolName {
+        case "bash", "edit": return .monospaced
+        default: return .default
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(displayOutput)
+                .font(.system(size: 10, design: fontDesign))
+                .foregroundColor(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(isExpanded ? expandedLineLimit : collapsedLineLimit)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if hasExpandableOutput {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        Text(isExpanded ? L10n.tr("tool.show_less") : L10n.tr("tool.show_more"))
+                    }
+                    .font(.system(size: 10))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+            }
+        }
+    }
 }

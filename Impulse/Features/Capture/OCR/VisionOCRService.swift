@@ -20,6 +20,14 @@ final class VisionOCRService: @unchecked Sendable {
 
     private let ciContext = CIContext()
 
+    func recognizeText(from imageURL: URL, languages: [String] = ["zh-Hans", "en-US"]) async throws -> String {
+        guard let image = NSImage(contentsOf: imageURL) else {
+            throw OCRError.imageConversionFailed
+        }
+
+        return try await recognizeText(from: image, languages: languages)
+    }
+
     func recognizeText(from image: NSImage, languages: [String] = ["zh-Hans", "en-US"]) async throws -> String {
         // 1. 预处理图片：增强对比度、灰度化，提升 OCR 准确率
         guard let preprocessedCGImage = preprocess(image) else {

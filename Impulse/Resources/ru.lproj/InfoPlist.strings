@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Impulse требуется доступ к микрофону для голосового ввода.";
+"NSSpeechRecognitionUsageDescription" = "Impulse использует распознавание речи для расшифровки голосового ввода.";
+"NSScreenCaptureUsageDescription" = "Impulse требуется доступ к захвату экрана, чтобы анализировать содержимое экрана.";

@@ -12,6 +12,7 @@ class ModelSettingsViewModel: ObservableObject {
     @Published var customName: String
     @Published var customBaseURL: String
     @Published var customApiKey: String
+    @Published var visibleProviderCount: Int
 
     init(
         selectedProviderId: String = "",
@@ -23,7 +24,8 @@ class ModelSettingsViewModel: ObservableObject {
         showCustomSheet: Bool = false,
         customName: String = "",
         customBaseURL: String = "",
-        customApiKey: String = ""
+        customApiKey: String = "",
+        visibleProviderCount: Int = 5
     ) {
         self.selectedProviderId = selectedProviderId
         self.draftApiKey = draftApiKey
@@ -35,10 +37,16 @@ class ModelSettingsViewModel: ObservableObject {
         self.customName = customName
         self.customBaseURL = customBaseURL
         self.customApiKey = customApiKey
+        self.visibleProviderCount = visibleProviderCount
     }
 
     func getConfig() -> (providerId: String, baseURL: String, apiKey: String, modelId: String)? {
         guard !draftBaseURL.isEmpty && !draftModelId.isEmpty else { return nil }
         return (selectedProviderId, draftBaseURL, draftApiKey, draftModelId)
+    }
+
+    func loadMoreProviders(totalCount: Int, pageSize: Int = 5) {
+        guard visibleProviderCount < totalCount else { return }
+        visibleProviderCount = min(visibleProviderCount + pageSize, totalCount)
     }
 }

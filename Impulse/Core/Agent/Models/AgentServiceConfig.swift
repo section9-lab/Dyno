@@ -11,14 +11,18 @@ struct AgentServiceConfig: Codable, Equatable {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
     }
 
-    static var defaultStorageDirectoryPath: String {
+    static var defaultAppDataDirectoryPath: String {
         defaultAppSupportDirectory
             .appendingPathComponent("Impulse", isDirectory: true)
             .path
     }
 
+    static var defaultStorageDirectoryPath: String {
+        defaultAppDataDirectoryPath
+    }
+
     static var defaultExecutionWorkspacePath: String {
-        URL(fileURLWithPath: defaultStorageDirectoryPath)
+        URL(fileURLWithPath: defaultAppDataDirectoryPath)
             .appendingPathComponent("workspace", isDirectory: true)
             .path
     }

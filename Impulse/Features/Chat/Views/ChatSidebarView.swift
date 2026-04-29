@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ChatSidebarView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let projects: [ChatProject]
     let selectedProjectPath: String?
     let selectedSessionID: String?
@@ -15,6 +17,9 @@ struct ChatSidebarView: View {
     var onDeleteSession: (ChatSession) -> Void
     var onSettings: () -> Void
     var onHelp: () -> Void
+    var accountName: String
+    var accountSubtitle: LocalizedStringKey
+    var accountInitial: String
     var onLogout: () -> Void
 
     @State private var hoveredButtonId: String?
@@ -43,7 +48,7 @@ struct ChatSidebarView: View {
         VStack(spacing: 8) {
             sidebarActionButton(
                 id: "add_project",
-                title: "Add Project",
+                title: "chat.add_project",
                 systemImage: "folder.badge.plus",
                 enabled: true,
                 action: onAddProject
@@ -55,6 +60,8 @@ struct ChatSidebarView: View {
     private func projectSection(_ project: ChatProject) -> some View {
         let isSelected = project.path == selectedProjectPath && selectedSessionID == nil
         let isHovered = hoveredButtonId == project.path
+        let isExpanded = expandedProjectPaths.contains(project.path)
+        let showsCreateSessionButton = isHovered || isSelected
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
@@ -63,14 +70,10 @@ struct ChatSidebarView: View {
                     onSelectProject(project)
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: expandedProjectPaths.contains(project.path) ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
+                        Image(systemName: isExpanded ? "folder.fill" : "folder")
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
-                            .frame(width: 12)
-
-                        Image(systemName: "folder")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                            .frame(width: 16)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(project.name)
@@ -81,7 +84,7 @@ struct ChatSidebarView: View {
                             Text(project.path)
                                 .font(.system(size: 10))
                                 .lineLimit(1)
-                                .truncationMode(.tail)
+                                .truncationMode(.head)
                                 .foregroundColor(.secondary)
                         }
 
@@ -94,19 +97,22 @@ struct ChatSidebarView: View {
                 Button {
                     onCreateSession(project)
                 } label: {
-                    Label("New Session", systemImage: "plus")
+                    Label("chat.new_session", systemImage: "plus")
                         .labelStyle(.iconOnly)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.primary)
                         .frame(width: 30, height: 30)
-                        .background(Color.white.opacity(0.6))
+                        .background(newSessionButtonBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("Start session")
+                .help("chat.start_session")
+                .opacity(showsCreateSessionButton ? 1 : 0)
+                .allowsHitTesting(showsCreateSessionButton)
+                .accessibilityHidden(!showsCreateSessionButton)
 
                 if project.isMissing {
-                    Text("Missing")
+                    Text("chat.project_missing")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.orange)
                 }
@@ -123,18 +129,18 @@ struct ChatSidebarView: View {
                 }
             }
             .contextMenu {
-                Button("Remove Project", systemImage: "trash", role: .destructive) {
+                Button("chat.remove_project", systemImage: "trash", role: .destructive) {
                     onRemoveProject(project)
                 }
             }
 
-            if expandedProjectPaths.contains(project.path) {
+            if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
                     if project.sessions.isEmpty {
-                        Text("No sessions")
+                        Text("chat.no_sessions")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
-                            .padding(.leading, 42)
+                            .padding(.leading, 28)
                             .padding(.vertical, 4)
                     } else {
                         ForEach(project.sessions) { session in
@@ -149,7 +155,7 @@ struct ChatSidebarView: View {
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 9)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.leading, 28)
+                                    .padding(.leading, 14)
                             }
                             .buttonStyle(
                                 SidebarRowButtonStyle(
@@ -163,10 +169,10 @@ struct ChatSidebarView: View {
                                 }
                             }
                             .contextMenu {
-                                Button("Rename", systemImage: "pencil") {
+                                Button("common.rename", systemImage: "pencil") {
                                     onRenameSession(session)
                                 }
-                                Button("Delete", systemImage: "trash", role: .destructive) {
+                                Button("common.delete", systemImage: "trash", role: .destructive) {
                                     onDeleteSession(session)
                                 }
                             }
@@ -179,7 +185,7 @@ struct ChatSidebarView: View {
 
     private func sidebarActionButton(
         id: String,
-        title: String,
+        title: LocalizedStringKey,
         systemImage: String,
         enabled: Bool,
         action: @escaping () -> Void
@@ -203,16 +209,6 @@ struct ChatSidebarView: View {
 
     private var userAvatarSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if showUserPopover {
-                UserAccountPopover(
-                    isPresented: $showUserPopover,
-                    onSettings: onSettings,
-                    onHelp: onHelp,
-                    onLogout: onLogout
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
             Button {
                 withAnimation(.easeOut(duration: 0.16)) {
                     showUserPopover.toggle()
@@ -223,14 +219,15 @@ struct ChatSidebarView: View {
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: 32, height: 32)
                         .overlay {
-                            Text("G")
+                            Text(accountInitial)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.white)
                         }
 
-                    Text("Guest")
+                    Text(accountName)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.primary)
+                        .lineLimit(1)
 
                     Spacer()
                 }
@@ -241,7 +238,7 @@ struct ChatSidebarView: View {
             .buttonStyle(.plain)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(hoveredButtonId == "user_avatar" ? Color.white.opacity(0.4) : Color.clear)
+                    .fill(hoveredButtonId == "user_avatar" ? hoverBackgroundColor : Color.clear)
             )
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.1)) {
@@ -253,6 +250,17 @@ struct ChatSidebarView: View {
                     NSCursor.pop()
                 }
             }
+            .popover(isPresented: $showUserPopover, arrowEdge: .bottom) {
+                UserAccountPopover(
+                    isPresented: $showUserPopover,
+                    accountName: accountName,
+                    accountSubtitle: accountSubtitle,
+                    accountInitial: accountInitial,
+                    onSettings: onSettings,
+                    onHelp: onHelp,
+                    onLogout: onLogout
+                )
+            }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -260,20 +268,34 @@ struct ChatSidebarView: View {
 
     private func previewText(for text: String) -> String {
         let singleLine = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        return singleLine.isEmpty ? "(empty)" : singleLine
+        return singleLine.isEmpty ? L10n.tr("chat.empty_session") : singleLine
     }
 
     private func projectBackgroundColor(isSelected: Bool, isHovered: Bool) -> Color {
         if isSelected {
-            return Color.white.opacity(0.55)
+            return selectedBackgroundColor
         } else if isHovered {
-            return Color.white.opacity(0.6)
+            return hoverBackgroundColor
         }
         return Color.clear
+    }
+
+    private var hoverBackgroundColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.055) : Color.black.opacity(0.04)
+    }
+
+    private var selectedBackgroundColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.085) : Color.black.opacity(0.06)
+    }
+
+    private var newSessionButtonBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.075) : Color.white.opacity(0.6)
     }
 }
 
 struct SidebarRowButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
     let isSelected: Bool
     let isHovered: Bool
 
@@ -288,9 +310,9 @@ struct SidebarRowButtonStyle: ButtonStyle {
 
     private func backgroundColor() -> Color {
         if isSelected {
-            return Color.white.opacity(0.55)
+            return colorScheme == .dark ? Color.white.opacity(0.085) : Color.black.opacity(0.06)
         } else if isHovered {
-            return Color.white.opacity(0.6)
+            return colorScheme == .dark ? Color.white.opacity(0.055) : Color.black.opacity(0.04)
         }
         return Color.clear
     }

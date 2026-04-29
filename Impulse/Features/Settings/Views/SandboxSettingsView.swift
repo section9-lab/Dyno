@@ -9,6 +9,8 @@ struct SandboxSettingsView: View {
     @State private var agentEntries: [SandboxTreeRowEntry] = []
     @State private var selectedTextPreview: SandboxTextPreview?
 
+    private let actionRowWidth: CGFloat = 420
+
     private var storageDirectoryURL: URL {
         agent.storageDirectoryURL
     }
@@ -27,7 +29,7 @@ struct SandboxSettingsView: View {
     }
     
     private var agentStateCard: some View {
-        SettingsCard(title: "Impulse 数据目录") {
+        SettingsCard(title: "settings.files.data_directory") {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Storage Root")
@@ -43,7 +45,7 @@ struct SandboxSettingsView: View {
                     Text("Active Project")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
-                    Text(agent.activeProjectPath ?? "未选择")
+                    Text(agent.activeProjectPath ?? L10n.tr("common.not_selected"))
                         .font(.system(.body, design: .monospaced))
                         .foregroundColor(agent.activeProjectPath == nil ? .secondary : .primary)
                         .textSelection(.enabled)
@@ -62,11 +64,11 @@ struct SandboxSettingsView: View {
                 .background(Color.white.opacity(0.6))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 
-                Text("Impulse 的会话、skills 和后续 memory 都放在这里，不再跟项目目录绑定。")
+                Text("settings.files.storage_description")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                Text("当前工作区由左侧 Projects 中的选中项目决定，不在设置页单独配置。")
+                Text("settings.files.workspace_description")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -74,10 +76,10 @@ struct SandboxSettingsView: View {
     }
     
     private var sandboxCard: some View {
-        SettingsCard(title: "执行授权目录") {
+        SettingsCard(title: "settings.files.authorized_directories") {
             VStack(spacing: 10) {
                 if sandbox.entries.isEmpty {
-                    Text("未授权额外目录。当前项目会作为默认执行目录，其它路径需要单独授权。")
+                    Text("settings.files.no_authorized_directories")
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -97,7 +99,7 @@ struct SandboxSettingsView: View {
                                     .foregroundColor(statusColor(for: status))
                                     .clipShape(Capsule())
                                 if status != .active {
-                                    Button("重新授权") {
+                                    Button("settings.files.reauthorize") {
                                         sandbox.reauthorizeEntry(entry)
                                         agent.refreshRuntimeContext()
                                     }
@@ -119,18 +121,19 @@ struct SandboxSettingsView: View {
                 }
                 
                 HStack {
-                    Button("添加目录授权...") {
+                    Button("settings.files.add_directory_authorization") {
                         sandbox.authorizeDirectoryViaOpenPanel()
                         agent.refreshRuntimeContext()
                     }
-                    Button("刷新授权") {
+                    Button("settings.files.refresh_authorization") {
                         sandbox.refreshAccess()
                         agent.refreshRuntimeContext()
                     }
                     Spacer()
                 }
+                .frame(maxWidth: actionRowWidth, alignment: .leading)
                 
-                Text("这些目录只影响 read/write/edit/bash 等执行工具的可触达范围，不影响 Impulse 自身状态目录。")
+                Text("settings.files.authorization_description")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -162,11 +165,11 @@ struct SandboxSettingsView: View {
             Spacer()
             
             if entry.isTextFile {
-                Text("查看")
+                Text("settings.files.view")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.accentColor)
             } else if entry.isMissingDirectory {
-                Text("未创建")
+                Text("settings.files.not_created")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
             }
@@ -214,7 +217,7 @@ struct SandboxSettingsView: View {
             .navigationTitle(preview.title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") {
+                    Button("common.close") {
                         selectedTextPreview = nil
                     }
                 }
@@ -282,7 +285,7 @@ struct SandboxSettingsView: View {
         if children.isEmpty {
             result.append(
                 SandboxTreeRowEntry(
-                    name: "空目录",
+                    name: L10n.tr("settings.files.empty_directory"),
                     url: url,
                     depth: depth + 1,
                     isDirectory: false,
@@ -353,20 +356,20 @@ struct SandboxSettingsView: View {
         else {
             selectedTextPreview = SandboxTextPreview(
                 title: name,
-                content: "无法读取该文件内容。"
+                content: L10n.tr("settings.files.unable_to_read_file")
             )
             return
         }
         
-        let previewText = content.count > 20_000 ? String(content.prefix(20_000)) + "\n\n… 已截断" : content
+        let previewText = content.count > 20_000 ? String(content.prefix(20_000)) + "\n\n" + L10n.tr("settings.files.truncated") : content
         selectedTextPreview = SandboxTextPreview(title: name, content: previewText)
     }
     
     private func statusLabel(for status: SandboxAuthorizationStatus) -> String {
         switch status {
-        case .active: return "已授权"
-        case .stale: return "需更新"
-        case .invalid: return "无效"
+        case .active: return L10n.tr("settings.files.status.active")
+        case .stale: return L10n.tr("settings.files.status.stale")
+        case .invalid: return L10n.tr("settings.files.status.invalid")
         }
     }
     

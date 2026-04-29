@@ -2,57 +2,65 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @ObservedObject var viewModel: GeneralSettingsViewModel
+
+    private let contentWidth: CGFloat = 560
+    private let menuControlWidth: CGFloat = 220
+    private let segmentedControlWidth: CGFloat = 280
     
     var body: some View {
-        SettingsCard(title: "通用设置") {
+        SettingsCard(title: "settings.general.title") {
             VStack(alignment: .leading, spacing: 18) {
                 languageSection
                 themeSection
                 ocrSection
                 voiceSection
             }
+            .frame(width: contentWidth, alignment: .leading)
         }
     }
     
     private var languageSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("语言")
+            Text("settings.general.language")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             
             Picker("", selection: $viewModel.language) {
-                Text("简体中文").tag("zh")
-                Text("English").tag("en")
+                ForEach(AppLanguage.allCases) { language in
+                    Text(language.displayName).tag(language.rawValue)
+                }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
+            .frame(width: menuControlWidth, alignment: .leading)
         }
     }
     
     private var themeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("主题")
+            Text("settings.general.theme")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             
             Picker("", selection: $viewModel.theme) {
-                Text("自动").tag("auto")
-                Text("浅色").tag("light")
-                Text("深色").tag("dark")
+                Text("settings.general.theme.auto").tag("auto")
+                Text("settings.general.theme.light").tag("light")
+                Text("settings.general.theme.dark").tag("dark")
             }
             .pickerStyle(.segmented)
+            .frame(width: segmentedControlWidth, alignment: .leading)
         }
     }
     
     private var ocrSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("屏幕捕获")
+            Text("settings.general.screen_capture")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             
             Toggle(isOn: $viewModel.ocrEnabled) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("自动 OCR 截屏")
-                    Text("在系统空闲时自动捕获屏幕并进行 OCR 识别")
+                    Text("settings.general.auto_ocr")
+                    Text("settings.general.auto_ocr.description")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -63,7 +71,7 @@ struct GeneralSettingsView: View {
     
     private var voiceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("语音输入快捷键")
+            Text("settings.general.voice_shortcut")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
             
@@ -74,9 +82,9 @@ struct GeneralSettingsView: View {
                 Text("Fn").tag("Fn")
             }
             .pickerStyle(.menu)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: menuControlWidth, alignment: .leading)
             
-            Text("按住快捷键说话，松开发送")
+            Text("settings.general.voice_shortcut.description")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }

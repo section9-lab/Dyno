@@ -1,0 +1,103 @@
+import Foundation
+import SwiftUI
+
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case en
+    case zh
+    case es
+    case fr
+    case ru
+    case ja
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .en: return "English"
+        case .zh: return "中文"
+        case .es: return "Español"
+        case .fr: return "Français"
+        case .ru: return "Русский"
+        case .ja: return "日本語"
+        }
+    }
+
+    var speechLocaleIdentifier: String {
+        switch self {
+        case .en: return "en-US"
+        case .zh: return "zh-Hans"
+        case .es: return "es-ES"
+        case .fr: return "fr-FR"
+        case .ru: return "ru-RU"
+        case .ja: return "ja-JP"
+        }
+    }
+}
+
+enum AppTheme: String, CaseIterable, Identifiable {
+    case auto
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .auto: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
+@MainActor
+final class ThemeManager: ObservableObject {
+    static let shared = ThemeManager()
+
+    private static let storageKey = "app.theme"
+
+    @Published var theme: AppTheme {
+        didSet {
+            UserDefaults.standard.set(theme.rawValue, forKey: Self.storageKey)
+        }
+    }
+
+    private init() {
+        let stored = UserDefaults.standard.string(forKey: Self.storageKey)
+        self.theme = stored.flatMap(AppTheme.init(rawValue:)) ?? .auto
+    }
+}
+
+@MainActor
+final class LocalizationManager: ObservableObject {
+    static let shared = LocalizationManager()
+
+    private static let storageKey = "app.language"
+
+    @Published var language: AppLanguage {
+        didSet {
+            UserDefaults.standard.set(language.rawValue, forKey: Self.storageKey)
+        }
+    }
+
+    private init() {
+        let stored = UserDefaults.standard.string(forKey: Self.storageKey)
+        self.language = stored.flatMap(AppLanguage.init(rawValue:)) ?? .en
+    }
+
+    var locale: Locale {
+        Locale(identifier: language.rawValue)
+    }
+}
+
+enum L10n {
+    static func tr(_ key: String, _ arguments: CVarArg...) -> String {
+        let language = UserDefaults.standard.string(forKey: "app.language")
+            .flatMap(AppLanguage.init(rawValue:))?
+            .rawValue ?? AppLanguage.en.rawValue
+        let bundle = Bundle.main.path(forResource: language, ofType: "lproj")
+            .flatMap(Bundle.init(path:)) ?? .main
+        let format = NSLocalizedString(key, bundle: bundle, comment: "")
+        return String(format: format, locale: Locale(identifier: language), arguments: arguments)
+    }
+}

@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct InputBar: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     @Binding var inputText: String
     let projects: [ChatProject]
     let selectedProjectPath: String?
@@ -11,7 +13,15 @@ struct InputBar: View {
 
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var micPulse = false
+    @State private var inputHeight: CGFloat = 38
+    @State private var isAttachmentButtonHovered = false
     @State private var optionKeyMonitor: Any?
+
+    private let minimumInputHeight: CGFloat = 38
+    private let maximumInputHeight: CGFloat = 114
+    private let controlButtonSize: CGFloat = 36
+    private let inputCornerRadius: CGFloat = 18
+    private let trayCornerRadius: CGFloat = 18
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isResponding
@@ -19,9 +29,9 @@ struct InputBar: View {
 
     private var selectedProjectName: String {
         guard let selectedProjectPath,
-              let selectedProject = projects.first(where: { $0.path == selectedProjectPath })
+            let selectedProject = projects.first(where: { $0.path == selectedProjectPath })
         else {
-            return "Project"
+            return L10n.tr("chat.project")
         }
         return selectedProject.name
     }
@@ -30,25 +40,44 @@ struct InputBar: View {
         VStack(spacing: 0) {
             VStack(spacing: 16) {
                 HStack(spacing: 0) {
-                    TextField("Send a message", text: $inputText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundColor(.primary)
-                        .onSubmit(onSend)
+                    ZStack(alignment: .topLeading) {
+                        if inputText.isEmpty {
+                            Text(L10n.tr("chat.send_message_placeholder"))
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundColor(.secondary)
+                                .padding(.top, 1)
+                                .allowsHitTesting(false)
+                        }
+
+                        MultilineMessageInput(
+                            text: $inputText,
+                            height: $inputHeight,
+                            minimumHeight: minimumInputHeight,
+                            maximumHeight: maximumInputHeight,
+                            canSubmit: canSend,
+                            onSubmit: onSend
+                        )
+                    }
+                    .frame(height: inputHeight, alignment: .topLeading)
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     Button(action: {}) {
-                        Circle()
-                            .fill(Color.white.opacity(0.74))
-                            .frame(width: 42, height: 42)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.system(size: 20, weight: .regular))
-                                    .foregroundColor(.gray)
-                            )
+                        Image(systemName: "plus")
+                            .font(.system(size: 18, weight: .regular))
+                            .foregroundColor(controlIconColor)
+                            .frame(width: controlButtonSize, height: controlButtonSize)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(
+                        HoverCircleButtonStyle(
+                            isHovered: isAttachmentButtonHovered,
+                            hoverBackground: controlButtonBackground,
+                            pressedBackground: pressedControlButtonBackground
+                        )
+                    )
+                    .onHover { hovering in
+                        isAttachmentButtonHovered = hovering
+                    }
 
                     Spacer()
 
@@ -56,12 +85,12 @@ struct InputBar: View {
 
                     Button(action: onSend) {
                         Circle()
-                            .fill(canSend ? Color.black : Color.gray.opacity(0.25))
-                            .frame(width: 42, height: 42)
+                            .fill(sendButtonBackground)
+                            .frame(width: controlButtonSize, height: controlButtonSize)
                             .overlay(
                                 Image(systemName: "arrow.up")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(sendIconColor)
                             )
                     }
                     .buttonStyle(.plain)
@@ -71,19 +100,31 @@ struct InputBar: View {
             .padding(.horizontal, 22)
             .padding(.vertical, 16)
             .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(red: 0.89, green: 0.89, blue: 0.90))
+                UnevenRoundedRectangle(
+                    topLeadingRadius: inputCornerRadius,
+                    bottomLeadingRadius: inputCornerRadius,
+                    bottomTrailingRadius: inputCornerRadius,
+                    topTrailingRadius: inputCornerRadius,
+                    style: .continuous
+                )
+                    .fill(inputBackgroundColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.black.opacity(0.04), lineWidth: 0.5)
+                UnevenRoundedRectangle(
+                    topLeadingRadius: inputCornerRadius,
+                    bottomLeadingRadius: inputCornerRadius,
+                    bottomTrailingRadius: inputCornerRadius,
+                    topTrailingRadius: inputCornerRadius,
+                    style: .continuous
+                )
+                    .stroke(inputBorderColor, lineWidth: 0.5)
             )
             .zIndex(1)
 
             projectSelectorTray
-                .padding(.top, -14)
+                .padding(.top, -28)
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 12)
         .padding(.bottom, 12)
         .onChange(of: speechManager.transcript) { _, _ in
             inputText = speechManager.composedText
@@ -118,33 +159,38 @@ struct InputBar: View {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
                 }
+                .font(.system(size: 14, weight: .medium))
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: 220, alignment: .leading)
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
 
             HStack(spacing: 6) {
                 Image(systemName: "laptopcomputer")
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
             }
+            .font(.system(size: 14, weight: .medium))
 
             Image(systemName: "point.3.connected.trianglepath.dotted")
+                .font(.system(size: 15, weight: .medium))
 
             Spacer()
         }
-        .font(.system(size: 18, weight: .regular))
-        .foregroundColor(Color.gray.opacity(0.9))
+        .foregroundColor(trayForegroundColor)
         .padding(.horizontal, 28)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
+        .padding(.top, 34)
+        .padding(.bottom, 6)
         .background(
             UnevenRoundedRectangle(
                 topLeadingRadius: 0,
-                bottomLeadingRadius: 24,
-                bottomTrailingRadius: 24,
+                bottomLeadingRadius: trayCornerRadius,
+                bottomTrailingRadius: trayCornerRadius,
                 topTrailingRadius: 0,
                 style: .continuous
             )
-            .fill(Color(red: 0.86, green: 0.86, blue: 0.87))
+            .fill(trayBackgroundColor)
         )
     }
 
@@ -152,12 +198,12 @@ struct InputBar: View {
 
     private var micButton: some View {
         Circle()
-            .fill(speechManager.isListening ? Color.red : Color.white.opacity(0.74))
-            .frame(width: 42, height: 42)
+            .fill(speechManager.isListening ? Color.red : controlButtonBackground)
+            .frame(width: controlButtonSize, height: controlButtonSize)
             .overlay(
                 Image(systemName: speechManager.isListening ? "waveform" : "mic")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(speechManager.isListening ? .white : .gray)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(speechManager.isListening ? .white : controlIconColor)
                     .symbolEffect(.variableColor.iterative, isActive: speechManager.isListening)
             )
             .scaleEffect(micPulse ? 1.08 : 1.0)
@@ -184,13 +230,54 @@ struct InputBar: View {
     // MARK: - Voice Input
 
     private func startVoiceInput() {
-        guard !speechManager.isListening else { return }
         speechManager.startListening(currentText: inputText)
     }
 
     private func stopVoiceInput() {
-        guard speechManager.isListening else { return }
         speechManager.stopListening()
+    }
+
+    private var inputBackgroundColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.145, green: 0.153, blue: 0.165)
+            : Color(red: 0.89, green: 0.89, blue: 0.90)
+    }
+
+    private var trayBackgroundColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.125, green: 0.132, blue: 0.143)
+            : Color(red: 0.86, green: 0.86, blue: 0.87)
+    }
+
+    private var controlButtonBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.075) : Color.white.opacity(0.74)
+    }
+
+    private var pressedControlButtonBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.12) : Color.white.opacity(0.92)
+    }
+
+    private var controlIconColor: Color {
+        colorScheme == .dark ? Color(red: 0.66, green: 0.68, blue: 0.70) : .gray
+    }
+
+    private var sendButtonBackground: Color {
+        if canSend {
+            return colorScheme == .dark ? Color(red: 0.55, green: 0.66, blue: 0.70) : .black
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.08) : Color.gray.opacity(0.25)
+    }
+
+    private var sendIconColor: Color {
+        canSend || colorScheme == .light ? .white : Color.white.opacity(0.42)
+    }
+
+    private var inputBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.04)
+    }
+
+    private var trayForegroundColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.56) : Color.gray.opacity(0.9)
     }
 
     // MARK: - Option Key Monitor
@@ -215,5 +302,156 @@ struct InputBar: View {
             NSEvent.removeMonitor(monitor)
             optionKeyMonitor = nil
         }
+    }
+}
+
+private struct HoverCircleButtonStyle: ButtonStyle {
+    let isHovered: Bool
+    let hoverBackground: Color
+    let pressedBackground: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Circle()
+                    .fill(
+                        configuration.isPressed
+                            ? pressedBackground : (isHovered ? hoverBackground : Color.clear))
+            )
+            .contentShape(Circle())
+    }
+}
+
+private struct MultilineMessageInput: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var height: CGFloat
+
+    let minimumHeight: CGFloat
+    let maximumHeight: CGFloat
+    let canSubmit: Bool
+    let onSubmit: () -> Void
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.borderType = .noBorder
+        scrollView.autohidesScrollers = true
+
+        let textView = MessageTextView()
+        textView.delegate = context.coordinator
+        textView.onSubmit = {
+            if canSubmit {
+                onSubmit()
+            }
+        }
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = true
+        textView.drawsBackground = false
+        textView.font = .systemFont(ofSize: 15, weight: .regular)
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .labelColor
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.string = text
+
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        context.coordinator.scrollView = scrollView
+
+        DispatchQueue.main.async {
+            context.coordinator.updateHeight()
+        }
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? MessageTextView else { return }
+
+        context.coordinator.parent = self
+        textView.onSubmit = {
+            if canSubmit {
+                onSubmit()
+            }
+        }
+
+        if textView.string != text {
+            textView.string = text
+        }
+
+        DispatchQueue.main.async {
+            context.coordinator.updateHeight()
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: MultilineMessageInput
+        weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
+
+        init(parent: MultilineMessageInput) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView else { return }
+            parent.text = textView.string
+            updateHeight()
+        }
+
+        func updateHeight() {
+            guard let textView, let scrollView else { return }
+
+            let fittingWidth = max(scrollView.contentSize.width, 1)
+            textView.textContainer?.containerSize = NSSize(
+                width: fittingWidth,
+                height: .greatestFiniteMagnitude
+            )
+            textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+
+            let usedRect = textView.layoutManager?.usedRect(for: textView.textContainer!) ?? .zero
+            let measuredHeight = ceil(usedRect.height + textView.textContainerInset.height * 2)
+            let nextHeight = min(max(measuredHeight, parent.minimumHeight), parent.maximumHeight)
+
+            scrollView.hasVerticalScroller = measuredHeight > parent.maximumHeight
+            textView.frame.size = NSSize(
+                width: fittingWidth, height: max(measuredHeight, nextHeight))
+
+            if abs(parent.height - nextHeight) > 0.5 {
+                parent.height = nextHeight
+            }
+        }
+    }
+}
+
+private final class MessageTextView: NSTextView {
+    var onSubmit: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36 || event.keyCode == 76 {
+            if event.modifierFlags.contains(.shift) {
+                insertNewlineIgnoringFieldEditor(self)
+            } else {
+                onSubmit?()
+            }
+            return
+        }
+
+        super.keyDown(with: event)
     }
 }
