@@ -5,6 +5,7 @@ struct UserAccountPopover: View {
     let accountName: String
     let accountSubtitle: LocalizedStringKey
     let accountInitial: String
+    var accountAvatarURL: URL? = nil
     var onSettings: () -> Void
     var onHelp: () -> Void
     var onLogout: () -> Void
@@ -16,14 +17,8 @@ struct UserAccountPopover: View {
             Button {
             } label: {
                 HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
+                    avatarView
                         .frame(width: 40, height: 40)
-                        .overlay {
-                            Text(accountInitial)
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(accountName)
@@ -85,6 +80,37 @@ struct UserAccountPopover: View {
                 .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
         )
         .frame(width: 240)
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        if let url = accountAvatarURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    avatarFallback
+                @unknown default:
+                    avatarFallback
+                }
+            }
+            .clipShape(Circle())
+        } else {
+            avatarFallback
+        }
+    }
+
+    private var avatarFallback: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay {
+                Text(accountInitial)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+            }
     }
 }
 

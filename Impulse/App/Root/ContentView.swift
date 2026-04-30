@@ -26,6 +26,37 @@ struct ContentView: View {
         vm.makeDisplayedItems(from: items)
     }
 
+    private var displayedRows: [ChatRow] {
+        var rows: [ChatRow] = []
+        var pendingTools: [PersistedToolExecution] = []
+        var firstGroupItemID: String?
+
+        func flushTools() {
+            guard !pendingTools.isEmpty, let groupID = firstGroupItemID else {
+                pendingTools = []
+                firstGroupItemID = nil
+                return
+            }
+            rows.append(.toolGroup(ToolExecutionGroup(id: "group-\(groupID)", executions: pendingTools)))
+            pendingTools = []
+            firstGroupItemID = nil
+        }
+
+        for item in displayedItems {
+            if item.kind == "tool_execution",
+               let payload = decodePersistedToolExecution(from: item.content)
+            {
+                if firstGroupItemID == nil { firstGroupItemID = "\(item.persistentModelID.hashValue)" }
+                pendingTools.append(payload)
+            } else {
+                flushTools()
+                rows.append(.message(item))
+            }
+        }
+        flushTools()
+        return rows
+    }
+
     private var kanbanTasks: [KanbanTaskSnapshot] {
         vm.makeKanbanTasks(from: items)
     }
@@ -54,6 +85,7 @@ struct ContentView: View {
                         accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
                         accountSubtitle: authSession.provider.accountTitleKey,
                         accountInitial: authSession.user?.avatarInitial ?? "G",
+                        accountAvatarURL: authSession.user?.avatarURL,
                         onLogout: handleLogout
                     )
                     .frame(width: vm.sidebarWidth)
@@ -88,18 +120,19 @@ struct ContentView: View {
                                 if selectedSession == nil {
                                     emptyState
                                 } else {
-                                    ForEach(displayedItems) { item in
-                                        if item.kind == "compaction_summary" {
-                                            EmptyView()
-                                                .id(item.id)
-                                        } else if item.kind == "tool_execution",
-                                                  let payload = decodePersistedToolExecution(from: item.content)
-                                        {
-                                            PersistedToolExecutionMessageView(execution: payload)
-                                                .id(item.id)
-                                        } else {
-                                            MessageView(item: item)
-                                                .id(item.id)
+                                    ForEach(displayedRows) { row in
+                                        switch row {
+                                        case .message(let item):
+                                            if item.kind == "compaction_summary" {
+                                                EmptyView()
+                                                    .id(item.id)
+                                            } else {
+                                                MessageView(item: item)
+                                                    .id(item.id)
+                                            }
+                                        case .toolGroup(let group):
+                                            ToolExecutionGroupView(group: group)
+                                                .id(group.id)
                                         }
                                     }
 
@@ -131,7 +164,8 @@ struct ContentView: View {
                         selectedProjectPath: vm.selectedProjectPath,
                         isResponding: agent.isResponding,
                         onSelectProject: { vm.selectProject($0.path, agent: agent) },
-                        onSend: sendMessage
+                        onSend: sendMessage,
+                        agent: agent
                     )
                 }
             }
@@ -436,4 +470,16 @@ private struct SeededRandomGenerator: RandomNumberGenerator {
 #Preview {
     ContentView()
         .modelContainer(for: Item.self, inMemory: true)
+}
+
+enum ChatRow: Identifiable {
+    case message(Item)
+    case toolGroup(ToolExecutionGroup)
+
+    var id: String {
+        switch self {
+        case .message(let item): return "msg-\(item.persistentModelID.hashValue)"
+        case .toolGroup(let group): return group.id
+        }
+    }
 }

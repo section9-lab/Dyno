@@ -1,6 +1,7 @@
 import Foundation
 
 enum AgentToolExecutionStatus: String {
+    case running
     case success
     case failed
 }

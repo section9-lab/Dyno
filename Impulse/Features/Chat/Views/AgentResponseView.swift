@@ -8,8 +8,13 @@ struct AgentResponseView: View {
 
     var body: some View {
         if agent.isResponding {
-            ForEach(agent.latestToolExecutions) { execution in
-                ToolExecutionMessageView(execution: execution)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(agent.latestToolExecutions.enumerated()), id: \.element.id) { index, execution in
+                    ToolExecutionMessageView(
+                        execution: execution,
+                        isLast: index == agent.latestToolExecutions.count - 1
+                    )
+                }
             }
 
             TypingIndicatorView()

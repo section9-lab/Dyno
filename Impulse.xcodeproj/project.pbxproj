@@ -70,7 +70,6 @@
 		086ED72175BEC635EB63FFDF /* ModelSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSettingsView.swift; sourceTree = "<group>"; };
 		0BCFC7AD047F5D82FE009141 /* AgentResponseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentResponseView.swift; sourceTree = "<group>"; };
 		0ECDAD2E483F60E9F9174DAD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		11F977371C031EF11D297653 /* SwiftCodingAgent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftCodingAgent; path = ../SwiftCodingAgent; sourceTree = SOURCE_ROOT; };
 		1551F3E20889B3DBC5F6B768 /* OCRCaptureOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRCaptureOrchestrator.swift; sourceTree = "<group>"; };
 		250A868C643CDB8A72D5132F /* AgentSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionStore.swift; sourceTree = "<group>"; };
 		291BE9E4DDC2A1749CC56955 /* SandboxSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxSettingsViewModel.swift; sourceTree = "<group>"; };
@@ -226,6 +225,13 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		3E142495CCF65F094237CD22 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
 		3F7CA65D1BC1F445860EE1B2 /* Data */ = {
 			isa = PBXGroup;
 			children = (
@@ -348,20 +354,13 @@
 		91396664ECECC092FAF6FAFB /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3E142495CCF65F094237CD22 /* Design */,
 				0B4CF811B249B6826C72FDD6 /* Extensions */,
 				37D02046B3329355281CF885 /* Localization */,
 				4DD024DC01ED91ED04F80821 /* Utilities */,
 			);
 			name = Shared;
 			path = Impulse/Shared;
-			sourceTree = "<group>";
-		};
-		925E464A2522F6273B8C0B71 /* Packages */ = {
-			isa = PBXGroup;
-			children = (
-				11F977371C031EF11D297653 /* SwiftCodingAgent */,
-			);
-			name = Packages;
 			sourceTree = "<group>";
 		};
 		9686FB5ACF689891964650AB /* Kanban */ = {
@@ -536,7 +535,6 @@
 				0B50685CCD541A9D61048B95 /* App */,
 				62B8E83BCE1524959C1BF826 /* Core */,
 				9706F28995AFA5AA33AE65AE /* Features */,
-				925E464A2522F6273B8C0B71 /* Packages */,
 				2A61B412C097FAAAD2A998A3 /* Resources */,
 				91396664ECECC092FAF6FAFB /* Shared */,
 				D40AEB032A75ADDE88D0DCD4 /* Products */,
@@ -597,7 +595,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8771656467389179A7BFC86A /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				3F4402A76C3073BA7D3C40D4 /* XCLocalSwiftPackageReference "../SwiftCodingAgent" */,
+				A7F65DA60A8F83453DD6468F /* XCRemoteSwiftPackageReference "SwiftCodingAgent" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D40AEB032A75ADDE88D0DCD4 /* Products */;
@@ -890,13 +888,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		3F4402A76C3073BA7D3C40D4 /* XCLocalSwiftPackageReference "../SwiftCodingAgent" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../SwiftCodingAgent;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		8771656467389179A7BFC86A /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -904,6 +895,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.4.0;
+			};
+		};
+		A7F65DA60A8F83453DD6468F /* XCRemoteSwiftPackageReference "SwiftCodingAgent" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/section9-lab/SwiftCodingAgent";
+			requirement = {
+				branch = main;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -916,6 +915,7 @@
 		};
 		EE576E14ED8C835AD3FC5CBC /* SwiftCodingAgent */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = A7F65DA60A8F83453DD6468F /* XCRemoteSwiftPackageReference "SwiftCodingAgent" */;
 			productName = SwiftCodingAgent;
 		};
 /* End XCSwiftPackageProductDependency section */

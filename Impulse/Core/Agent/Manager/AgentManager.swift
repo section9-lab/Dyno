@@ -13,6 +13,7 @@ final class AgentManager: ObservableObject {
     @Published var config: AgentServiceConfig
     @Published var latestToolExecutions: [AgentToolExecution] = []
     @Published var latestCompactionSummary: String?
+    @Published var contextUsage: ContextUsage = ContextUsage(usedTokens: 0, totalTokens: 128_000, reservedTokens: 16_384)
 
     let registry = ModelRegistry.shared
 
@@ -86,6 +87,7 @@ final class AgentManager: ObservableObject {
         latestCompactionSummary = nil
         bootstrapAgentDirectory()
         sdk = Self.makeSDK(config: config, activeProjectPath: activeProjectPath)
+        Task { await refreshContextUsage() }
     }
 
     func setActiveProjectPath(_ path: String?) {
@@ -283,6 +285,7 @@ final class AgentManager: ObservableObject {
             let runMessages = Array(result.messages.dropFirst(historyCountBefore))
             latestToolExecutions = extractToolExecutions(from: runMessages)
             latestCompactionSummary = result.compactionSummary?.trimmingCharacters(in: .whitespacesAndNewlines)
+            contextUsage = await sdk.contextUsage()
 
             let text = result.finalText.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
@@ -297,6 +300,7 @@ final class AgentManager: ObservableObject {
             let runMessages = Array(allMessages.dropFirst(historyCountBefore))
             latestToolExecutions = extractToolExecutions(from: runMessages)
             latestCompactionSummary = await sdk.compactionSummary()?.trimmingCharacters(in: .whitespacesAndNewlines)
+            contextUsage = await sdk.contextUsage()
 
             if let lastAssistant = runMessages.last(where: { $0.role == .assistant }),
                !lastAssistant.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -314,38 +318,77 @@ final class AgentManager: ObservableObject {
     private func extractToolExecutions(from messages: [AgentMessage]) -> [AgentToolExecution] {
         let trackedTools: Set<String> = ["read", "write", "edit", "bash"]
 
-        var argumentsByCallID: [String: String] = [:]
+        struct PendingCall {
+            let name: String
+            let argsJSON: String?
+            let order: Int
+        }
+
+        var pendingByCallID: [String: PendingCall] = [:]
+        var pendingOrder: [String] = []
+        var orderCounter = 0
+
         for message in messages where message.role == .assistant {
             guard let callID = message.toolCallID,
-                  let args = message.toolArgumentsJSON,
                   let name = message.toolName,
                   trackedTools.contains(name)
             else { continue }
-            argumentsByCallID[callID] = args
+            pendingByCallID[callID] = PendingCall(name: name, argsJSON: message.toolArgumentsJSON, order: orderCounter)
+            pendingOrder.append(callID)
+            orderCounter += 1
         }
 
-        return messages.enumerated().compactMap { index, message in
+        var executions: [(order: Int, execution: AgentToolExecution)] = []
+
+        for (index, message) in messages.enumerated() {
             guard message.role == .tool,
                   let name = message.toolName,
                   trackedTools.contains(name)
-            else { return nil }
+            else { continue }
 
             let output = message.content
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             let failed = trimmed.hasPrefix("ERROR:")
             let stableID = message.toolCallID ?? "\(name)-\(index)"
-            let argsJSON = message.toolCallID.flatMap { argumentsByCallID[$0] }
+            let pending = message.toolCallID.flatMap { pendingByCallID[$0] }
+            let argsJSON = pending?.argsJSON
             let summary = buildToolSummary(toolName: name, argumentsJSON: argsJSON)
             let displayOutput = failed ? mapToUserFriendlySandboxMessage(trimmed) + "\n\n" + L10n.tr("agent.raw_error") + ":\n\(trimmed)" : output
+            let order = pending?.order ?? (1_000_000 + index)
 
-            return AgentToolExecution(
-                id: stableID,
-                toolName: name,
-                status: failed ? .failed : .success,
-                summary: summary,
-                output: displayOutput
-            )
+            executions.append((
+                order: order,
+                execution: AgentToolExecution(
+                    id: stableID,
+                    toolName: name,
+                    status: failed ? .failed : .success,
+                    summary: summary,
+                    output: displayOutput
+                )
+            ))
+
+            if let callID = message.toolCallID {
+                pendingByCallID.removeValue(forKey: callID)
+            }
         }
+
+        // Any remaining pending calls are still running.
+        for callID in pendingOrder {
+            guard let pending = pendingByCallID[callID] else { continue }
+            let summary = buildToolSummary(toolName: pending.name, argumentsJSON: pending.argsJSON)
+            executions.append((
+                order: pending.order,
+                execution: AgentToolExecution(
+                    id: callID,
+                    toolName: pending.name,
+                    status: .running,
+                    summary: summary,
+                    output: ""
+                )
+            ))
+        }
+
+        return executions.sorted { $0.order < $1.order }.map(\.execution)
     }
 
     private func buildToolSummary(toolName: String, argumentsJSON: String?) -> String {
@@ -393,7 +436,12 @@ final class AgentManager: ObservableObject {
 
         let summary = try await sdk.compact(customInstructions: customInstructions)
         latestCompactionSummary = summary?.trimmingCharacters(in: .whitespacesAndNewlines)
+        contextUsage = await sdk.contextUsage()
         return latestCompactionSummary
+    }
+
+    func refreshContextUsage() async {
+        contextUsage = await sdk.contextUsage()
     }
 
     private static func makeSDK(config: AgentServiceConfig, activeProjectPath: String?) -> AgentSDK {

@@ -20,6 +20,7 @@ struct ChatSidebarView: View {
     var accountName: String
     var accountSubtitle: LocalizedStringKey
     var accountInitial: String
+    var accountAvatarURL: URL?
     var onLogout: () -> Void
 
     @State private var hoveredButtonId: String?
@@ -80,12 +81,6 @@ struct ChatSidebarView: View {
                                 .font(.system(size: 14, weight: .semibold))
                                 .lineLimit(1)
                                 .foregroundColor(.primary)
-
-                            Text(project.path)
-                                .font(.system(size: 10))
-                                .lineLimit(1)
-                                .truncationMode(.head)
-                                .foregroundColor(.secondary)
                         }
 
                         Spacer()
@@ -215,14 +210,8 @@ struct ChatSidebarView: View {
                 }
             } label: {
                 HStack(spacing: 10) {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
+                    avatarView
                         .frame(width: 32, height: 32)
-                        .overlay {
-                            Text(accountInitial)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
 
                     Text(accountName)
                         .font(.system(size: 13, weight: .medium))
@@ -256,6 +245,7 @@ struct ChatSidebarView: View {
                     accountName: accountName,
                     accountSubtitle: accountSubtitle,
                     accountInitial: accountInitial,
+                    accountAvatarURL: accountAvatarURL,
                     onSettings: onSettings,
                     onHelp: onHelp,
                     onLogout: onLogout
@@ -264,6 +254,37 @@ struct ChatSidebarView: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        if let url = accountAvatarURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    avatarFallback
+                @unknown default:
+                    avatarFallback
+                }
+            }
+            .clipShape(Circle())
+        } else {
+            avatarFallback
+        }
+    }
+
+    private var avatarFallback: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay {
+                Text(accountInitial)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+            }
     }
 
     private func previewText(for text: String) -> String {

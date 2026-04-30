@@ -86,7 +86,7 @@ struct MessageView: View {
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 56)
         }
     }
 
@@ -97,133 +97,404 @@ struct MessageView: View {
 
 struct ToolExecutionMessageView: View {
     let execution: AgentToolExecution
+    var isLast: Bool = true
 
     var body: some View {
-        ToolExecutionCard(
+        ToolTimelineRow(
             toolName: execution.toolName,
-            statusSucceeded: execution.status == .success,
+            status: execution.status,
             summary: execution.summary,
-            output: execution.output
+            output: execution.output,
+            isLast: isLast
         )
     }
 }
 
 struct PersistedToolExecutionMessageView: View {
     let execution: PersistedToolExecution
+    var isLast: Bool = true
 
     var body: some View {
-        ToolExecutionCard(
+        ToolTimelineRow(
             toolName: execution.toolName,
-            statusSucceeded: execution.status == "success",
+            status: execution.status == "success" ? .success : .failed,
             summary: execution.summary,
-            output: execution.output
+            output: execution.output,
+            isLast: isLast
         )
     }
 }
 
-private struct ToolExecutionCard: View {
+// MARK: - Group view (collapsible run of tool executions)
+
+struct ToolExecutionGroup: Identifiable {
+    let id: String
+    let executions: [PersistedToolExecution]
+}
+
+/// Renders a contiguous run of persisted tool executions as a collapsible
+/// timeline. Once finished, the user sees a one-line summary header that
+/// can be re-expanded.
+struct ToolExecutionGroupView: View {
+    let group: ToolExecutionGroup
+
+    @State private var isExpanded: Bool = true
+    @State private var hasAutoCollapsed: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(group.executions.enumerated()), id: \.element.id) { index, execution in
+                        PersistedToolExecutionMessageView(
+                            execution: execution,
+                            isLast: index == group.executions.count - 1
+                        )
+                    }
+
+                    doneFooter
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .onAppear {
+            // Persisted groups are always already finished, so collapse by
+            // default the first time they appear.
+            if !hasAutoCollapsed {
+                isExpanded = false
+                hasAutoCollapsed = true
+            }
+        }
+    }
+
+    private var header: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(summaryText)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(.primary.opacity(0.85))
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.6))
+                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
+
+                Spacer()
+            }
+            .padding(.horizontal, 56)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var doneFooter: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(.primary.opacity(0.75))
+            }
+            .frame(width: 22, height: 22)
+
+            Text("Done")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.primary.opacity(0.92))
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 56)
+        .padding(.top, 4)
+    }
+
+    private var summaryText: String {
+        let count = group.executions.count
+        let bashCount = group.executions.filter { $0.toolName == "bash" }.count
+        let fileCount = group.executions.filter { ["read", "write", "edit"].contains($0.toolName) }.count
+
+        if bashCount > 0 && fileCount > 0 {
+            return "Ran \(bashCount) command\(bashCount == 1 ? "" : "s"), touched \(fileCount) file\(fileCount == 1 ? "" : "s")"
+        }
+        if bashCount > 0 {
+            return "Ran \(bashCount) command\(bashCount == 1 ? "" : "s")"
+        }
+        if fileCount > 0 {
+            return "Touched \(fileCount) file\(fileCount == 1 ? "" : "s")"
+        }
+        return "\(count) tool call\(count == 1 ? "" : "s")"
+    }
+}
+
+private struct ToolTimelineRow: View {
     let toolName: String
-    let statusSucceeded: Bool
+    let status: AgentToolExecutionStatus
     let summary: String
     let output: String
+    let isLast: Bool
+
+    @State private var isExpanded = false
+    @State private var pulseOn = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: statusSucceeded ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(statusSucceeded ? .green : .red)
-                        .frame(width: 14)
+            // Left rail: icon + connector line
+            VStack(spacing: 0) {
+                ZStack {
+                    Image(systemName: iconName)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(iconColor)
+                        .opacity(status == .running && !pulseOn ? 0.35 : 1.0)
+                        .scaleEffect(status == .running && pulseOn ? 1.05 : 1.0)
+                }
+                .frame(width: 22, height: 22)
 
-                    HStack(spacing: 6) {
-                        Image(systemName: toolIcon(for: toolName))
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        Text(toolName.uppercased())
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
+                if !isLast {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.25))
+                        .frame(width: 1)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 22)
+
+            // Right side: title + expandable detail
+            VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isExpanded.toggle()
                     }
-                    .frame(width: 70, alignment: .leading)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(titleText)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(.primary.opacity(status == .running ? 0.7 : 0.92))
 
-                    Text(summary)
-                        .font(.system(size: 11, design: toolName == "bash" ? .monospaced : .default))
-                        .textSelection(.enabled)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(.secondary.opacity(0.6))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                }
+                .buttonStyle(.plain)
 
-                    Spacer()
+                // Subtitle chip — Script / Result / Request style
+                if let chip = chipText {
+                    Text(chip)
+                        .font(.system(size: 10, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(chipBackground)
+                        .foregroundColor(chipForeground)
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
                 }
 
-                ToolOutputPreview(toolName: toolName, output: output)
+                if isExpanded {
+                    ToolDetailPanel(toolName: toolName, summary: summary, output: output, status: status)
+                        .padding(.top, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(NSColor.controlColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.bottom, isLast ? 0 : 14)
 
-            Spacer(minLength: 60)
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 56)
+        .onAppear {
+            if status == .running { startPulse() }
+        }
+        .onChange(of: status) { _, newValue in
+            if newValue == .running {
+                startPulse()
+            } else {
+                pulseOn = false
+            }
+        }
     }
 
-    private func toolIcon(for name: String) -> String {
-        switch name {
+    private func startPulse() {
+        pulseOn = false
+        withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+            pulseOn = true
+        }
+    }
+
+    private var iconName: String {
+        switch toolName {
         case "read": return "doc.text"
         case "write": return "square.and.pencil"
-        case "edit": return "pencil.and.scribble"
+        case "edit": return "pencil.line"
         case "bash": return "terminal"
         default: return "wrench.and.screwdriver"
         }
     }
+
+    private var iconColor: Color {
+        switch status {
+        case .running: return .accentColor
+        case .success: return .primary.opacity(0.75)
+        case .failed: return .red
+        }
+    }
+
+    private var titleText: String {
+        switch toolName {
+        case "read":
+            return "Read \(filenameOrFallback)"
+        case "write":
+            return "Wrote \(filenameOrFallback)"
+        case "edit":
+            return "Edited \(filenameOrFallback)"
+        case "bash":
+            return "Running command"
+        default:
+            return toolName.capitalized
+        }
+    }
+
+    private var filenameOrFallback: String {
+        // Summary for file ops is "<path> (<filename>)"; pull filename if present.
+        if let open = summary.lastIndex(of: "("),
+           let close = summary.lastIndex(of: ")"),
+           open < close {
+            let start = summary.index(after: open)
+            return String(summary[start..<close])
+        }
+        if !summary.isEmpty {
+            return URL(fileURLWithPath: summary).lastPathComponent
+        }
+        return ""
+    }
+
+    private var chipText: String? {
+        switch toolName {
+        case "bash":
+            return status == .running ? "Script" : "Script"
+        case "read", "write", "edit":
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private var chipBackground: Color {
+        switch status {
+        case .running: return Color.red.opacity(0.12)
+        case .success: return Color.secondary.opacity(0.12)
+        case .failed: return Color.red.opacity(0.18)
+        }
+    }
+
+    private var chipForeground: Color {
+        switch status {
+        case .running: return Color.red.opacity(0.85)
+        case .success: return .secondary
+        case .failed: return .red
+        }
+    }
 }
 
-private struct ToolOutputPreview: View {
-    private let collapsedLineLimit = 3
-    private let expandedLineLimit = 10
-
+private struct ToolDetailPanel: View {
     let toolName: String
+    let summary: String
     let output: String
-
-    @State private var isExpanded = false
-
-    private var displayOutput: String {
-        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedOutput.isEmpty ? L10n.tr("tool.no_output") : trimmedOutput
-    }
-
-    private var hasExpandableOutput: Bool {
-        displayOutput.components(separatedBy: .newlines).count > collapsedLineLimit
-    }
-
-    private var fontDesign: Font.Design {
-        switch toolName {
-        case "bash", "edit": return .monospaced
-        default: return .default
-        }
-    }
+    let status: AgentToolExecutionStatus
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(displayOutput)
-                .font(.system(size: 10, design: fontDesign))
-                .foregroundColor(.secondary)
-                .textSelection(.enabled)
-                .lineLimit(isExpanded ? expandedLineLimit : collapsedLineLimit)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 8) {
+            // Argument / target line
+            if !summary.isEmpty {
+                argumentSection
+            }
 
-            if hasExpandableOutput {
-                Button {
-                    isExpanded.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8))
-                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        Text(isExpanded ? L10n.tr("tool.show_less") : L10n.tr("tool.show_more"))
-                    }
+            // Output
+            if status != .running {
+                Divider().opacity(0.4)
+                outputSection
+            } else {
+                Text(L10n.tr("tool.no_output"))
                     .font(.system(size: 10))
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
+        .padding(10)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var argumentSection: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(argumentLabel)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+
+            Text(argumentValue)
+                .font(.system(size: 11, design: argumentMonospaced ? .monospaced : .default))
+                .foregroundColor(.primary.opacity(0.85))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var outputSection: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(outputLabel)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let display = trimmed.isEmpty ? L10n.tr("tool.no_output") : trimmed
+            ScrollView {
+                Text(display)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.primary.opacity(0.8))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 240)
+        }
+    }
+
+    private var argumentLabel: String {
+        switch toolName {
+        case "bash": return "Command"
+        case "read": return "Path"
+        case "write": return "Path"
+        case "edit": return "Path"
+        default: return "Input"
+        }
+    }
+
+    private var argumentValue: String {
+        if toolName == "bash" { return summary }
+        if let parenIndex = summary.lastIndex(of: "(") {
+            let pathPart = summary[..<parenIndex].trimmingCharacters(in: .whitespaces)
+            return String(pathPart)
+        }
+        return summary
+    }
+
+    private var argumentMonospaced: Bool {
+        switch toolName {
+        case "bash", "read", "write", "edit": return true
+        default: return false
+        }
+    }
+
+    private var outputLabel: String {
+        toolName == "bash" ? "Result" : "Output"
     }
 }

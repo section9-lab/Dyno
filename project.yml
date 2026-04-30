@@ -15,7 +15,8 @@ settings:
 
 packages:
   SwiftCodingAgent:
-    path: ../SwiftCodingAgent
+    url: https://github.com/section9-lab/SwiftCodingAgent
+    branch: main
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: "2.4.0"
@@ -42,8 +43,8 @@ targets:
     COMBINE_HIDPI_IMAGES: YES
     DEVELOPMENT_LANGUAGE: en
     LD_RUNPATH_SEARCH_PATHS:
-          - $(inherited)
-          - "@executable_path/../Frameworks"
+      - $(inherited)
+      - "@executable_path/../Frameworks"
     entitlements:
       path: Impulse/Resources/Impulse.entitlements
       properties:
