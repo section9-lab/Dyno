@@ -27,6 +27,10 @@ final class ModelRegistry: ObservableObject {
     @Published var providers: [Provider] = []
     @Published var isLoading = false
 
+    // ModelInfo's custom `init(from:)` defaults missing fields, so adding
+    // `inputModalities` is a forward-compatible schema change — old v1
+    // blobs decode cleanly with `[.text]`. Keep the key on v1; bumping it
+    // would empty the model list for offline users until the next refresh.
     private static let cacheKey = "modelregistry.modelsdev.cache.v1"
     private static let providersCacheKey = "modelregistry.modelsdev.providers.cache.v1"
     private static let customProvidersKey = "modelregistry.custom.providers.v1"
@@ -223,9 +227,28 @@ final class ModelRegistry: ObservableObject {
             let reasoning = (modelData["reasoning"] as? Bool) ?? false
             let limit = modelData["limit"] as? [String: Any]
             let contextWindow = (limit?["context"] as? Int)
-            return ModelInfo(id: modelId, name: name, toolCall: toolCall, reasoning: reasoning, contextWindow: contextWindow)
+            let modalities = modelData["modalities"] as? [String: [String]]
+            let input = Self.parseModalities(modalities?["input"])
+            return ModelInfo(
+                id: modelId,
+                name: name,
+                toolCall: toolCall,
+                reasoning: reasoning,
+                contextWindow: contextWindow,
+                inputModalities: input
+            )
         }
         .sorted { $0.id < $1.id }
+    }
+
+    /// Map raw strings from models.dev (`["text", "image", ...]`) onto the
+    /// `Modality` enum; unknown strings are dropped silently. Empty / nil
+    /// input falls back to `[.text]` so we never persist an empty set
+    /// (which the UI would treat as "no modalities at all").
+    private static func parseModalities(_ raw: [String]?) -> Set<Modality> {
+        guard let raw, !raw.isEmpty else { return [.text] }
+        let parsed = raw.compactMap(Modality.init(rawValue:))
+        return parsed.isEmpty ? [.text] : Set(parsed)
     }
 
     private func loadModelsdevCache() -> [String: [ModelInfo]]? {

@@ -1,69 +1,73 @@
 import SwiftUI
 
-/// Compact row of capability pills shown next to a model in the picker.
-/// Renders, in order:
-///   - `推理` if `reasoning`
-///   - `工具` if `toolCall`
-///   - One pill per non-text input modality (image / audio / video)
+/// One pill rendered by `ModelCapabilityBadges`. The view is dumb — it
+/// just iterates `ModelInfo.capabilityPills` and renders each entry.
+/// Adding a new capability is a one-spot change in `capabilityPills`.
 ///
-/// Output modalities aren't surfaced — almost all chat-style models output
-/// text only, so the pill would be visual noise. If we ever support
-/// image-out / audio-out we'll add them then.
-///
-/// Each pill is intentionally tiny (font 9) and uses semantic color (not
-/// any random palette) so the row reads at a glance without dominating
-/// the model name.
-struct ModelCapabilityBadges: View {
-    let model: ModelInfo
+/// `color` is intentionally a `Color`, not a Codable token — capabilities
+/// are a pure presentation concern and never persisted.
+struct Capability: Identifiable, Hashable {
+    let id: String          // stable key for ForEach diffing
+    let labelKey: String    // L10n key; resolved at render time
+    let color: Color
+}
 
-    var body: some View {
-        HStack(spacing: 4) {
-            if model.reasoning {
-                CapabilityPill(
-                    text: L10n.tr("settings.model.cap.reasoning"),
-                    color: .purple
-                )
-            }
-
-            if model.toolCall {
-                CapabilityPill(
-                    text: L10n.tr("settings.model.cap.tools"),
-                    color: .blue
-                )
-            }
-
-            // Non-text input modalities (image/audio/video). Sorted for a
-            // stable visual order regardless of Set iteration.
-            ForEach(nonTextInputs, id: \.self) { modality in
-                CapabilityPill(
-                    text: label(for: modality),
-                    color: color(for: modality)
-                )
-            }
+extension ModelInfo {
+    /// Ordered list of capability pills the UI should render for this
+    /// model. Single source of truth for "which pills, in what order, in
+    /// what color" — the view layer just iterates this.
+    ///
+    /// Order: reasoning → tools → non-text input modalities (image,
+    /// audio, video). Output modalities are deliberately omitted; almost
+    /// every chat-style model emits text only, so a pill there would be
+    /// noise.
+    var capabilityPills: [Capability] {
+        var pills: [Capability] = []
+        if reasoning {
+            pills.append(Capability(
+                id: "reasoning",
+                labelKey: "settings.model.cap.reasoning",
+                color: .purple
+            ))
         }
-    }
-
-    private var nonTextInputs: [Modality] {
-        // Stable order: image, audio, video.
-        Modality.allCases
-            .filter { $0 != .text && model.inputModalities.contains($0) }
-    }
-
-    private func label(for modality: Modality) -> String {
-        switch modality {
-        case .text:  return L10n.tr("settings.model.cap.text")
-        case .image: return L10n.tr("settings.model.cap.image")
-        case .audio: return L10n.tr("settings.model.cap.audio")
-        case .video: return L10n.tr("settings.model.cap.video")
+        if toolCall {
+            pills.append(Capability(
+                id: "tools",
+                labelKey: "settings.model.cap.tools",
+                color: .blue
+            ))
         }
+        for modality in Modality.allCases where modality != .text && inputModalities.contains(modality) {
+            pills.append(Capability(
+                id: "input.\(modality.rawValue)",
+                labelKey: "settings.model.cap.\(modality.rawValue)",
+                color: Self.color(for: modality)
+            ))
+        }
+        return pills
     }
 
-    private func color(for modality: Modality) -> Color {
+    private static func color(for modality: Modality) -> Color {
         switch modality {
         case .text:  return .gray
         case .image: return .green
         case .audio: return .orange
         case .video: return .pink
+        }
+    }
+}
+
+/// Compact row of capability pills shown next to a model in the picker.
+/// Each pill is intentionally tiny (font 9) so the row reads at a glance
+/// without dominating the model name.
+struct ModelCapabilityBadges: View {
+    let model: ModelInfo
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(model.capabilityPills) { pill in
+                CapabilityPill(text: L10n.tr(pill.labelKey), color: pill.color)
+            }
         }
     }
 }
@@ -81,4 +85,42 @@ private struct CapabilityPill: View {
             .foregroundColor(color)
             .clipShape(Capsule())
     }
+}
+
+#Preview("Variants") {
+    VStack(alignment: .leading, spacing: 8) {
+        ModelCapabilityBadges(model: ModelInfo(
+            id: "text-only",
+            name: "Text only",
+            toolCall: false,
+            reasoning: false
+        ))
+        ModelCapabilityBadges(model: ModelInfo(
+            id: "tools",
+            name: "Tools only",
+            toolCall: true,
+            reasoning: false
+        ))
+        ModelCapabilityBadges(model: ModelInfo(
+            id: "reasoning-tools",
+            name: "Reasoning + tools",
+            toolCall: true,
+            reasoning: true
+        ))
+        ModelCapabilityBadges(model: ModelInfo(
+            id: "vision",
+            name: "Vision",
+            toolCall: true,
+            reasoning: false,
+            inputModalities: [.text, .image]
+        ))
+        ModelCapabilityBadges(model: ModelInfo(
+            id: "omni",
+            name: "Multimodal omni",
+            toolCall: true,
+            reasoning: true,
+            inputModalities: [.text, .image, .audio, .video]
+        ))
+    }
+    .padding()
 }

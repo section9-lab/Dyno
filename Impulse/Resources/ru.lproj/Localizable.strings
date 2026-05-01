@@ -51,6 +51,13 @@
 "settings.model.live_models_count" = "Доступные модели (%d)";
 "settings.model.catalog_models" = "Модели каталога";
 "settings.model.reasoning" = "Рассуждение";
+/* TODO(i18n): translations below are auto-drafted; please have a native
+   speaker review terminology and consistency with the rest of the file. */
+"settings.model.cap.reasoning" = "Рассуждение";
+"settings.model.cap.tools" = "Инструменты";
+"settings.model.cap.image" = "Изображение";
+"settings.model.cap.audio" = "Аудио";
+"settings.model.cap.video" = "Видео";
 "settings.model.name" = "Имя";
 "settings.model.api_key_optional" = "API Key (необязательно)";
 "settings.files.title" = "Настройки файлов";

@@ -54,6 +54,11 @@
 "settings.model.live_models_count" = "Available Models (%d)";
 "settings.model.catalog_models" = "Catalog Models";
 "settings.model.reasoning" = "Reasoning";
+"settings.model.cap.reasoning" = "Reasoning";
+"settings.model.cap.tools" = "Tools";
+"settings.model.cap.image" = "Image";
+"settings.model.cap.audio" = "Audio";
+"settings.model.cap.video" = "Video";
 "settings.model.name" = "Name";
 "settings.model.api_key_optional" = "API Key (optional)";
 "settings.files.title" = "File Settings";

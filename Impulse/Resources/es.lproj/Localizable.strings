@@ -51,6 +51,13 @@
 "settings.model.live_models_count" = "Modelos disponibles (%d)";
 "settings.model.catalog_models" = "Modelos del catálogo";
 "settings.model.reasoning" = "Razonamiento";
+/* TODO(i18n): translations below are auto-drafted; please have a native
+   speaker review terminology and consistency with the rest of the file. */
+"settings.model.cap.reasoning" = "Razonamiento";
+"settings.model.cap.tools" = "Herramientas";
+"settings.model.cap.image" = "Imagen";
+"settings.model.cap.audio" = "Audio";
+"settings.model.cap.video" = "Vídeo";
 "settings.model.name" = "Nombre";
 "settings.model.api_key_optional" = "API Key (opcional)";
 "settings.files.title" = "Ajustes de archivos";

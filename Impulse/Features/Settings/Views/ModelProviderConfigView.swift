@@ -322,15 +322,7 @@ struct ModelProviderConfigView: View {
 
                                 Spacer()
 
-                                if model.reasoning {
-                                    Text("推理")
-                                        .font(.system(size: 9))
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 1)
-                                        .background(Color.purple.opacity(0.1))
-                                        .foregroundColor(.purple)
-                                        .clipShape(Capsule())
-                                }
+                                ModelCapabilityBadges(model: model)
 
                                 if let ctx = model.contextWindow {
                                     Text("\(ctx / 1000)K")

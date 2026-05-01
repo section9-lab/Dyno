@@ -54,6 +54,11 @@
 "settings.model.live_models_count" = "可用模型（%d）";
 "settings.model.catalog_models" = "目录模型";
 "settings.model.reasoning" = "推理";
+"settings.model.cap.reasoning" = "推理";
+"settings.model.cap.tools" = "工具";
+"settings.model.cap.image" = "图像";
+"settings.model.cap.audio" = "音频";
+"settings.model.cap.video" = "视频";
 "settings.model.name" = "名称";
 "settings.model.api_key_optional" = "API Key（可选）";
 "settings.files.title" = "文件设置";
