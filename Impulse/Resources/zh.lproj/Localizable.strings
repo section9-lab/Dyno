@@ -131,6 +131,7 @@
 "kanban.tasks_description" = "任务会绑定到项目，并可关联一个或多个会话。";
 "kanban.tasks_organized_description" = "任务按项目组织，并可持续关联多个会话。";
 "kanban.toggle" = "切换项目看板";
+"kanban.header_stats" = "任务：%d  会话：%d";
 
 "tool.full_command_result" = "完整命令结果";
 "tool.no_output" = "（无输出）";
@@ -148,7 +149,18 @@
 
 "agent.empty_after_tools" = "本轮已执行 %d 次工具调用。请继续让我完成最后一步。";
 "agent.empty_model_response" = "（模型返回空内容）";
-"agent.max_steps_reached" = "我已经执行到步骤上限（%d 次工具调用），还差最后收敛。你可以回复“继续”，我会基于当前上下文接着完成。";
+“agent.max_steps_reached” = “我已经执行到步骤上限（%d 次工具调用），还差最后收敛。你可以回复”继续”，我会基于当前上下文接着完成。”;
+
+“tool_approval.title” = “危险操作”;
+“tool_approval.run_once” = “执行一次”;
+“tool_approval.reject” = “拒绝”;
+
+“context.window_label” = “上下文窗口”;
+“context.used” = “已使用”;
+“context.total” = “总量”;
+“context.reserved” = “预留”;
+“context.compact” = “压缩”;
+“context.compacting” = “压缩中…”;
 "agent.raw_error" = "原始错误";
 "agent.sandbox_error.file_missing" = "文件不存在或不可访问。请确认路径正确，并且目录已被授权。";
 "agent.sandbox_error.operation_failed" = "操作失败：%@";
@@ -174,3 +186,27 @@
 "auth.error.random" = "Impulse 无法创建安全登录校验（%d），请重启应用后重试。";
 "auth.error.token_exchange_failed" = "Impulse 无法完成 Google 登录：%@";
 "auth.error.web_authentication_failed" = "Google 返回结果前登录窗口已关闭：%@";
+
+"alert.projects_load_failed.title" = "无法加载项目数据";
+"alert.projects_load_failed.detail" = "已保存的会话和看板任务可能无法显示。磁盘文件可能已损坏；可在 ~/Library/Application Support/Impulse/store-backups 查找最近备份。";
+"alert.projects_save_failed.title" = "无法保存项目数据";
+"alert.projects_save_failed.detail" = "重启应用后最近的修改可能会丢失。";
+
+"settings.tab.diagnostics" = "诊断";
+"settings.diagnostics.title" = "诊断";
+"settings.diagnostics.backups" = "数据备份";
+"settings.diagnostics.backups.description" = "Impulse 会在磁盘上保留最近 7 天的会话备份。出现问题时可以恢复较早的版本。恢复后需要退出并重新打开 Impulse。";
+"settings.diagnostics.no_backups" = "暂无备份 —— 每天首次启动时会自动创建。";
+"settings.diagnostics.restore" = "恢复";
+"settings.diagnostics.reveal_in_finder" = "在访达中显示";
+"settings.diagnostics.restoring" = "正在恢复…";
+"settings.diagnostics.restart_required" = "请退出并重新打开 Impulse 以启用恢复后的数据。";
+"settings.diagnostics.restore_succeeded" = "已恢复 %@ 的备份。";
+"settings.diagnostics.confirm_restore.title" = "确认恢复此备份？";
+"settings.diagnostics.confirm_restore.message" = "这将用 %@ 的备份替换当前会话数据。当前数据会先被自动快照，操作可撤销。";
+
+"settings.diagnostics.current_schema" = "当前数据架构版本：v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "未知架构";
+"settings.diagnostics.schema_mismatch" = "v%d（不兼容）";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ 的备份缺少架构信息，可能由旧版 Impulse 创建，恢复后可能无法启动。仍要继续？";

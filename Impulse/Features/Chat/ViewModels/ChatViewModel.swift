@@ -28,10 +28,64 @@ final class ChatViewModel: ObservableObject {
     private let historyService = ChatHistoryService()
     private let sandboxAccess = SandboxAccessManager.shared
 
+    // Debounce machinery for `persistProjects`.
+    private var persistDebounceTask: Task<Void, Never>?
+    private var pendingPersistItems: [Item]?
+    private var pendingPersistAgent: AgentManager?
+
+    // Caches for derived view data. Cleared whenever inputs change.
+    private var cachedDisplayedRows: [ChatRow]?
+    private var cachedDisplayedRowsKey: DisplayedRowsCacheKey?
+    private var decodedToolExecutionCache: [Int: PersistedToolExecution] = [:]
+
+    // Cache for the global "flatten all items" projection.
+    private var cachedFlattenedItems: [Item]?
+    private var cachedFlattenKey: FlattenCacheKey?
+
     func loadProjects(agent: AgentManager) {
         persistedProjects = agent.loadPersistedProjects()
         expandedProjectPaths.formUnion(persistedProjects.map(\.path))
         ensureProjectSelection(agent: agent)
+    }
+
+    /// Flatten all chat rows across all sessions into a single chronologically
+    /// sorted `[Item]` list. This preserves the legacy "global items" abstraction
+    /// the rest of the codebase still uses, while sourcing data from the new
+    /// relational SwiftData model.
+    ///
+    /// SwiftData re-evaluates the @Query frequently; we cache by a cheap key
+    /// (session count + sum of children counts) so re-renders don't reproject.
+    func flattenAllItems(from sessions: [StoredSession]) -> [Item] {
+        let key = FlattenCacheKey(
+            sessionCount: sessions.count,
+            messageCount: sessions.reduce(0) { $0 + $1.messages.count },
+            toolRunCount: sessions.reduce(0) { $0 + $1.toolRuns.count },
+            summaryCount: sessions.reduce(0) { $0 + $1.compactionSummaries.count }
+        )
+        if cachedFlattenKey == key, let cached = cachedFlattenedItems {
+            return cached
+        }
+
+        var items: [Item] = []
+        items.reserveCapacity(key.messageCount + key.toolRunCount + key.summaryCount)
+        for session in sessions {
+            for m in session.messages {
+                items.append(m.toItem())
+            }
+            for t in session.toolRuns {
+                if let item = t.toItem() {
+                    items.append(item)
+                }
+            }
+            for s in session.compactionSummaries {
+                items.append(s.toItem())
+            }
+        }
+        items.sort { $0.timestamp < $1.timestamp }
+
+        cachedFlattenKey = key
+        cachedFlattenedItems = items
+        return items
     }
 
     func makeProjects(from items: [Item]) -> [ChatProject] {
@@ -56,6 +110,74 @@ final class ChatViewModel: ObservableObject {
             selectedSessionID: selectedSessionID,
             projects: makeProjects(from: items)
         )
+    }
+
+    /// Build the row list (interleaving messages and tool-execution groups)
+    /// once per (session, item-count, last-timestamp) tuple. SwiftUI re-evaluates
+    /// container bodies frequently — this avoids repeating the O(N) walk
+    /// + O(K) JSON decodes on every re-render.
+    func makeDisplayedRows(from items: [Item]) -> [ChatRow] {
+        let displayed = makeDisplayedItems(from: items)
+        let key = DisplayedRowsCacheKey(
+            sessionID: selectedSessionID,
+            count: displayed.count,
+            lastTimestamp: displayed.last?.timestamp,
+            firstItemID: displayed.first?.id.hashValue
+        )
+        if cachedDisplayedRowsKey == key, let cached = cachedDisplayedRows {
+            return cached
+        }
+
+        var rows: [ChatRow] = []
+        var pendingTools: [PersistedToolExecution] = []
+        var firstGroupItemID: String?
+
+        func flushTools() {
+            guard !pendingTools.isEmpty, let groupID = firstGroupItemID else {
+                pendingTools = []
+                firstGroupItemID = nil
+                return
+            }
+            rows.append(.toolGroup(ToolExecutionGroup(id: "group-\(groupID)", executions: pendingTools)))
+            pendingTools = []
+            firstGroupItemID = nil
+        }
+
+        for item in displayed {
+            if item.kindEnum == .toolExecution,
+               let payload = cachedDecodedToolExecution(for: item)
+            {
+                if firstGroupItemID == nil { firstGroupItemID = "\(item.id.hashValue)" }
+                pendingTools.append(payload)
+            } else {
+                flushTools()
+                rows.append(.message(item))
+            }
+        }
+        flushTools()
+
+        cachedDisplayedRowsKey = key
+        cachedDisplayedRows = rows
+        return rows
+    }
+
+    /// Per-item decoded tool-execution cache. Keyed on the item's persistent id;
+    /// because Items are append-only and content immutable for tool_execution,
+    /// the cached value never goes stale for an existing id.
+    private func cachedDecodedToolExecution(for item: Item) -> PersistedToolExecution? {
+        let key = item.id.hashValue
+        if let hit = decodedToolExecutionCache[key] {
+            return hit
+        }
+        guard let data = item.content.data(using: .utf8) else { return nil }
+        do {
+            let payload = try JSONDecoder().decode(PersistedToolExecution.self, from: data)
+            decodedToolExecutionCache[key] = payload
+            return payload
+        } catch {
+            AppLog.persistence.error("Failed to decode tool_execution Item: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     func makeKanbanTasks(from items: [Item]) -> [KanbanTaskSnapshot] {
@@ -104,6 +226,10 @@ final class ChatViewModel: ObservableObject {
         selectedProjectPath = projectPath
         selectedSessionID = sessionID
         updateAgentProjectDirectory(agent: agent)
+        // Make sure a SessionAgent exists for this session — does not reset
+        // an in-flight one if it already exists (parallel sessions).
+        _ = agent.sessionAgent(for: sessionID, projectPath: projectPath)
+        agent.focusedSessionID = sessionID
     }
 
     func toggleKanbanPanel() {
@@ -122,9 +248,10 @@ final class ChatViewModel: ObservableObject {
         selectedSessionID = result.sessionID
         inputText = ""
         expandedProjectPaths.insert(projectPath)
-        agent.latestToolExecutions = []
-        agent.latestCompactionSummary = nil
         updateAgentProjectDirectory(agent: agent)
+        // Fresh SDK for the new session.
+        agent.resetSessionAgent(for: result.sessionID, projectPath: projectPath)
+        agent.focusedSessionID = result.sessionID
         return true
     }
 
@@ -180,6 +307,24 @@ final class ChatViewModel: ObservableObject {
     }
 
     func persistProjects(items: [Item], agent: AgentManager) {
+        // Coalesce rapid bursts of persistProjects calls (multiple parallel
+        // sessions returning around the same time can each trigger this via
+        // their `persist()` callback). We schedule one disk write ~200ms
+        // after the last call instead of one per insert.
+        pendingPersistItems = items
+        pendingPersistAgent = agent
+        persistDebounceTask?.cancel()
+        persistDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled, let self else { return }
+            self.flushPendingPersist()
+        }
+    }
+
+    /// Forces an immediate persist write, bypassing the debounce. Useful on
+    /// shutdown or before navigating to settings.
+    func flushPendingPersist() {
+        guard let items = pendingPersistItems, let agent = pendingPersistAgent else { return }
         var updatedProjects = persistedProjects
         for project in makeProjects(from: items) {
             for session in project.sessions {
@@ -193,6 +338,9 @@ final class ChatViewModel: ObservableObject {
         }
         persistedProjects = updatedProjects
         agent.persistProjects(updatedProjects)
+        pendingPersistItems = nil
+        pendingPersistAgent = nil
+        persistDebounceTask = nil
     }
 
     func createKanbanTask(
@@ -275,7 +423,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     @discardableResult
-    func applyRename(items: [Item]) -> Bool {
+    func applyRename(items: [Item], modelContext: ModelContext) -> Bool {
         guard let projectPath = selectedProjectPath,
               let sessionID = renamingSessionID
         else {
@@ -287,11 +435,13 @@ final class ChatViewModel: ObservableObject {
             sessionID: sessionID,
             newTitle: renameDraft,
             items: items,
-            persistedProjects: &persistedProjects
+            persistedProjects: &persistedProjects,
+            modelContext: modelContext
         )
         guard didRename else { return false }
 
         renamingSessionID = nil
+        invalidateDisplayedRowsCache()
         return true
     }
 
@@ -303,9 +453,153 @@ final class ChatViewModel: ObservableObject {
             modelContext: modelContext
         )
 
+        AgentManager.shared.discardSessionAgent(for: session.id)
+        invalidateDisplayedRowsCache()
+
         if selectedSessionID == session.id {
             selectedSessionID = nil
         }
+    }
+
+    /// Invalidate row + decode caches. Call after mutating writes that aren't
+    /// captured by the cache key (e.g. deleting items from a session).
+    private func invalidateDisplayedRowsCache() {
+        cachedDisplayedRows = nil
+        cachedDisplayedRowsKey = nil
+        cachedFlattenedItems = nil
+        cachedFlattenKey = nil
+        // Don't bulk-clear decodedToolExecutionCache — items keep their stable
+        // persistent ids, so cached entries for surviving items remain valid.
+        // Stale entries for deleted items are tiny and will age out when
+        // the dictionary is recreated on session switch (cheap).
+    }
+
+    // MARK: - SwiftData write helpers
+    //
+    // These find-or-create a `StoredSession` for the given (projectPath,
+    // sessionID) and insert the appropriate child entity (StoredMessage,
+    // StoredToolRun, or StoredCompactionSummary). They replace the old
+    // single-table `Item` insert pattern.
+
+    private func ensureStoredSession(
+        sessionID: String,
+        projectPath: String,
+        startedAt: Date,
+        title: String,
+        modelContext: ModelContext
+    ) -> StoredSession {
+        let predicate = #Predicate<StoredSession> { $0.id == sessionID }
+        let descriptor = FetchDescriptor<StoredSession>(predicate: predicate)
+        if let existing = (try? modelContext.fetch(descriptor))?.first {
+            return existing
+        }
+        let session = StoredSession(
+            id: sessionID,
+            projectPath: projectPath,
+            title: title,
+            startedAt: startedAt
+        )
+        modelContext.insert(session)
+        return session
+    }
+
+    @discardableResult
+    private func insertUserMessage(
+        timestamp: Date = Date(),
+        content: String,
+        sessionID: String,
+        projectPath: String,
+        modelContext: ModelContext
+    ) -> StoredMessage {
+        let session = ensureStoredSession(
+            sessionID: sessionID,
+            projectPath: projectPath,
+            startedAt: timestamp,
+            title: shortTitle(from: content),
+            modelContext: modelContext
+        )
+        let message = StoredMessage(timestamp: timestamp, role: "user", content: content, session: session)
+        modelContext.insert(message)
+        invalidateDisplayedRowsCache()
+        return message
+    }
+
+    @discardableResult
+    private func insertAssistantMessage(
+        timestamp: Date = Date(),
+        content: String,
+        sessionID: String,
+        projectPath: String,
+        modelContext: ModelContext
+    ) -> StoredMessage {
+        let session = ensureStoredSession(
+            sessionID: sessionID,
+            projectPath: projectPath,
+            startedAt: timestamp,
+            title: "(empty)",
+            modelContext: modelContext
+        )
+        let message = StoredMessage(timestamp: timestamp, role: "assistant", content: content, session: session)
+        modelContext.insert(message)
+        invalidateDisplayedRowsCache()
+        return message
+    }
+
+    @discardableResult
+    private func insertToolRun(
+        execution: AgentToolExecution,
+        timestamp: Date,
+        sessionID: String,
+        projectPath: String,
+        modelContext: ModelContext
+    ) -> StoredToolRun {
+        let session = ensureStoredSession(
+            sessionID: sessionID,
+            projectPath: projectPath,
+            startedAt: timestamp,
+            title: "(empty)",
+            modelContext: modelContext
+        )
+        let run = StoredToolRun(
+            id: execution.id,
+            timestamp: timestamp,
+            toolName: execution.toolName,
+            status: execution.status.rawValue,
+            summary: execution.summary,
+            output: execution.output,
+            session: session
+        )
+        modelContext.insert(run)
+        invalidateDisplayedRowsCache()
+        return run
+    }
+
+    @discardableResult
+    private func insertCompactionSummary(
+        timestamp: Date = Date(),
+        content: String,
+        sessionID: String,
+        projectPath: String,
+        modelContext: ModelContext
+    ) -> StoredCompactionSummary {
+        let session = ensureStoredSession(
+            sessionID: sessionID,
+            projectPath: projectPath,
+            startedAt: timestamp,
+            title: "(empty)",
+            modelContext: modelContext
+        )
+        let summary = StoredCompactionSummary(timestamp: timestamp, content: content, session: session)
+        modelContext.insert(summary)
+        invalidateDisplayedRowsCache()
+        return summary
+    }
+
+    private func shortTitle(from text: String) -> String {
+        let cleaned = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "(empty)" : cleaned
     }
 
     func sendMessage(
@@ -337,66 +631,65 @@ final class ChatViewModel: ObservableObject {
         }
 
         let contextPrelude = buildContinuationPrelude(from: conversationItems)
-        let userMessage = Item(
-            timestamp: Date(),
+        let userMessage = insertUserMessage(
             content: trimmedText,
-            isUser: true,
-            kind: "user_message",
-            conversationID: session.id,
-            projectPath: projectPath
+            sessionID: session.id,
+            projectPath: projectPath,
+            modelContext: modelContext
         )
-        modelContext.insert(userMessage)
+        let userMessageItem = userMessage.toItem()
         inputText = ""
-        agent.latestToolExecutions = []
+
+        // Dispatch on this session's own SessionAgent — other sessions can run
+        // their own chats in parallel without sharing state with this one.
+        let sessionAgent = agent.sessionAgent(for: session.id, projectPath: projectPath)
         persist()
 
-        Task {
+        let task = Task {
             do {
-                let response = try await agent.sendChat(prompt: trimmedText, contextPrelude: contextPrelude)
-                let responseTimestamp = appendAgentToolExecutionItems(
+                let response = try await sessionAgent.sendChat(prompt: trimmedText, contextPrelude: contextPrelude)
+                let responseTimestamp = appendSessionToolExecutionItems(
                     modelContext: modelContext,
-                    agent: agent,
+                    sessionAgent: sessionAgent,
                     projectPath: projectPath,
                     sessionID: session.id,
                     startingAt: Date()
                 )
-                let aiResponse = Item(
+                let aiResponse = insertAssistantMessage(
                     timestamp: responseTimestamp,
                     content: response,
-                    isUser: false,
-                    kind: "assistant_message",
-                    conversationID: session.id,
-                    projectPath: projectPath
+                    sessionID: session.id,
+                    projectPath: projectPath,
+                    modelContext: modelContext
                 )
-                modelContext.insert(aiResponse)
-                appendAgentCompactionSummaryItemIfNeeded(
+                let aiResponseItem = aiResponse.toItem()
+                appendSessionCompactionSummaryItemIfNeeded(
                     modelContext: modelContext,
-                    agent: agent,
+                    sessionAgent: sessionAgent,
                     projectPath: projectPath,
                     sessionID: session.id,
-                    conversationItems: conversationItems + [aiResponse]
+                    conversationItems: conversationItems + [userMessageItem, aiResponseItem]
                 )
                 persist()
             } catch {
-                let responseTimestamp = appendAgentToolExecutionItems(
+                let responseTimestamp = appendSessionToolExecutionItems(
                     modelContext: modelContext,
-                    agent: agent,
+                    sessionAgent: sessionAgent,
                     projectPath: projectPath,
                     sessionID: session.id,
                     startingAt: Date()
                 )
-                let errorResponse = Item(
+                _ = insertAssistantMessage(
                     timestamp: responseTimestamp,
                     content: L10n.tr("chat.error_message", error.localizedDescription),
-                    isUser: false,
-                    kind: "assistant_message",
-                    conversationID: session.id,
-                    projectPath: projectPath
+                    sessionID: session.id,
+                    projectPath: projectPath,
+                    modelContext: modelContext
                 )
-                modelContext.insert(errorResponse)
                 persist()
             }
         }
+        sessionAgent.registerCurrentTask(task)
     }
 
     private func handleCompactCommand(
@@ -408,74 +701,70 @@ final class ChatViewModel: ObservableObject {
         conversationItems: [Item],
         persist: @escaping () -> Void
     ) {
-        let userMessage = Item(
-            timestamp: Date(),
+        let userMessage = insertUserMessage(
             content: input,
-            isUser: true,
-            kind: "user_message",
-            conversationID: sessionID,
-            projectPath: projectPath
+            sessionID: sessionID,
+            projectPath: projectPath,
+            modelContext: modelContext
         )
-        modelContext.insert(userMessage)
+        let userMessageItem = userMessage.toItem()
         inputText = ""
-        agent.latestToolExecutions = []
+        let sessionAgent = agent.sessionAgent(for: sessionID, projectPath: projectPath)
         persist()
 
         let instructions = compactInstructions(from: input)
 
-        Task {
+        let task = Task {
             do {
-                let summary = try await agent.compact(customInstructions: instructions)
+                let summary = try await sessionAgent.compact(customInstructions: instructions)
                 let responseText = if let summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     L10n.tr("chat.compaction_completed")
                 } else {
                     L10n.tr("chat.compaction_not_enough_content")
                 }
 
-                let responseTimestamp = appendAgentToolExecutionItems(
+                let responseTimestamp = appendSessionToolExecutionItems(
                     modelContext: modelContext,
-                    agent: agent,
+                    sessionAgent: sessionAgent,
                     projectPath: projectPath,
                     sessionID: sessionID,
                     startingAt: Date()
                 )
-                let responseItem = Item(
+                let responseItem = insertAssistantMessage(
                     timestamp: responseTimestamp,
                     content: responseText,
-                    isUser: false,
-                    kind: "assistant_message",
-                    conversationID: sessionID,
-                    projectPath: projectPath
+                    sessionID: sessionID,
+                    projectPath: projectPath,
+                    modelContext: modelContext
                 )
-                modelContext.insert(responseItem)
-                appendAgentCompactionSummaryItemIfNeeded(
+                let responseItemValue = responseItem.toItem()
+                appendSessionCompactionSummaryItemIfNeeded(
                     modelContext: modelContext,
-                    agent: agent,
+                    sessionAgent: sessionAgent,
                     projectPath: projectPath,
                     sessionID: sessionID,
-                    conversationItems: conversationItems + [responseItem]
+                    conversationItems: conversationItems + [userMessageItem, responseItemValue]
                 )
                 persist()
             } catch {
-                let responseTimestamp = appendAgentToolExecutionItems(
+                let responseTimestamp = appendSessionToolExecutionItems(
                     modelContext: modelContext,
-                    agent: agent,
+                    sessionAgent: sessionAgent,
                     projectPath: projectPath,
                     sessionID: sessionID,
                     startingAt: Date()
                 )
-                let errorResponse = Item(
+                _ = insertAssistantMessage(
                     timestamp: responseTimestamp,
                     content: L10n.tr("chat.compaction_failed", error.localizedDescription),
-                    isUser: false,
-                    kind: "assistant_message",
-                    conversationID: sessionID,
-                    projectPath: projectPath
+                    sessionID: sessionID,
+                    projectPath: projectPath,
+                    modelContext: modelContext
                 )
-                modelContext.insert(errorResponse)
                 persist()
             }
         }
+        sessionAgent.registerCurrentTask(task)
     }
 
     private func compactInstructions(from input: String) -> String? {
@@ -491,7 +780,7 @@ final class ChatViewModel: ObservableObject {
         guard !items.isEmpty else { return nil }
 
         let transcriptLines = items
-            .filter { $0.kind == "user_message" || $0.kind == "assistant_message" }
+            .filter { $0.kindEnum == .userMessage || $0.kindEnum == .assistantMessage }
             .suffix(8)
             .compactMap { item -> String? in
                 let role = item.isUser ? "用户" : "助手"
@@ -500,7 +789,7 @@ final class ChatViewModel: ObservableObject {
             }
 
         let summary = items
-            .last(where: { $0.kind == "compaction_summary" })?
+            .last(where: { $0.kindEnum == .compactionSummary })?
             .content
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -522,73 +811,55 @@ final class ChatViewModel: ObservableObject {
     }
 
     @discardableResult
-    private func appendAgentToolExecutionItems(
+    private func appendSessionToolExecutionItems(
         modelContext: ModelContext,
-        agent: AgentManager,
+        sessionAgent: SessionAgent,
         projectPath: String,
         sessionID: String,
         startingAt timestamp: Date
     ) -> Date {
         var nextTimestamp = timestamp
 
-        for execution in agent.latestToolExecutions {
-            let payload = PersistedToolExecution(
-                id: execution.id,
-                toolName: execution.toolName,
-                status: execution.status.rawValue,
-                summary: execution.summary,
-                output: execution.output
+        for execution in sessionAgent.latestToolExecutions {
+            _ = insertToolRun(
+                execution: execution,
+                timestamp: nextTimestamp,
+                sessionID: sessionID,
+                projectPath: projectPath,
+                modelContext: modelContext
             )
-            if let data = try? JSONEncoder().encode(payload),
-               let text = String(data: data, encoding: .utf8)
-            {
-                modelContext.insert(
-                    Item(
-                        timestamp: nextTimestamp,
-                        content: text,
-                        isUser: false,
-                        kind: "tool_execution",
-                        conversationID: sessionID,
-                        projectPath: projectPath
-                    )
-                )
-                nextTimestamp = nextTimestamp.addingTimeInterval(0.001)
-            }
+            nextTimestamp = nextTimestamp.addingTimeInterval(0.001)
         }
 
         return nextTimestamp
     }
 
-    private func appendAgentCompactionSummaryItemIfNeeded(
+    private func appendSessionCompactionSummaryItemIfNeeded(
         modelContext: ModelContext,
-        agent: AgentManager,
+        sessionAgent: SessionAgent,
         projectPath: String,
         sessionID: String,
         conversationItems: [Item]
     ) {
-        guard let summary = agent.latestCompactionSummary,
+        guard let summary = sessionAgent.latestCompactionSummary,
               !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             return
         }
 
         let lastPersistedSummary = conversationItems
-            .filter { $0.kind == "compaction_summary" }
+            .filter { $0.kindEnum == .compactionSummary }
             .last?
             .content
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard summary != lastPersistedSummary else { return }
 
-        modelContext.insert(
-            Item(
-                timestamp: Date(),
-                content: summary,
-                isUser: false,
-                kind: "compaction_summary",
-                conversationID: sessionID,
-                projectPath: projectPath
-            )
+        _ = insertCompactionSummary(
+            content: summary,
+            sessionID: sessionID,
+            projectPath: projectPath,
+            modelContext: modelContext
         )
     }
 
@@ -617,4 +888,18 @@ final class ChatViewModel: ObservableObject {
         selectedSessionID = nil
         updateAgentProjectDirectory(agent: agent)
     }
+}
+
+private struct DisplayedRowsCacheKey: Equatable {
+    let sessionID: String?
+    let count: Int
+    let lastTimestamp: Date?
+    let firstItemID: Int?
+}
+
+private struct FlattenCacheKey: Equatable {
+    let sessionCount: Int
+    let messageCount: Int
+    let toolRunCount: Int
+    let summaryCount: Int
 }

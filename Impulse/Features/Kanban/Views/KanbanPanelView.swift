@@ -66,40 +66,16 @@ struct KanbanPanelView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("kanban.project_board", systemImage: "square.grid.3x3.topleft.filled")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.secondary)
-
                     Text(project?.name ?? L10n.tr("kanban.no_project_selected"))
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.primary)
-
-                    Text(project == nil ? L10n.tr("kanban.select_project_description") : L10n.tr("kanban.tasks_description"))
-                        .font(.system(size: 12.5))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 16)
 
-                VStack(alignment: .trailing, spacing: 8) {
-                    if let selectedSession {
-                        Label(selectedSession.title, systemImage: "bubble.left.and.bubble.right")
-                            .lineLimit(1)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color.white.opacity(0.75))
-                            )
-                    }
-
-                    HStack(spacing: 8) {
-                        headerMetric(title: "kanban.tasks", value: "\(tasks.count)")
-                        headerMetric(title: "kanban.sessions", value: "\(linkedSessionCount)")
-                    }
-                }
+                Text(L10n.tr("kanban.header_stats", tasks.count, linkedSessionCount))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
             }
         }
     }
@@ -130,24 +106,6 @@ struct KanbanPanelView: View {
     private var linkedSessionCount: Int {
         Set(tasks.flatMap(\.linkedSessionIDs)).count
     }
-
-    private func headerMetric(title: LocalizedStringKey, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.primary)
-            Text(title)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(minWidth: 68, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.72))
-        )
-    }
 }
 
 private struct KanbanColumnView: View {
@@ -174,10 +132,6 @@ private struct KanbanColumnView: View {
                         Text(status.localizedTitle)
                             .font(.system(size: 15, weight: .semibold))
                     }
-
-                    Text(status.localizedSubtitle)
-                        .font(.system(size: 11.5))
-                        .foregroundColor(.secondary)
                 }
 
                 Spacer()
@@ -332,15 +286,30 @@ private struct KanbanColumnComposerView: View {
                 .onSubmit(submit)
                 .onExitCommand(perform: collapse)
 
-            HStack(spacing: 8) {
-                Picker("kanban.priority", selection: $priority) {
-                    ForEach(KanbanTaskPriority.allCases) { priority in
-                        Text(priority.localizedTitle).tag(priority)
+            HStack(spacing: 6) {
+                ForEach(KanbanTaskPriority.allCases) { p in
+                    Button {
+                        priority = p
+                    } label: {
+                        Text(p.localizedTitle)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(priority == p ? priorityColor(p) : .secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(priority == p ? priorityColor(p).opacity(0.14) : Color.clear)
+                                    .overlay(
+                                        Capsule(style: .continuous)
+                                            .strokeBorder(
+                                                priority == p ? priorityColor(p).opacity(0.35) : Color.secondary.opacity(0.25),
+                                                lineWidth: 1
+                                            )
+                                    )
+                            )
                     }
+                    .buttonStyle(.plain)
                 }
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .frame(width: 104)
 
                 Spacer()
 
@@ -366,6 +335,14 @@ private struct KanbanColumnComposerView: View {
                         .strokeBorder(status.tintColor.opacity(0.2), lineWidth: 1)
                 )
         )
+    }
+
+    private func priorityColor(_ p: KanbanTaskPriority) -> Color {
+        switch p {
+        case .low: return Color(nsColor: .systemBlue)
+        case .medium: return Color(nsColor: .systemOrange)
+        case .high: return Color(nsColor: .systemRed)
+        }
     }
 
     private func submit() {

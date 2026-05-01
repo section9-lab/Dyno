@@ -4,11 +4,19 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Item.timestamp) private var items: [Item]
+    @Query(sort: \StoredSession.startedAt, order: .reverse) private var storedSessions: [StoredSession]
     @StateObject private var vm = ChatViewModel()
     @StateObject private var agent = AgentManager.shared
     @StateObject private var approvals = ToolApprovalCenter.shared
     @EnvironmentObject private var authSession: AuthSession
+
+    /// All chat rows projected to value-type `Item` for the UI. Computed
+    /// from the SwiftData `StoredSession` query above; callers further down
+    /// (ChatViewModel, ChatHistoryService) treat this as the source of truth
+    /// they used to read from the old single-table `Item` query.
+    private var items: [Item] {
+        vm.flattenAllItems(from: storedSessions)
+    }
 
     private var projects: [ChatProject] {
         vm.makeProjects(from: items)
@@ -27,196 +35,59 @@ struct ContentView: View {
     }
 
     private var displayedRows: [ChatRow] {
-        var rows: [ChatRow] = []
-        var pendingTools: [PersistedToolExecution] = []
-        var firstGroupItemID: String?
-
-        func flushTools() {
-            guard !pendingTools.isEmpty, let groupID = firstGroupItemID else {
-                pendingTools = []
-                firstGroupItemID = nil
-                return
-            }
-            rows.append(.toolGroup(ToolExecutionGroup(id: "group-\(groupID)", executions: pendingTools)))
-            pendingTools = []
-            firstGroupItemID = nil
-        }
-
-        for item in displayedItems {
-            if item.kind == "tool_execution",
-               let payload = decodePersistedToolExecution(from: item.content)
-            {
-                if firstGroupItemID == nil { firstGroupItemID = "\(item.persistentModelID.hashValue)" }
-                pendingTools.append(payload)
-            } else {
-                flushTools()
-                rows.append(.message(item))
-            }
-        }
-        flushTools()
-        return rows
+        vm.makeDisplayedRows(from: items)
     }
 
     private var kanbanTasks: [KanbanTaskSnapshot] {
         vm.makeKanbanTasks(from: items)
     }
 
+    /// The SessionAgent powering the focused session.
+    /// Returns nil if no session is selected or the agent hasn't been
+    /// initialized yet — view lifecycle (`.task` / `.onChange`) creates it,
+    /// keeping side-effects out of the SwiftUI body.
+    private var focusedSessionAgent: SessionAgent? {
+        agent.existingSessionAgent(for: vm.selectedSessionID)
+    }
+
+    private func ensureFocusedSessionAgent() {
+        guard let sessionID = vm.selectedSessionID,
+              let projectPath = vm.selectedProjectPath
+        else { return }
+        _ = agent.sessionAgent(for: sessionID, projectPath: projectPath)
+        agent.focusedSessionID = sessionID
+    }
+
     var body: some View {
         NavigationStack {
             HStack(spacing: 0) {
                 if !vm.isSidebarCollapsed {
-                    ChatSidebarView(
-                        projects: projects,
-                        selectedProjectPath: vm.selectedProjectPath,
-                        selectedSessionID: vm.selectedSessionID,
-                        expandedProjectPaths: vm.expandedProjectPaths,
-                        onAddProject: addProject,
-                        onCreateSession: createSession,
-                        onToggleProject: { vm.toggleProjectExpansion($0.path) },
-                        onSelectProject: { vm.selectProject($0.path, agent: agent) },
-                        onRemoveProject: removeProject,
-                        onSelectSession: { project, session in
-                            vm.selectSession(projectPath: project.path, sessionID: session.id, agent: agent)
-                        },
-                        onRenameSession: requestRename,
-                        onDeleteSession: deleteSession,
-                        onSettings: openSettings,
-                        onHelp: openHelp,
-                        accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
-                        accountSubtitle: authSession.provider.accountTitleKey,
-                        accountInitial: authSession.user?.avatarInitial ?? "G",
-                        accountAvatarURL: authSession.user?.avatarURL,
-                        onLogout: handleLogout
-                    )
-                    .frame(width: vm.sidebarWidth)
-
+                    sidebar
                     sidebarResizeHandle
                 }
-
-                VStack(spacing: 0) {
-                    if vm.showKanbanPanel {
-                        KanbanPanelView(
-                            project: selectedProject,
-                            selectedSession: selectedSession,
-                            tasks: kanbanTasks,
-                            onCreateTask: createKanbanTask,
-                            onMoveTask: moveKanbanTask,
-                            onLinkSelectedSession: linkSelectedSessionToKanbanTask,
-                            onDeleteTask: deleteKanbanTask
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 372)
-                        .padding(.horizontal, 14)
-                        .padding(.top, 12)
-                        .padding(.bottom, 10)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-
-                        Divider()
-                    }
-
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: 20) {
-                                if selectedSession == nil {
-                                    emptyState
-                                } else {
-                                    ForEach(displayedRows) { row in
-                                        switch row {
-                                        case .message(let item):
-                                            if item.kind == "compaction_summary" {
-                                                EmptyView()
-                                                    .id(item.id)
-                                            } else {
-                                                MessageView(item: item)
-                                                    .id(item.id)
-                                            }
-                                        case .toolGroup(let group):
-                                            ToolExecutionGroupView(group: group)
-                                                .id(group.id)
-                                        }
-                                    }
-
-                                    AgentResponseView(agent: agent)
-                                        .id("agent_response")
-                                }
-                            }
-                            .padding(.top, 10)
-                            .padding(.bottom, 20)
-                        }
-                        .onChange(of: items.count) { _, _ in
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo(displayedItems.last?.id, anchor: .bottom)
-                            }
-                        }
-                        .onChange(of: agent.isResponding) { _, responding in
-                            if responding {
-                                proxy.scrollTo("agent_response", anchor: .bottom)
-                            }
-                        }
-                        .onChange(of: vm.selectedSessionID) { _, _ in
-                            scrollToBottom(proxy: proxy, id: selectedSession?.messages.last?.id)
-                        }
-                    }
-
-                    InputBar(
-                        inputText: $vm.inputText,
-                        projects: projects,
-                        selectedProjectPath: vm.selectedProjectPath,
-                        isResponding: agent.isResponding,
-                        onSelectProject: { vm.selectProject($0.path, agent: agent) },
-                        onSend: sendMessage,
-                        agent: agent
-                    )
-                }
+                mainColumn
             }
             .background(MetalParticleBackground(isDark: colorScheme == .dark))
+            .overlay(alignment: .top) { UserAlertBanner() }
             .navigationTitle("")
-            .toolbarBackground(toolbarBackgroundColor, for: .windowToolbar)
-            .toolbarBackground(.visible, for: .windowToolbar)
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button {
-                        vm.toggleSidebar()
-                    } label: {
-                        Image(systemName: vm.isSidebarCollapsed ? "sidebar.left" : "sidebar.leading")
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        vm.toggleKanbanPanel()
-                    } label: {
-                        Label(
-                            vm.showKanbanPanel ? "kanban.hide_board" : "kanban.show_board",
-                            systemImage: vm.showKanbanPanel ? "rectangle.compress.vertical" : "rectangle.3.group"
-                        )
-                    }
-                    .labelStyle(.iconOnly)
-                    .help("kanban.toggle")
-                }
-            }
+            .toolbarBackground(.hidden, for: .windowToolbar)
+            .toolbar { mainToolbar }
             .sheet(isPresented: $vm.showConfigSheet) {
                 SettingsContainerView(agent: agent)
             }
             .alert("chat.rename_session", isPresented: $vm.showRenameDialog) {
-                TextField("chat.session_title", text: $vm.renameDraft)
-                Button("common.cancel", role: .cancel) {
-                    vm.renamingSessionID = nil
-                }
-                Button("common.save") {
-                    applyRename()
-                }
-                .disabled(!vm.renameDraft.isNotBlank)
+                renameAlertButtons
             } message: {
                 Text("chat.rename_selected_session")
             }
             .alert(item: $approvals.pendingRequest) { request in
                 Alert(
-                    title: Text("Dangerous Operation"),
+                    title: Text(L10n.tr("tool_approval.title")),
                     message: Text("\(request.reason)\n\n\(request.summary)"),
-                    primaryButton: .destructive(Text("Run Once")) {
+                    primaryButton: .destructive(Text(L10n.tr("tool_approval.run_once"))) {
                         approvals.approve(request)
                     },
-                    secondaryButton: .cancel(Text("Reject")) {
+                    secondaryButton: .cancel(Text(L10n.tr("tool_approval.reject"))) {
                         approvals.reject(request)
                     }
                 )
@@ -225,6 +96,15 @@ struct ContentView: View {
                 vm.loadConversationsFromSessionFilesIfNeeded(items: items, modelContext: modelContext, agent: agent)
                 await agent.refreshServiceStatus()
                 persistProjects()
+                autoCreateSessionIfNeeded()
+                ensureFocusedSessionAgent()
+            }
+            .onChange(of: vm.selectedProjectPath) { _, _ in
+                autoCreateSessionIfNeeded()
+                ensureFocusedSessionAgent()
+            }
+            .onChange(of: vm.selectedSessionID) { _, _ in
+                ensureFocusedSessionAgent()
             }
             .onChange(of: items.count) { _, _ in
                 if !vm.isImportingSessionFiles {
@@ -234,6 +114,157 @@ struct ContentView: View {
             .frame(minWidth: 980, minHeight: 760)
             .animation(.easeInOut(duration: 0.2), value: vm.showKanbanPanel)
         }
+    }
+
+    // MARK: - Body subviews
+    //
+    // SwiftUI's type-checker can't handle the original 170-line `body` in
+    // reasonable time (Swift 6 compiler limit). Each subview owns one chunk
+    // and stays under the threshold individually.
+
+    private var sidebar: some View {
+        ChatSidebarView(
+            projects: projects,
+            selectedProjectPath: vm.selectedProjectPath,
+            selectedSessionID: vm.selectedSessionID,
+            expandedProjectPaths: vm.expandedProjectPaths,
+            onAddProject: addProject,
+            onCreateSession: createSession,
+            onToggleProject: { vm.toggleProjectExpansion($0.path) },
+            onSelectProject: { vm.selectProject($0.path, agent: agent) },
+            onRemoveProject: removeProject,
+            onSelectSession: { project, session in
+                vm.selectSession(projectPath: project.path, sessionID: session.id, agent: agent)
+            },
+            onRenameSession: requestRename,
+            onDeleteSession: deleteSession,
+            onSettings: openSettings,
+            onHelp: openHelp,
+            accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
+            accountSubtitle: authSession.provider.accountTitleKey,
+            accountInitial: authSession.user?.avatarInitial ?? "G",
+            accountAvatarURL: authSession.user?.avatarURL,
+            onLogout: handleLogout
+        )
+        .frame(width: vm.sidebarWidth)
+    }
+
+    private var mainColumn: some View {
+        VStack(spacing: 0) {
+            if vm.showKanbanPanel {
+                KanbanPanelView(
+                    project: selectedProject,
+                    selectedSession: selectedSession,
+                    tasks: kanbanTasks,
+                    onCreateTask: createKanbanTask,
+                    onMoveTask: moveKanbanTask,
+                    onLinkSelectedSession: linkSelectedSessionToKanbanTask,
+                    onDeleteTask: deleteKanbanTask
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 372)
+                .padding(.horizontal, 56)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            chatScrollArea
+
+            InputBar(
+                inputText: $vm.inputText,
+                projects: projects,
+                selectedProjectPath: vm.selectedProjectPath,
+                isResponding: focusedSessionAgent?.isResponding ?? false,
+                onSelectProject: { vm.selectProject($0.path, agent: agent) },
+                onSend: sendMessage,
+                sessionAgent: focusedSessionAgent
+            )
+        }
+    }
+
+    private var chatScrollArea: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    if selectedSession == nil {
+                        emptyState
+                    } else {
+                        ForEach(displayedRows) { row in
+                            chatRowView(row)
+                        }
+                        if let focusedSessionAgent {
+                            AgentResponseView(sessionAgent: focusedSessionAgent)
+                                .id("agent_response")
+                        }
+                    }
+                }
+                .padding(.top, 10)
+                .padding(.bottom, 20)
+            }
+            .onChange(of: items.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(displayedItems.last?.id, anchor: .bottom)
+                }
+            }
+            .onChange(of: focusedSessionAgent?.isResponding ?? false) { _, responding in
+                if responding {
+                    proxy.scrollTo("agent_response", anchor: .bottom)
+                }
+            }
+            .onChange(of: vm.selectedSessionID) { _, _ in
+                scrollToBottom(proxy: proxy, id: selectedSession?.messages.last?.id)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chatRowView(_ row: ChatRow) -> some View {
+        switch row {
+        case .message(let item):
+            if item.kindEnum == .compactionSummary {
+                EmptyView().id(item.id)
+            } else {
+                MessageView(item: item).id(item.id)
+            }
+        case .toolGroup(let group):
+            ToolExecutionGroupView(group: group).id(group.id)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var mainToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button {
+                vm.toggleSidebar()
+            } label: {
+                Image(systemName: vm.isSidebarCollapsed ? "sidebar.left" : "sidebar.leading")
+            }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                vm.toggleKanbanPanel()
+            } label: {
+                Label(
+                    vm.showKanbanPanel ? "kanban.hide_board" : "kanban.show_board",
+                    systemImage: vm.showKanbanPanel ? "rectangle.compress.vertical" : "rectangle.3.group"
+                )
+            }
+            .labelStyle(.iconOnly)
+            .help("kanban.toggle")
+        }
+    }
+
+    @ViewBuilder
+    private var renameAlertButtons: some View {
+        TextField("chat.session_title", text: $vm.renameDraft)
+        Button("common.cancel", role: .cancel) {
+            vm.renamingSessionID = nil
+        }
+        Button("common.save") {
+            applyRename()
+        }
+        .disabled(!vm.renameDraft.isNotBlank)
     }
 
     private var emptyState: some View {
@@ -250,12 +281,6 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 360)
         .padding(.top, 80)
-    }
-
-    private var toolbarBackgroundColor: Color {
-        colorScheme == .dark
-            ? Color(red: 0.095, green: 0.098, blue: 0.106)
-            : Color(red: 0.95, green: 0.95, blue: 0.96)
     }
 
     private var sidebarResizeHandle: some View {
@@ -283,6 +308,12 @@ struct ContentView: View {
         )
     }
 
+    private func autoCreateSessionIfNeeded() {
+        guard selectedProject != nil, selectedSession == nil else { return }
+        guard vm.startNewChat(items: items, agent: agent) else { return }
+        persistProjects()
+    }
+
     private func addProject() {
         vm.addProject(agent: agent)
         persistProjects()
@@ -305,11 +336,6 @@ struct ContentView: View {
         }
     }
 
-    private func decodePersistedToolExecution(from raw: String) -> PersistedToolExecution? {
-        guard let data = raw.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(PersistedToolExecution.self, from: data)
-    }
-
     private func sendMessage() {
         vm.sendMessage(
             modelContext: modelContext,
@@ -326,7 +352,7 @@ struct ContentView: View {
     }
 
     private func applyRename() {
-        let didRename = vm.applyRename(items: items)
+        let didRename = vm.applyRename(items: items, modelContext: modelContext)
         guard didRename else { return }
         persistProjects()
     }
@@ -469,7 +495,7 @@ private struct SeededRandomGenerator: RandomNumberGenerator {
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: StoredSession.self, inMemory: true)
 }
 
 enum ChatRow: Identifiable {
@@ -478,7 +504,7 @@ enum ChatRow: Identifiable {
 
     var id: String {
         switch self {
-        case .message(let item): return "msg-\(item.persistentModelID.hashValue)"
+        case .message(let item): return "msg-\(item.id.hashValue)"
         case .toolGroup(let group): return group.id
         }
     }

@@ -131,6 +131,7 @@
 "kanban.tasks_description" = "Tasks stay attached to the project and can link to one or more sessions.";
 "kanban.tasks_organized_description" = "Tasks are organized at the project level and can stay linked to multiple sessions.";
 "kanban.toggle" = "Toggle project Kanban";
+"kanban.header_stats" = "Tasks: %d  Sessions: %d";
 
 "tool.full_command_result" = "Full command result";
 "tool.no_output" = "(No output)";
@@ -149,6 +150,17 @@
 "agent.empty_after_tools" = "This turn executed %d tool calls. Please ask me to continue so I can finish the final step.";
 "agent.empty_model_response" = "(The model returned empty content)";
 "agent.max_steps_reached" = "I reached the step limit after %d tool calls and still need to converge. Reply \"continue\" and I will pick up from the current context.";
+
+"tool_approval.title" = "Dangerous Operation";
+"tool_approval.run_once" = "Run Once";
+"tool_approval.reject" = "Reject";
+
+"context.window_label" = "Context window";
+"context.used" = "Used";
+"context.total" = "Total";
+"context.reserved" = "Reserved";
+"context.compact" = "Compact";
+"context.compacting" = "Compacting…";
 "agent.raw_error" = "Raw error";
 "agent.sandbox_error.file_missing" = "File does not exist or is not accessible. Check the path and make sure the directory is authorized.";
 "agent.sandbox_error.operation_failed" = "Operation failed: %@";
@@ -174,3 +186,27 @@
 "auth.error.random" = "Impulse couldn't create a secure sign-in challenge (%d). Restart the app and try again.";
 "auth.error.token_exchange_failed" = "Impulse couldn't finish Google sign-in: %@";
 "auth.error.web_authentication_failed" = "The sign-in window closed before Google returned a response: %@";
+
+"alert.projects_load_failed.title" = "Couldn't load your projects";
+"alert.projects_load_failed.detail" = "Saved sessions and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/Impulse/store-backups for a recent backup.";
+"alert.projects_save_failed.title" = "Couldn't save your projects";
+"alert.projects_save_failed.detail" = "Recent changes may be lost the next time the app is restarted.";
+
+"settings.tab.diagnostics" = "Diagnostics";
+"settings.diagnostics.title" = "Diagnostics";
+"settings.diagnostics.backups" = "Store Backups";
+"settings.diagnostics.backups.description" = "Impulse keeps the last 7 days of your chat history on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen Impulse afterwards.";
+"settings.diagnostics.no_backups" = "No backups available yet — they're created on each new launch day.";
+"settings.diagnostics.restore" = "Restore";
+"settings.diagnostics.reveal_in_finder" = "Reveal in Finder";
+"settings.diagnostics.restoring" = "Restoring backup…";
+"settings.diagnostics.restart_required" = "Quit and reopen Impulse to start using the restored data.";
+"settings.diagnostics.restore_succeeded" = "Restored backup from %@.";
+"settings.diagnostics.confirm_restore.title" = "Restore this backup?";
+"settings.diagnostics.confirm_restore.message" = "This will replace your current chat history with the backup from %@. Your current data is automatically snapshotted first so this can be reversed.";
+
+"settings.diagnostics.current_schema" = "Current data schema: v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "Unknown schema";
+"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "This backup from %@ has no schema metadata. It may have been created by an older version of Impulse and could fail to load. Continue anyway?";

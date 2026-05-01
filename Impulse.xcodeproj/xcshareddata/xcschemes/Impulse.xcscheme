@@ -21,6 +21,20 @@
                ReferencedContainer = "container:Impulse.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "81144E5F8BAB484AFEC3DA90"
+               BuildableName = "ImpulseTests.xctest"
+               BlueprintName = "ImpulseTests"
+               ReferencedContainer = "container:Impulse.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -39,7 +53,20 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "81144E5F8BAB484AFEC3DA90"
+               BuildableName = "ImpulseTests.xctest"
+               BlueprintName = "ImpulseTests"
+               ReferencedContainer = "container:Impulse.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

@@ -63,7 +63,7 @@ final class SandboxAccessManager: ObservableObject {
             save()
             resolveAndActivateBookmarks()
         } catch {
-            print("Failed to create sandbox bookmark: \(error)")
+            AppLog.sandbox.error("Failed to create sandbox bookmark for \(normalizedPath, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -97,7 +97,7 @@ final class SandboxAccessManager: ObservableObject {
             save()
             resolveAndActivateBookmarks()
         } catch {
-            print("Failed to refresh bookmark: \(error)")
+            AppLog.sandbox.error("Failed to refresh bookmark: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -152,7 +152,7 @@ final class SandboxAccessManager: ObservableObject {
             } catch {
                 updatedStatuses[entry.id] = .invalid
                 updatedEntries.append(entry)
-                print("Failed to resolve bookmark for \(entry.path): \(error)")
+                AppLog.sandbox.error("Failed to resolve bookmark for \(entry.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
 

@@ -126,6 +126,7 @@
 "kanban.tasks_description" = "Les tâches restent rattachées au projet et peuvent être liées à une ou plusieurs sessions.";
 "kanban.tasks_organized_description" = "Les tâches sont organisées au niveau du projet et peuvent rester liées à plusieurs sessions.";
 "kanban.toggle" = "Basculer le Kanban du projet";
+"kanban.header_stats" = "Tâches : %d  Sessions : %d";
 "tool.full_command_result" = "Résultat complet de la commande";
 "tool.no_output" = "(Aucune sortie)";
 "tool.show_less" = "Moins";
@@ -141,6 +142,17 @@
 "agent.empty_after_tools" = "Ce tour a exécuté %d appels d'outils. Demandez-moi de continuer pour terminer la dernière étape.";
 "agent.empty_model_response" = "(Le modèle a renvoyé un contenu vide)";
 "agent.max_steps_reached" = "J'ai atteint la limite d'étapes après %d appels d'outils et dois encore conclure. Répondez \"continuer\" et je reprendrai depuis le contexte actuel.";
+
+"tool_approval.title" = "Opération dangereuse";
+"tool_approval.run_once" = "Exécuter une fois";
+"tool_approval.reject" = "Rejeter";
+
+"context.window_label" = "Fenêtre de contexte";
+"context.used" = "Utilisé";
+"context.total" = "Total";
+"context.reserved" = "Réservé";
+"context.compact" = "Compacter";
+"context.compacting" = "Compactage…";
 "agent.raw_error" = "Erreur brute";
 "agent.sandbox_error.file_missing" = "Le fichier n'existe pas ou n'est pas accessible. Vérifiez le chemin et l'autorisation du dossier.";
 "agent.sandbox_error.operation_failed" = "Échec de l'opération : %@";
@@ -166,3 +178,27 @@
 "auth.error.random" = "Impulse n'a pas pu créer une vérification de connexion sécurisée (%d). Redémarrez l'app puis réessayez.";
 "auth.error.token_exchange_failed" = "Impulse n'a pas pu terminer la connexion Google : %@";
 "auth.error.web_authentication_failed" = "La fenêtre de connexion s'est fermée avant la réponse de Google : %@";
+
+"alert.projects_load_failed.title" = "Impossible de charger les projets";
+"alert.projects_load_failed.detail" = "Les sessions et tâches Kanban enregistrées peuvent ne pas apparaître. Une sauvegarde récente est disponible dans ~/Library/Application Support/Impulse/store-backups.";
+"alert.projects_save_failed.title" = "Impossible d'enregistrer les projets";
+"alert.projects_save_failed.detail" = "Les modifications récentes risquent d'être perdues au prochain redémarrage.";
+
+"settings.tab.diagnostics" = "Diagnostic";
+"settings.diagnostics.title" = "Diagnostic";
+"settings.diagnostics.backups" = "Sauvegardes du stockage";
+"settings.diagnostics.backups.description" = "Impulse conserve les 7 derniers jours de votre historique. En cas de problème, vous pouvez restaurer une copie. Vous devrez ensuite quitter et rouvrir Impulse.";
+"settings.diagnostics.no_backups" = "Aucune sauvegarde pour l'instant — elles sont créées au premier lancement de chaque jour.";
+"settings.diagnostics.restore" = "Restaurer";
+"settings.diagnostics.reveal_in_finder" = "Afficher dans le Finder";
+"settings.diagnostics.restoring" = "Restauration…";
+"settings.diagnostics.restart_required" = "Quittez puis rouvrez Impulse pour utiliser les données restaurées.";
+"settings.diagnostics.restore_succeeded" = "Sauvegarde du %@ restaurée.";
+"settings.diagnostics.confirm_restore.title" = "Restaurer cette sauvegarde ?";
+"settings.diagnostics.confirm_restore.message" = "L'historique actuel sera remplacé par la sauvegarde du %@. Vos données actuelles sont d'abord automatiquement archivées, donc cela peut être annulé.";
+
+"settings.diagnostics.current_schema" = "Schéma actuel : v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "Schéma inconnu";
+"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "La sauvegarde du %@ n'a pas de métadonnées de schéma. Elle a peut-être été créée par une ancienne version d'Impulse et pourrait ne pas se charger. Continuer ?";

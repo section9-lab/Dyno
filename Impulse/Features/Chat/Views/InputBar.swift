@@ -11,7 +11,9 @@ struct InputBar: View {
     let isResponding: Bool
     var onSelectProject: (ChatProject) -> Void
     var onSend: () -> Void
-    @ObservedObject var agent: AgentManager
+    /// nil when no session is selected. Tracks context usage / compact action
+    /// for the focused session only.
+    var sessionAgent: SessionAgent?
 
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var micPulse = false
@@ -131,9 +133,8 @@ struct InputBar: View {
             projectSelectorTray
                 .padding(.top, -28)
         }
-        .frame(maxWidth: 720)
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 56)
         .padding(.bottom, 12)
         .onChange(of: speechManager.transcript) { _, _ in
             inputText = speechManager.composedText
@@ -175,13 +176,6 @@ struct InputBar: View {
             .menuStyle(.button)
             .buttonStyle(.plain)
 
-            HStack(spacing: 6) {
-                Image(systemName: "laptopcomputer")
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .font(.system(size: 14, weight: .medium))
-
             Spacer()
 
             contextUsageIndicator
@@ -204,61 +198,14 @@ struct InputBar: View {
 
     // MARK: - Context Usage Indicator
 
+    @ViewBuilder
     private var contextUsageIndicator: some View {
-        Button {
-            showContextPopover.toggle()
-        } label: {
-            ContextUsageRing(
-                percent: agent.contextUsage.percent,
-                color: contextUsageColor
+        if let sessionAgent {
+            ContextUsageIndicator(
+                sessionAgent: sessionAgent,
+                showContextPopover: $showContextPopover,
+                isCompacting: $isCompacting
             )
-            .frame(width: 16, height: 16)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showContextPopover, arrowEdge: .top) {
-            ContextUsagePopover(
-                usage: agent.contextUsage,
-                isCompacting: isCompacting,
-                onCompact: triggerCompaction
-            )
-        }
-        .help(contextHelpText)
-    }
-
-    private var contextUsageColor: Color {
-        let pct = agent.contextUsage.percent
-        if pct >= 0.9 { return .red }
-        if pct >= 0.75 { return .orange }
-        return .secondary
-    }
-
-    private var contextHelpText: String {
-        let usage = agent.contextUsage
-        let pctText = String(format: "%.0f%%", usage.percent * 100)
-        return "Context: \(pctText) (\(formatTokens(usage.usedTokens)) / \(formatTokens(usage.totalTokens)))"
-    }
-
-    private func formatTokens(_ value: Int) -> String {
-        if value >= 1_000 {
-            let k = Double(value) / 1_000.0
-            return String(format: "%.1fk", k)
-        }
-        return "\(value)"
-    }
-
-    private func triggerCompaction() {
-        guard !isCompacting else { return }
-        isCompacting = true
-        Task {
-            defer { isCompacting = false }
-            do {
-                _ = try await agent.compact()
-                showContextPopover = false
-            } catch {
-                // Surface failure passively — the popover stays open so the
-                // user can see the unchanged usage.
-            }
         }
     }
 
@@ -369,6 +316,70 @@ struct InputBar: View {
         if let monitor = optionKeyMonitor {
             NSEvent.removeMonitor(monitor)
             optionKeyMonitor = nil
+        }
+    }
+}
+
+private struct ContextUsageIndicator: View {
+    @ObservedObject var sessionAgent: SessionAgent
+    @Binding var showContextPopover: Bool
+    @Binding var isCompacting: Bool
+
+    var body: some View {
+        Button {
+            showContextPopover.toggle()
+        } label: {
+            ContextUsageRing(
+                percent: sessionAgent.contextUsage.percent,
+                color: contextUsageColor
+            )
+            .frame(width: 16, height: 16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showContextPopover, arrowEdge: .top) {
+            ContextUsagePopover(
+                usage: sessionAgent.contextUsage,
+                isCompacting: isCompacting,
+                onCompact: triggerCompaction
+            )
+        }
+        .help(contextHelpText)
+    }
+
+    private var contextUsageColor: Color {
+        let pct = sessionAgent.contextUsage.percent
+        if pct >= 0.9 { return .red }
+        if pct >= 0.75 { return .orange }
+        return .secondary
+    }
+
+    private var contextHelpText: String {
+        let usage = sessionAgent.contextUsage
+        let pctText = String(format: "%.0f%%", usage.percent * 100)
+        return "Context: \(pctText) (\(formatTokens(usage.usedTokens)) / \(formatTokens(usage.totalTokens)))"
+    }
+
+    private func formatTokens(_ value: Int) -> String {
+        if value >= 1_000 {
+            let k = Double(value) / 1_000.0
+            return String(format: "%.1fk", k)
+        }
+        return "\(value)"
+    }
+
+    private func triggerCompaction() {
+        guard !isCompacting else { return }
+        isCompacting = true
+        Task {
+            defer { isCompacting = false }
+            do {
+                _ = try await sessionAgent.compact()
+                showContextPopover = false
+            } catch {
+                // Surface failure passively — the popover stays open so the
+                // user can see the unchanged usage.
+            }
         }
     }
 }
@@ -592,7 +603,7 @@ private struct ContextUsagePopover: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.primary)
 
-                    Text("Context window")
+                    Text(L10n.tr("context.window_label"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
@@ -603,9 +614,9 @@ private struct ContextUsagePopover: View {
             Divider().opacity(0.4)
 
             VStack(alignment: .leading, spacing: 6) {
-                statRow(label: "Used", value: formatTokens(usage.usedTokens))
-                statRow(label: "Total", value: formatTokens(usage.totalTokens))
-                statRow(label: "Reserved", value: formatTokens(usage.reservedTokens))
+                statRow(label: L10n.tr("context.used"), value: formatTokens(usage.usedTokens))
+                statRow(label: L10n.tr("context.total"), value: formatTokens(usage.totalTokens))
+                statRow(label: L10n.tr("context.reserved"), value: formatTokens(usage.reservedTokens))
             }
 
             Button {
@@ -616,14 +627,11 @@ private struct ContextUsagePopover: View {
                         ProgressView()
                             .scaleEffect(0.5)
                             .frame(width: 14, height: 14)
-                    } else {
-                        Image(systemName: "rectangle.compress.vertical")
-                            .font(.system(size: 12, weight: .medium))
                     }
-                    Text(isCompacting ? "Compacting…" : "Compact context now")
+                    Text(isCompacting ? L10n.tr("context.compacting") : L10n.tr("context.compact"))
                         .font(.system(size: 12, weight: .medium))
                 }
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)

@@ -142,15 +142,19 @@ struct ChatSidebarView: View {
                             Button {
                                 onSelectSession(project, session)
                             } label: {
-                                Text(previewText(for: session.title))
-                                    .font(.system(size: 13, weight: .medium))
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .foregroundColor(.primary)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 9)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.leading, 14)
+                                HStack(spacing: 6) {
+                                    Text(previewText(for: session.title))
+                                        .font(.system(size: 13, weight: .medium))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .foregroundColor(.primary)
+                                    Spacer(minLength: 0)
+                                    SessionStatusBadge(sessionID: session.id)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 9)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.leading, 14)
                             }
                             .buttonStyle(
                                 SidebarRowButtonStyle(
@@ -336,5 +340,34 @@ struct SidebarRowButtonStyle: ButtonStyle {
             return colorScheme == .dark ? Color.white.opacity(0.055) : Color.black.opacity(0.04)
         }
         return Color.clear
+    }
+}
+
+/// Tiny dot/spinner shown next to a session row when its SessionAgent
+/// is currently producing a response. Looks up the agent on every render
+/// (cheap dictionary lookup) so it reflects state for *all* parallel sessions,
+/// not just the focused one.
+private struct SessionStatusBadge: View {
+    let sessionID: String
+    @ObservedObject private var manager = AgentManager.shared
+
+    var body: some View {
+        if let sessionAgent = manager.sessionAgents[sessionID], sessionAgent.isResponding {
+            ResponsiveSessionDot(sessionAgent: sessionAgent)
+        }
+    }
+}
+
+private struct ResponsiveSessionDot: View {
+    @ObservedObject var sessionAgent: SessionAgent
+
+    var body: some View {
+        if sessionAgent.isResponding {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 6, height: 6)
+                .opacity(0.85)
+                .transition(.opacity)
+        }
     }
 }

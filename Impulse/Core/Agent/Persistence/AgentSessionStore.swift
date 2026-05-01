@@ -179,7 +179,7 @@ final class AgentSessionStore: AgentSessionStoring {
                 ?? startedAt.timeIntervalSince1970 * 1000
             let ts = Date(timeIntervalSince1970: tsMs / 1000)
             let kind = (message["impulseKind"] as? String)
-                ?? (role == "user" ? "user_message" : "assistant_message")
+                ?? (role == "user" ? ItemKind.userMessage.rawValue : ItemKind.assistantMessage.rawValue)
             let entryID = (root["id"] as? String) ?? UUID().uuidString
 
             parsedMessages.append((
@@ -194,7 +194,7 @@ final class AgentSessionStore: AgentSessionStoring {
                 role: "assistant",
                 content: latestCompaction.summary,
                 timestamp: latestCompaction.timestamp,
-                kind: "compaction_summary"
+                kind: ItemKind.compactionSummary.rawValue
             )
 
             if let firstKeptEntryID = latestCompaction.firstKeptEntryID,
@@ -241,7 +241,7 @@ final class AgentSessionStore: AgentSessionStoring {
             let entryID = entryIDs[index]
             mergeFileOps(from: message, readFiles: &cumulativeReadFiles, modifiedFiles: &cumulativeModifiedFiles)
 
-            if message.kind == "compaction_summary" {
+            if message.kind == ItemKind.compactionSummary.rawValue {
                 var entry: [String: Any] = [
                     "type": "compaction",
                     "id": entryID,
@@ -292,7 +292,7 @@ final class AgentSessionStore: AgentSessionStoring {
     ) -> String? {
         guard index < messages.count else { return nil }
 
-        for next in (index + 1)..<messages.count where messages[next].kind != "compaction_summary" {
+        for next in (index + 1)..<messages.count where messages[next].kind != ItemKind.compactionSummary.rawValue {
             return entryIDs[next]
         }
 
@@ -310,7 +310,7 @@ final class AgentSessionStore: AgentSessionStoring {
         readFiles: inout Set<String>,
         modifiedFiles: inout Set<String>
     ) {
-        guard message.kind == "tool_execution",
+        guard message.kind == ItemKind.toolExecution.rawValue,
               let data = message.content.data(using: .utf8),
               let payload = try? JSONDecoder().decode(PersistedToolExecution.self, from: data)
         else {

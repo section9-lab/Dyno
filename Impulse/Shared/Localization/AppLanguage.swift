@@ -95,9 +95,27 @@ enum L10n {
         let language = UserDefaults.standard.string(forKey: "app.language")
             .flatMap(AppLanguage.init(rawValue:))?
             .rawValue ?? AppLanguage.en.rawValue
-        let bundle = Bundle.main.path(forResource: language, ofType: "lproj")
-            .flatMap(Bundle.init(path:)) ?? .main
-        let format = NSLocalizedString(key, bundle: bundle, comment: "")
+
+        let bundle = resolvedBundle(for: language)
+        var format = NSLocalizedString(key, bundle: bundle, comment: "")
+
+        // If key not found in preferred language, fall back to English
+        if format == key, language != AppLanguage.en.rawValue,
+           let enBundle = resolvedBundle(language: AppLanguage.en.rawValue) {
+            let enFormat = NSLocalizedString(key, bundle: enBundle, comment: "")
+            if enFormat != key { format = enFormat }
+        }
+
+        if arguments.isEmpty { return format }
         return String(format: format, locale: Locale(identifier: language), arguments: arguments)
+    }
+
+    private static func resolvedBundle(for language: String) -> Bundle {
+        resolvedBundle(language: language) ?? .main
+    }
+
+    private static func resolvedBundle(language: String) -> Bundle? {
+        Bundle.main.path(forResource: language, ofType: "lproj")
+            .flatMap(Bundle.init(path:))
     }
 }

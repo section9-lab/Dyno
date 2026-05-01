@@ -126,6 +126,7 @@
 "kanban.tasks_description" = "Las tareas permanecen ligadas al proyecto y pueden vincularse a una o más sesiones.";
 "kanban.tasks_organized_description" = "Las tareas se organizan a nivel de proyecto y pueden quedar vinculadas a varias sesiones.";
 "kanban.toggle" = "Alternar Kanban del proyecto";
+"kanban.header_stats" = "Tareas: %d  Sesiones: %d";
 "tool.full_command_result" = "Resultado completo del comando";
 "tool.no_output" = "(Sin salida)";
 "tool.show_less" = "Menos";
@@ -141,6 +142,17 @@
 "agent.empty_after_tools" = "Este turno ejecutó %d llamadas a herramientas. Pídeme que continúe para terminar el último paso.";
 "agent.empty_model_response" = "(El modelo devolvió contenido vacío)";
 "agent.max_steps_reached" = "Alcancé el límite de pasos tras %d llamadas a herramientas y aún debo cerrar la respuesta. Responde \"continuar\" y seguiré desde el contexto actual.";
+
+"tool_approval.title" = "Operación peligrosa";
+"tool_approval.run_once" = "Ejecutar una vez";
+"tool_approval.reject" = "Rechazar";
+
+"context.window_label" = "Ventana de contexto";
+"context.used" = "Usado";
+"context.total" = "Total";
+"context.reserved" = "Reservado";
+"context.compact" = "Compactar";
+"context.compacting" = "Compactando…";
 "agent.raw_error" = "Error original";
 "agent.sandbox_error.file_missing" = "El archivo no existe o no es accesible. Comprueba la ruta y que el directorio esté autorizado.";
 "agent.sandbox_error.operation_failed" = "La operación falló: %@";
@@ -166,3 +178,27 @@
 "auth.error.random" = "Impulse no pudo crear una comprobación segura de inicio de sesión (%d). Reinicia la app e inténtalo de nuevo.";
 "auth.error.token_exchange_failed" = "Impulse no pudo completar el inicio con Google: %@";
 "auth.error.web_authentication_failed" = "La ventana de inicio se cerró antes de que Google devolviera una respuesta: %@";
+
+"alert.projects_load_failed.title" = "No se pudieron cargar los proyectos";
+"alert.projects_load_failed.detail" = "Las sesiones y tareas Kanban guardadas podrían no verse. Busca una copia reciente en ~/Library/Application Support/Impulse/store-backups.";
+"alert.projects_save_failed.title" = "No se pudieron guardar los proyectos";
+"alert.projects_save_failed.detail" = "Los cambios recientes podrían perderse al reiniciar la aplicación.";
+
+"settings.tab.diagnostics" = "Diagnóstico";
+"settings.diagnostics.title" = "Diagnóstico";
+"settings.diagnostics.backups" = "Copias del almacén";
+"settings.diagnostics.backups.description" = "Impulse mantiene los últimos 7 días de tu historial. Si algo sale mal puedes restaurar una copia anterior. Después debes cerrar y volver a abrir Impulse.";
+"settings.diagnostics.no_backups" = "No hay copias aún — se crean en el primer arranque del día.";
+"settings.diagnostics.restore" = "Restaurar";
+"settings.diagnostics.reveal_in_finder" = "Mostrar en Finder";
+"settings.diagnostics.restoring" = "Restaurando…";
+"settings.diagnostics.restart_required" = "Cierra y vuelve a abrir Impulse para usar los datos restaurados.";
+"settings.diagnostics.restore_succeeded" = "Copia de %@ restaurada.";
+"settings.diagnostics.confirm_restore.title" = "¿Restaurar esta copia?";
+"settings.diagnostics.confirm_restore.message" = "Reemplazará tu historial actual con la copia de %@. Los datos actuales se guardan automáticamente primero, así que esto se puede deshacer.";
+
+"settings.diagnostics.current_schema" = "Esquema actual: v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "Esquema desconocido";
+"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "La copia de %@ no tiene metadatos de esquema. Puede haber sido creada por una versión anterior y podría no cargar. ¿Continuar?";

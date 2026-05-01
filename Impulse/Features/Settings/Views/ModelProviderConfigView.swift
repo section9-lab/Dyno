@@ -12,6 +12,14 @@ struct ModelProviderConfigView: View {
     @State private var showAPIKey = false
     @State private var isDiscovering = false
 
+    @State private var isTesting = false
+    @State private var testResult: ModelTestResult? = nil
+
+    private enum ModelTestResult {
+        case success(latency: String)
+        case failure(message: String)
+    }
+
     @State private var showCustomSheet = false
     @State private var customName = ""
     @State private var customBaseURL = ""
@@ -177,14 +185,6 @@ struct ModelProviderConfigView: View {
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            HStack {
-                Spacer()
-                Button("检测连接并发现模型") {
-                    discoverModels()
-                }
-                .disabled(isDiscovering)
-            }
         }
     }
 
@@ -255,26 +255,42 @@ struct ModelProviderConfigView: View {
         Group {
             let models = currentProvider?.models ?? []
             if models.isEmpty {
-                Text("点击「检测连接并发现模型」获取可用模型列表")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                labeledTextField("或手动输入模型名", text: $draftModelId)
+                labeledTextField("模型名称", text: $draftModelId)
             } else {
                 VStack(spacing: 0) {
                     let liveModels = models.filter(\.isLive)
-                    let catalogModels = models.filter { !$0.isLive }
 
                     if !liveModels.isEmpty {
                         modelSection(title: "可用模型（\(liveModels.count)）", models: liveModels, live: true)
-                    }
-
-                    if !catalogModels.isEmpty {
-                        modelSection(title: "目录模型", models: catalogModels, live: false)
+                    } else {
+                        labeledTextField("模型名称", text: $draftModelId)
                     }
                 }
                 .frame(maxHeight: 240)
             }
+
+            // Test button row
+            HStack(spacing: 10) {
+                if isTesting {
+                    ProgressView().controlSize(.small)
+                    Text("测试中…").font(.system(size: 12)).foregroundColor(.secondary)
+                } else if let result = testResult {
+                    switch result {
+                    case .success(let latency):
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        Text("可用 (\(latency))").font(.system(size: 12)).foregroundColor(.green)
+                    case .failure(let msg):
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                        Text(msg).font(.system(size: 12)).foregroundColor(.red).lineLimit(1)
+                    }
+                }
+                Spacer()
+                Button("测试模型") {
+                    testModel()
+                }
+                .disabled(isTesting || draftModelId.isEmpty || draftBaseURL.isEmpty)
+            }
+            .padding(.top, 6)
         }
     }
 
@@ -709,6 +725,53 @@ struct ModelProviderConfigView: View {
                let first = provider.models.first(where: \.isLive) {
                 draftModelId = first.id
             }
+        }
+    }
+
+    private func testModel() {
+        guard !draftModelId.isEmpty, !draftBaseURL.isEmpty else { return }
+        isTesting = true
+        testResult = nil
+
+        Task {
+            let start = Date()
+            do {
+                let base = draftBaseURL.hasSuffix("/") ? String(draftBaseURL.dropLast()) : draftBaseURL
+                guard let url = URL(string: "\(base)/chat/completions") else {
+                    testResult = .failure(message: "URL 无效")
+                    isTesting = false
+                    return
+                }
+
+                var request = URLRequest(url: url, timeoutInterval: 15)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                if !draftApiKey.isEmpty {
+                    request.setValue("Bearer \(draftApiKey)", forHTTPHeaderField: "Authorization")
+                }
+
+                let body: [String: Any] = [
+                    "model": draftModelId,
+                    "messages": [["role": "user", "content": "hi"]],
+                    "max_tokens": 1,
+                    "stream": false
+                ]
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                let (_, response) = try await URLSession.shared.data(for: request)
+                let elapsed = String(format: "%.0fms", Date().timeIntervalSince(start) * 1000)
+
+                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                    testResult = .success(latency: elapsed)
+                } else if let http = response as? HTTPURLResponse {
+                    testResult = .failure(message: "HTTP \(http.statusCode)")
+                } else {
+                    testResult = .failure(message: "无响应")
+                }
+            } catch {
+                testResult = .failure(message: error.localizedDescription)
+            }
+            isTesting = false
         }
     }
 

@@ -52,13 +52,32 @@ targets:
         com.apple.security.files.user-selected.read-write: true
         com.apple.security.files.bookmarks.app-scope: true
 
+  ImpulseTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ImpulseTests
+    dependencies:
+      - target: Impulse
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.section9lab.ImpulseTests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Impulse.app/Contents/MacOS/Impulse"
+
 schemes:
   Impulse:
     build:
       targets:
         Impulse: all
+        ImpulseTests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - ImpulseTests
     profile:
       config: Release
     analyze:

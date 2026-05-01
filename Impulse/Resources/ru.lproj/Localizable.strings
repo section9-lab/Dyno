@@ -126,6 +126,7 @@
 "kanban.tasks_description" = "Задачи остаются привязанными к проекту и могут связываться с одной или несколькими сессиями.";
 "kanban.tasks_organized_description" = "Задачи организованы на уровне проекта и могут быть связаны с несколькими сессиями.";
 "kanban.toggle" = "Переключить Kanban проекта";
+"kanban.header_stats" = "Задачи: %d  Сессии: %d";
 "tool.full_command_result" = "Полный результат команды";
 "tool.no_output" = "(Нет вывода)";
 "tool.show_less" = "Скрыть";
@@ -141,6 +142,17 @@
 "agent.empty_after_tools" = "В этом ходе выполнено %d вызовов инструментов. Попросите продолжить, чтобы завершить последний шаг.";
 "agent.empty_model_response" = "(Модель вернула пустой ответ)";
 "agent.max_steps_reached" = "Я достиг лимита шагов после %d вызовов инструментов и еще должен завершить ответ. Напишите \"продолжить\", и я продолжу из текущего контекста.";
+
+"tool_approval.title" = "Опасная операция";
+"tool_approval.run_once" = "Выполнить один раз";
+"tool_approval.reject" = "Отклонить";
+
+"context.window_label" = "Контекстное окно";
+"context.used" = "Использовано";
+"context.total" = "Всего";
+"context.reserved" = "Зарезервировано";
+"context.compact" = "Сжать";
+"context.compacting" = "Сжатие…";
 "agent.raw_error" = "Исходная ошибка";
 "agent.sandbox_error.file_missing" = "Файл не существует или недоступен. Проверьте путь и убедитесь, что каталог авторизован.";
 "agent.sandbox_error.operation_failed" = "Операция не выполнена: %@";
@@ -166,3 +178,27 @@
 "auth.error.random" = "Impulse не смог создать безопасную проверку входа (%d). Перезапустите приложение и повторите попытку.";
 "auth.error.token_exchange_failed" = "Impulse не смог завершить вход через Google: %@";
 "auth.error.web_authentication_failed" = "Окно входа закрылось до ответа Google: %@";
+
+"alert.projects_load_failed.title" = "Не удалось загрузить проекты";
+"alert.projects_load_failed.detail" = "Сохранённые сессии и задачи Kanban могут не отображаться. Найдите недавнюю резервную копию в ~/Library/Application Support/Impulse/store-backups.";
+"alert.projects_save_failed.title" = "Не удалось сохранить проекты";
+"alert.projects_save_failed.detail" = "Недавние изменения могут быть потеряны при следующем запуске.";
+
+"settings.tab.diagnostics" = "Диагностика";
+"settings.diagnostics.title" = "Диагностика";
+"settings.diagnostics.backups" = "Резервные копии";
+"settings.diagnostics.backups.description" = "Impulse хранит последние 7 дней истории. При сбое можно восстановить более раннюю копию. После этого потребуется перезапустить Impulse.";
+"settings.diagnostics.no_backups" = "Резервных копий пока нет — создаются при первом запуске каждого дня.";
+"settings.diagnostics.restore" = "Восстановить";
+"settings.diagnostics.reveal_in_finder" = "Показать в Finder";
+"settings.diagnostics.restoring" = "Восстановление…";
+"settings.diagnostics.restart_required" = "Закройте и снова откройте Impulse, чтобы использовать восстановленные данные.";
+"settings.diagnostics.restore_succeeded" = "Восстановлена копия от %@.";
+"settings.diagnostics.confirm_restore.title" = "Восстановить эту копию?";
+"settings.diagnostics.confirm_restore.message" = "Текущие данные будут заменены копией от %@. Перед заменой делается автоматический снимок, так что операция обратима.";
+
+"settings.diagnostics.current_schema" = "Текущая схема: v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "Неизвестная схема";
+"settings.diagnostics.schema_mismatch" = "v%d (несовместимо)";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "Резервная копия от %@ не имеет метаданных схемы. Возможно, она создана старой версией Impulse и может не загрузиться. Продолжить?";

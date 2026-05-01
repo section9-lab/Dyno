@@ -126,6 +126,7 @@
 "kanban.tasks_description" = "タスクはプロジェクトに紐づき、1 つ以上のセッションにリンクできます。";
 "kanban.tasks_organized_description" = "タスクはプロジェクト単位で整理され、複数のセッションにリンクできます。";
 "kanban.toggle" = "プロジェクト Kanban を切り替え";
+"kanban.header_stats" = "タスク：%d  セッション：%d";
 "tool.full_command_result" = "コマンド結果全体";
 "tool.no_output" = "（出力なし）";
 "tool.show_less" = "閉じる";
@@ -141,6 +142,17 @@
 "agent.empty_after_tools" = "このターンでは %d 回のツール呼び出しを実行しました。最後の手順を完了するには続行を依頼してください。";
 "agent.empty_model_response" = "（モデルが空の内容を返しました）";
 "agent.max_steps_reached" = "%d 回のツール呼び出し後にステップ上限に達しました。まだ収束が必要です。「続けて」と返信すると現在のコンテキストから続行します。";
+
+"tool_approval.title" = "危険な操作";
+"tool_approval.run_once" = "一度実行";
+"tool_approval.reject" = "拒否";
+
+"context.window_label" = "コンテキストウィンドウ";
+"context.used" = "使用済み";
+"context.total" = "合計";
+"context.reserved" = "予約済み";
+"context.compact" = "圧縮";
+"context.compacting" = "圧縮中…";
 "agent.raw_error" = "元のエラー";
 "agent.sandbox_error.file_missing" = "ファイルが存在しないかアクセスできません。パスとディレクトリの許可を確認してください。";
 "agent.sandbox_error.operation_failed" = "操作に失敗しました: %@";
@@ -166,3 +178,27 @@
 "auth.error.random" = "Impulse は安全なサインイン検証を作成できませんでした（%d）。アプリを再起動してから再試行してください。";
 "auth.error.token_exchange_failed" = "Impulse は Google サインインを完了できませんでした: %@";
 "auth.error.web_authentication_failed" = "Google から応答が返る前にサインインウィンドウが閉じました: %@";
+
+"alert.projects_load_failed.title" = "プロジェクトデータを読み込めません";
+"alert.projects_load_failed.detail" = "保存されたセッションやかんばんタスクが表示されない可能性があります。~/Library/Application Support/Impulse/store-backups から最近のバックアップを確認してください。";
+"alert.projects_save_failed.title" = "プロジェクトデータを保存できません";
+"alert.projects_save_failed.detail" = "アプリを再起動すると最近の変更が失われる可能性があります。";
+
+"settings.tab.diagnostics" = "診断";
+"settings.diagnostics.title" = "診断";
+"settings.diagnostics.backups" = "データバックアップ";
+"settings.diagnostics.backups.description" = "Impulse は過去 7 日分の会話履歴をディスクに保管しています。問題が発生した場合は以前のコピーを復元できます。復元後は Impulse を終了して再起動する必要があります。";
+"settings.diagnostics.no_backups" = "バックアップはまだありません — 起動日ごとに自動作成されます。";
+"settings.diagnostics.restore" = "復元";
+"settings.diagnostics.reveal_in_finder" = "Finder に表示";
+"settings.diagnostics.restoring" = "復元中…";
+"settings.diagnostics.restart_required" = "復元後のデータを使用するには Impulse を終了して再起動してください。";
+"settings.diagnostics.restore_succeeded" = "%@ のバックアップを復元しました。";
+"settings.diagnostics.confirm_restore.title" = "このバックアップを復元しますか？";
+"settings.diagnostics.confirm_restore.message" = "現在のデータが %@ のバックアップに置き換えられます。現在のデータは自動的にスナップショットされ、操作は元に戻せます。";
+
+"settings.diagnostics.current_schema" = "現在のスキーマ：v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "不明なスキーマ";
+"settings.diagnostics.schema_mismatch" = "v%d（非互換）";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ のバックアップにスキーマ情報がありません。古いバージョンの Impulse で作成された可能性があり、起動に失敗する場合があります。続行しますか？";

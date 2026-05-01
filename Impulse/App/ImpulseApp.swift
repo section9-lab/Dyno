@@ -271,10 +271,12 @@ private struct MainWindowConfigurator: NSViewRepresentable {
 
     private func configure(window: NSWindow?) {
         guard let window else { return }
-        window.titlebarAppearsTransparent = false
-        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.isMovableByWindowBackground = false
-        window.backgroundColor = nil
+        window.backgroundColor = .clear
+        window.titlebarSeparatorStyle = .none
+        window.styleMask.insert(.fullSizeContentView)
     }
 }
 
@@ -358,8 +360,17 @@ private struct PrivacyAgreementView: View {
 @main
 struct ImpulseApp: App {
     var sharedModelContainer: ModelContainer = {
+        // Run a rolling daily backup of the SwiftData store BEFORE the
+        // container opens it. Once SwiftData has the file open the on-disk
+        // bytes can be mid-transaction; copying then risks an inconsistent
+        // backup. Best-effort — never blocks startup.
+        StoreBackupManager.default()?.runDailyBackupIfNeeded()
+
         let schema = Schema([
-            Item.self,
+            StoredSession.self,
+            StoredMessage.self,
+            StoredToolRun.self,
+            StoredCompactionSummary.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

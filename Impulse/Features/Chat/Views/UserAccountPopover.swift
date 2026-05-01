@@ -31,10 +31,6 @@ struct UserAccountPopover: View {
                     }
 
                     Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

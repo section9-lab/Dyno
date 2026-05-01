@@ -12,6 +12,7 @@ struct SettingsContainerView: View {
         case general
         case model
         case sandbox
+        case diagnostics
 
         var id: Self { self }
 
@@ -20,6 +21,7 @@ struct SettingsContainerView: View {
             case .general: return "settings.tab.general"
             case .model: return "settings.tab.model"
             case .sandbox: return "settings.tab.files"
+            case .diagnostics: return "settings.tab.diagnostics"
             }
         }
 
@@ -28,6 +30,7 @@ struct SettingsContainerView: View {
             case .general: return "gear"
             case .model: return "cpu"
             case .sandbox: return "folder.badge.gear"
+            case .diagnostics: return "stethoscope"
             }
         }
     }
@@ -66,16 +69,9 @@ struct SettingsContainerView: View {
         }
         .environment(\.locale, localization.locale)
         .id(localization.language)
-        .frame(minWidth: 800, minHeight: 600)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("common.cancel") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("common.save") {
-                    saveSettings()
-                }
-            }
+        .frame(width: 800, height: 640)
+        .task {
+            await agent.refreshServiceStatus()
         }
         .onChange(of: generalSettings.language) { _, newValue in
             guard let language = AppLanguage(rawValue: newValue) else { return }
@@ -111,11 +107,24 @@ struct SettingsContainerView: View {
                     sectionContainer(.sandbox, title: "settings.files.title") {
                         SandboxSettingsView(agent: agent, viewModel: sandboxSettings)
                     }
+
+                    sectionContainer(.diagnostics, title: "settings.diagnostics.title") {
+                        DiagnosticsSettingsView()
+                    }
                 }
                 .padding(20)
                 .frame(maxWidth: 900, alignment: .leading)
             }
             .navigationTitle("settings.title")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.save") { saveSettings() }
+                        .buttonStyle(.borderedProminent)
+                }
+            }
             .onChange(of: selectedTab) { _, tab in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     proxy.scrollTo(tab, anchor: .top)

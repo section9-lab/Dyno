@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 struct ChatHistoryService {
-    private let supportedKinds: Set<String> = ["user_message", "assistant_message", "tool_execution", "compaction_summary"]
+    private let supportedKinds: Set<String> = Set(ItemKind.allCases.map(\.rawValue))
 
     func buildProjects(from items: [Item], persistedProjects: [ProjectSnapshot]) -> [ChatProject] {
         let sortedItems = items
@@ -103,8 +103,16 @@ struct ChatHistoryService {
     }
 
     func removeProject(path: String, persistedProjects: [ProjectSnapshot], modelContext: ModelContext) -> [ProjectSnapshot] {
-        let messages = try? modelContext.fetch(FetchDescriptor<Item>())
-        messages?.filter { $0.projectPath == path }.forEach(modelContext.delete)
+        // Delete all StoredSessions belonging to this project; cascade rules
+        // remove their messages / tool runs / compaction summaries.
+        let descriptor = FetchDescriptor<StoredSession>(
+            predicate: #Predicate { $0.projectPath == path }
+        )
+        if let sessions = try? modelContext.fetch(descriptor) {
+            for session in sessions {
+                modelContext.delete(session)
+            }
+        }
         return persistedProjects.filter { $0.path != path }
     }
 
@@ -138,17 +146,29 @@ struct ChatHistoryService {
         sessionID: String,
         newTitle: String,
         items: [Item],
-        persistedProjects: inout [ProjectSnapshot]
+        persistedProjects: inout [ProjectSnapshot],
+        modelContext: ModelContext
     ) -> Bool {
         let normalized = normalizedTitle(from: newTitle)
         guard normalized != "(empty)" else { return false }
 
-        if let firstUser = items
-            .filter({ $0.projectPath == projectPath && $0.conversationID == sessionID && $0.isUser })
-            .sorted(by: { $0.timestamp < $1.timestamp })
-            .first
-        {
-            firstUser.content = normalized
+        // Update the StoredMessage so the new name shows up the next time the
+        // transcript is re-projected (Items are read-only value types now;
+        // mutation has to flow through the SwiftData entity).
+        let descriptor = FetchDescriptor<StoredSession>(
+            predicate: #Predicate { $0.id == sessionID }
+        )
+        if let session = (try? modelContext.fetch(descriptor))?.first {
+            session.title = normalized
+            // Also rewrite the first user message if present, so the
+            // existing UI behaviour (rename = edit first user prompt) carries
+            // over and downstream prelude builders see the new title.
+            if let firstUser = session.messages
+                .filter({ $0.role == "user" })
+                .sorted(by: { $0.timestamp < $1.timestamp })
+                .first {
+                firstUser.content = normalized
+            }
         }
 
         guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }),
@@ -185,8 +205,15 @@ struct ChatHistoryService {
         persistedProjects: inout [ProjectSnapshot],
         modelContext: ModelContext
     ) {
-        let messages = try? modelContext.fetch(FetchDescriptor<Item>())
-        messages?.filter { $0.projectPath == projectPath && $0.conversationID == sessionID }.forEach(modelContext.delete)
+        // Delete the StoredSession; cascade rules clear messages/toolRuns/summaries.
+        let descriptor = FetchDescriptor<StoredSession>(
+            predicate: #Predicate { $0.id == sessionID }
+        )
+        if let sessions = try? modelContext.fetch(descriptor) {
+            for session in sessions {
+                modelContext.delete(session)
+            }
+        }
 
         guard let projectIndex = persistedProjects.firstIndex(where: { $0.path == projectPath }) else { return }
         let project = persistedProjects[projectIndex]
@@ -306,17 +333,47 @@ struct ChatHistoryService {
     func restoreSnapshots(_ projects: [ProjectSnapshot], into modelContext: ModelContext) {
         for project in projects.reversed() {
             for session in project.sessions.reversed() {
+                let storedSession = StoredSession(
+                    id: session.id,
+                    projectPath: project.path,
+                    title: session.title,
+                    startedAt: session.startedAt
+                )
+                modelContext.insert(storedSession)
+
                 for message in session.messages where supportedKinds.contains(message.kind) {
-                    modelContext.insert(
-                        Item(
+                    let kind = ItemKind(rawValue: message.kind) ?? .assistantMessage
+                    switch kind {
+                    case .userMessage:
+                        let m = StoredMessage(
+                            timestamp: message.timestamp,
+                            role: "user",
+                            content: message.content,
+                            session: storedSession
+                        )
+                        modelContext.insert(m)
+                    case .assistantMessage:
+                        let m = StoredMessage(
+                            timestamp: message.timestamp,
+                            role: "assistant",
+                            content: message.content,
+                            session: storedSession
+                        )
+                        modelContext.insert(m)
+                    case .compactionSummary:
+                        let s = StoredCompactionSummary(
                             timestamp: message.timestamp,
                             content: message.content,
-                            isUser: message.role == "user",
-                            kind: message.kind,
-                            conversationID: session.id,
-                            projectPath: project.path
+                            session: storedSession
                         )
-                    )
+                        modelContext.insert(s)
+                    case .toolExecution:
+                        // Tool runs are not currently round-tripped through
+                        // ProjectSnapshot JSON — they only live in SwiftData.
+                        // (See AgentSessionStore for the JSON shape.)
+                        // Skip silently: snapshot has no toolName/status info.
+                        continue
+                    }
                 }
             }
         }

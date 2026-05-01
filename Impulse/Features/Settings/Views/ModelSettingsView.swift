@@ -6,6 +6,14 @@ struct ModelSettingsView: View {
     @State private var didRequestNetworkProviders = false
     @State private var providerOptionsProviderId: String?
 
+    @State private var isTesting = false
+    @State private var testResult: ModelTestResult? = nil
+
+    private enum ModelTestResult {
+        case success(latency: String)
+        case failure(message: String)
+    }
+
     private let fieldWidth: CGFloat = 560
     private let modelListWidth: CGFloat = 560
     private let providerListWidth: CGFloat = 560
@@ -329,10 +337,10 @@ struct ModelSettingsView: View {
             Text("settings.model.connection_parameters")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
-            
+
             VStack(spacing: 10) {
                 labeledTextField("Base URL", text: $viewModel.draftBaseURL)
-                
+
                 HStack(spacing: 10) {
                     Group {
                         if viewModel.showAPIKey {
@@ -342,29 +350,13 @@ struct ModelSettingsView: View {
                         }
                     }
                     .textFieldStyle(.roundedBorder)
-                    
+
                     Button {
                         viewModel.showAPIKey.toggle()
                     } label: {
                         Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
                     }
                     .buttonStyle(.borderless)
-                }
-                .frame(maxWidth: fieldWidth, alignment: .leading)
-                
-                if !provider.envKeys.isEmpty {
-                    Text(String(format: L10n.tr("settings.model.env_vars"), provider.envKeys.joined(separator: ", ")))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                
-                HStack {
-                    Button("settings.model.discover_models") {
-                        discoverModels()
-                    }
-                    .disabled(viewModel.isDiscovering)
-                    Spacer()
                 }
                 .frame(maxWidth: fieldWidth, alignment: .leading)
             }
@@ -376,32 +368,42 @@ struct ModelSettingsView: View {
             Text("settings.model.select_model")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
-            
+
             Group {
                 let models = provider.models
-                if models.isEmpty {
-                    Text("settings.model.no_models_hint")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
+                let liveModels = models.filter(\.isLive)
+
+                if liveModels.isEmpty {
                     labeledTextField("settings.model.manual_model_name", text: $viewModel.draftModelId)
                 } else {
-                    VStack(spacing: 0) {
-                        let liveModels = models.filter(\.isLive)
-                        let catalogModels = models.filter { !$0.isLive }
-                        
-                        if !liveModels.isEmpty {
-                            modelSection(title: L10n.tr("settings.model.live_models_count", liveModels.count), models: liveModels, live: true)
-                        }
-                        
-                        if !catalogModels.isEmpty {
-                            modelSection(title: L10n.tr("settings.model.catalog_models"), models: catalogModels, live: false)
-                        }
-                    }
-                    .frame(maxWidth: modelListWidth, alignment: .leading)
-                    .frame(maxHeight: 240)
+                    modelSection(title: L10n.tr("settings.model.live_models_count", liveModels.count), models: liveModels, live: true)
+                        .frame(maxWidth: modelListWidth, alignment: .leading)
+                        .frame(maxHeight: 240)
                 }
             }
+
+            // Test model row
+            HStack(spacing: 10) {
+                if isTesting {
+                    ProgressView().controlSize(.small)
+                    Text("测试中…").font(.system(size: 12)).foregroundColor(.secondary)
+                } else if let result = testResult {
+                    switch result {
+                    case .success(let latency):
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        Text("可用 (\(latency))").font(.system(size: 12)).foregroundColor(.green)
+                    case .failure(let msg):
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                        Text(msg).font(.system(size: 12)).foregroundColor(.red).lineLimit(1)
+                    }
+                }
+                Spacer()
+                Button("测试模型") {
+                    testModel()
+                }
+                .disabled(isTesting || viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
+            }
+            .padding(.top, 4)
         }
     }
     
@@ -548,6 +550,51 @@ struct ModelSettingsView: View {
         }
     }
     
+    private func testModel() {
+        guard !viewModel.draftModelId.isEmpty, !viewModel.draftBaseURL.isEmpty else { return }
+        isTesting = true
+        testResult = nil
+
+        Task {
+            let start = Date()
+            do {
+                let base = viewModel.draftBaseURL.hasSuffix("/") ? String(viewModel.draftBaseURL.dropLast()) : viewModel.draftBaseURL
+                guard let url = URL(string: "\(base)/chat/completions") else {
+                    testResult = .failure(message: "URL 无效")
+                    isTesting = false
+                    return
+                }
+                var request = URLRequest(url: url, timeoutInterval: 15)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                if !viewModel.draftApiKey.isEmpty {
+                    request.setValue("Bearer \(viewModel.draftApiKey)", forHTTPHeaderField: "Authorization")
+                }
+                let body: [String: Any] = [
+                    "model": viewModel.draftModelId,
+                    "messages": [["role": "user", "content": "hi"]],
+                    "max_tokens": 1,
+                    "stream": false
+                ]
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                let (_, response) = try await URLSession.shared.data(for: request)
+                let elapsed = String(format: "%.0fms", Date().timeIntervalSince(start) * 1000)
+
+                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                    testResult = .success(latency: elapsed)
+                } else if let http = response as? HTTPURLResponse {
+                    testResult = .failure(message: "HTTP \(http.statusCode)")
+                } else {
+                    testResult = .failure(message: "无响应")
+                }
+            } catch {
+                testResult = .failure(message: error.localizedDescription)
+            }
+            isTesting = false
+        }
+    }
+
     private func discoverModels() {
         viewModel.isDiscovering = true
         agent.registry.setApiKey(viewModel.draftApiKey, for: viewModel.selectedProviderId)
