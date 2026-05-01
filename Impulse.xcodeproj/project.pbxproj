@@ -92,6 +92,7 @@
 		086ED72175BEC635EB63FFDF /* ModelSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSettingsView.swift; sourceTree = "<group>"; };
 		0BCFC7AD047F5D82FE009141 /* AgentResponseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentResponseView.swift; sourceTree = "<group>"; };
 		0ECDAD2E483F60E9F9174DAD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		11F977371C031EF11D297653 /* SwiftCodingAgent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftCodingAgent; path = ../../../SwiftCodingAgent; sourceTree = SOURCE_ROOT; };
 		1551F3E20889B3DBC5F6B768 /* OCRCaptureOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRCaptureOrchestrator.swift; sourceTree = "<group>"; };
 		17945D4E5E1CB32B193908A9 /* AgentConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigStore.swift; sourceTree = "<group>"; };
 		1B7410587310295A50FFC150 /* AgentSDKFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSDKFactory.swift; sourceTree = "<group>"; };
@@ -213,7 +214,6 @@
 			isa = PBXGroup;
 			children = (
 				71EEE76C7792691B5965C458 /* ImpulseApp.swift */,
-				1A1176970DEEE7F523D66960 /* Auth */,
 				49F4096E4EBBE89BDED8A66D /* Root */,
 			);
 			name = App;
@@ -240,13 +240,6 @@
 				B288284061B4AD954D17FDCC /* ScreenCaptureService.swift */,
 			);
 			path = ScreenCapture;
-			sourceTree = "<group>";
-		};
-		1A1176970DEEE7F523D66960 /* Auth */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Auth;
 			sourceTree = "<group>";
 		};
 		28FC9F70A9B3F381B55498F8 /* Views */ = {
@@ -292,13 +285,6 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		3E142495CCF65F094237CD22 /* Design */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Design;
-			sourceTree = "<group>";
-		};
 		3F7CA65D1BC1F445860EE1B2 /* Data */ = {
 			isa = PBXGroup;
 			children = (
@@ -336,13 +322,6 @@
 				5842AC1398CC11E089583BA3 /* SessionAgentPool.swift */,
 			);
 			path = Manager;
-			sourceTree = "<group>";
-		};
-		4DCD3130E7705092D080F128 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Services;
 			sourceTree = "<group>";
 		};
 		4DD024DC01ED91ED04F80821 /* Utilities */ = {
@@ -430,13 +409,20 @@
 		91396664ECECC092FAF6FAFB /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				3E142495CCF65F094237CD22 /* Design */,
 				0B4CF811B249B6826C72FDD6 /* Extensions */,
 				37D02046B3329355281CF885 /* Localization */,
 				4DD024DC01ED91ED04F80821 /* Utilities */,
 			);
 			name = Shared;
 			path = Impulse/Shared;
+			sourceTree = "<group>";
+		};
+		925E464A2522F6273B8C0B71 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				11F977371C031EF11D297653 /* SwiftCodingAgent */,
+			);
+			name = Packages;
 			sourceTree = "<group>";
 		};
 		9686FB5ACF689891964650AB /* Kanban */ = {
@@ -480,18 +466,9 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
-		A4817E6CFB302DDC21676636 /* Persistence */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Persistence;
-			sourceTree = "<group>";
-		};
 		AFEDC9D4118925B77CCE6369 /* Chat */ = {
 			isa = PBXGroup;
 			children = (
-				DF24D5BEE020409A15F685AC /* Models */,
-				4DCD3130E7705092D080F128 /* Services */,
 				43D203D0E16D7723AAD6BE84 /* ViewModels */,
 				28FC9F70A9B3F381B55498F8 /* Views */,
 			);
@@ -540,7 +517,6 @@
 			children = (
 				4AF22AA26E9B26FAAECF525D /* Manager */,
 				BE0E1CDC7FA4232BE1D5AD5E /* Models */,
-				A4817E6CFB302DDC21676636 /* Persistence */,
 			);
 			path = Agent;
 			sourceTree = "<group>";
@@ -568,13 +544,6 @@
 				F8FCFBBF50D5F18CAE30FA85 /* ModelRegistry.swift */,
 			);
 			path = Registry;
-			sourceTree = "<group>";
-		};
-		DF24D5BEE020409A15F685AC /* Models */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Models;
 			sourceTree = "<group>";
 		};
 		E2A05E436004D69F6290E882 /* Manager */ = {
@@ -610,6 +579,7 @@
 				62B8E83BCE1524959C1BF826 /* Core */,
 				9706F28995AFA5AA33AE65AE /* Features */,
 				0FF33A3DD9708E028612DA52 /* ImpulseTests */,
+				925E464A2522F6273B8C0B71 /* Packages */,
 				2A61B412C097FAAAD2A998A3 /* Resources */,
 				91396664ECECC092FAF6FAFB /* Shared */,
 				D40AEB032A75ADDE88D0DCD4 /* Products */,
@@ -692,7 +662,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8771656467389179A7BFC86A /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				A7F65DA60A8F83453DD6468F /* XCRemoteSwiftPackageReference "SwiftCodingAgent" */,
+				DD7ECE0AEC4ECFE58ED0D5C5 /* XCLocalSwiftPackageReference "../../../SwiftCodingAgent" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D40AEB032A75ADDE88D0DCD4 /* Products */;
@@ -1064,6 +1034,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		DD7ECE0AEC4ECFE58ED0D5C5 /* XCLocalSwiftPackageReference "../../../SwiftCodingAgent" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../../SwiftCodingAgent;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		8771656467389179A7BFC86A /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1071,14 +1048,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.4.0;
-			};
-		};
-		A7F65DA60A8F83453DD6468F /* XCRemoteSwiftPackageReference "SwiftCodingAgent" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/section9-lab/SwiftCodingAgent";
-			requirement = {
-				branch = main;
-				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -1091,7 +1060,6 @@
 		};
 		EE576E14ED8C835AD3FC5CBC /* SwiftCodingAgent */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A7F65DA60A8F83453DD6468F /* XCRemoteSwiftPackageReference "SwiftCodingAgent" */;
 			productName = SwiftCodingAgent;
 		};
 /* End XCSwiftPackageProductDependency section */

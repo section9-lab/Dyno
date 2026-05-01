@@ -241,6 +241,10 @@ struct ContentView: View {
             MessageView(message: m).id(row.id)
         case .toolGroup(let group):
             ToolExecutionGroupView(group: group).id(group.id)
+        case .reasoning(let m):
+            if let reasoning = m.reasoning {
+                PersistedReasoningRow(text: reasoning).id(row.id)
+            }
         case .compactionSummary:
             // Compaction summaries are persisted but not rendered (they
             // exist for the SDK prelude builder, not for the user).
@@ -399,6 +403,14 @@ struct ContentView: View {
                 if groupAnchor == nil { groupAnchor = run.id }
                 pendingRuns.append(run)
             case .message(let m):
+                // Reasoning belongs to the assistant turn that *preceded* the
+                // tool group — emit it before flushing so the timeline reads
+                // "thinking → tools → answer".
+                if m.role == "assistant",
+                   let reasoning = m.reasoning,
+                   !reasoning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    rows.append(.reasoning(m))
+                }
                 flush()
                 rows.append(.message(m))
             case .summary(let s):
@@ -511,12 +523,19 @@ enum ChatRow: Identifiable {
     case message(StoredMessage)
     case toolGroup(ToolExecutionGroup)
     case compactionSummary(StoredCompactionSummary)
+    /// Persisted chain-of-thought / reasoning trace tied to an assistant
+    /// message. Inserted as a row of its own — visually placed *before* the
+    /// tool group that ran on behalf of this turn — so the reading order
+    /// stays "thinking → tools → answer" rather than mixing reasoning into
+    /// the answer bubble.
+    case reasoning(StoredMessage)
 
     var id: String {
         switch self {
         case .message(let m): return "msg-\(m.persistentModelID.hashValue)"
         case .toolGroup(let group): return group.id
         case .compactionSummary(let s): return "sum-\(s.persistentModelID.hashValue)"
+        case .reasoning(let m): return "reasoning-\(m.persistentModelID.hashValue)"
         }
     }
 }

@@ -335,10 +335,12 @@ final class ChatViewModel: ObservableObject {
             nextTimestamp = nextTimestamp.addingTimeInterval(0.001)
         }
 
+        let trimmedReasoning = sessionAgent.liveReasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
         let assistantMsg = StoredMessage(
             timestamp: nextTimestamp,
             role: "assistant",
             content: responseText,
+            reasoning: trimmedReasoning.isEmpty ? nil : sessionAgent.liveReasoningText,
             session: session
         )
         modelContext.insert(assistantMsg)

@@ -16,6 +16,15 @@ final class SessionAgent: ObservableObject, Identifiable {
     @Published var latestCompactionSummary: String?
     @Published var contextUsage: ContextUsage = ContextUsage(usedTokens: 0, totalTokens: 128_000, reservedTokens: 16_384)
 
+    /// Live-accumulated assistant text for the in-flight turn. Cleared when a
+    /// new chat starts and reset to empty when the run finishes (the final
+    /// answer is persisted via `ChatViewModel`).
+    @Published var liveAssistantText: String = ""
+    /// Live-accumulated reasoning / chain-of-thought for the in-flight turn.
+    /// Surfaced in a collapsed pane so the user can see the model "thinking"
+    /// without it polluting the final answer.
+    @Published var liveReasoningText: String = ""
+
     private var sdk: AgentSDK
     /// Tracks the in-flight chat/compact Task so callers can cancel it
     /// (e.g. when the session is deleted or the app is shutting down).
@@ -50,34 +59,20 @@ final class SessionAgent: ObservableObject, Identifiable {
         isResponding = true
         latestToolExecutions = []
         latestCompactionSummary = nil
+        liveAssistantText = ""
+        liveReasoningText = ""
         defer {
             isResponding = false
-            // Manager may have a pending SDK rebuild deferred from mid-run.
+            // NOTE: don't wipe liveAssistantText / liveReasoningText here —
+            // the caller (ChatViewModel.persistRunResults) reads
+            // liveReasoningText immediately after `sendChat` returns to
+            // persist it on the StoredMessage. The next chat run resets both
+            // at its top, so leaking them across runs is fine; AgentResponseView
+            // only renders live content while isResponding is true anyway.
             AgentManager.shared.applyPendingConfigRebuild(for: id)
         }
 
         let historyCountBefore = await sdk.history().count
-        var lastToolSignature = ""
-
-        let progressTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                let allMessages = await self.sdk.history()
-                let runMessages = Array(allMessages.dropFirst(historyCountBefore))
-                let polledExecutions = self.extractToolExecutions(from: runMessages)
-
-                let toolSignature = self.signature(for: polledExecutions)
-                if polledExecutions.count >= self.latestToolExecutions.count {
-                    if toolSignature != lastToolSignature {
-                        self.latestToolExecutions = polledExecutions
-                        lastToolSignature = toolSignature
-                    }
-                }
-
-                try? await Task.sleep(for: .milliseconds(450))
-            }
-        }
-        defer { progressTask.cancel() }
 
         let effectivePrompt: String
         if let contextPrelude, !contextPrelude.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -91,14 +86,101 @@ final class SessionAgent: ObservableObject, Identifiable {
             effectivePrompt = prompt
         }
 
+        var assembledFinalText = ""
+        var finalResult: AgentRunResult?
+        var lastToolSignature = ""
+
+        // Throttle live UI updates. The model can emit dozens of textDeltas
+        // per second; pushing each one straight into a `@Published` property
+        // forces SwiftUI (and MarkdownUI's cmark-gfm reparse) to redraw on
+        // every token, saturating the main thread and stealing scroll-wheel
+        // events. We accumulate deltas in plain locals and flush to the
+        // @Published mirrors at most every `flushInterval`. The final flush
+        // happens on `.completed` (or via the `defer`-equivalent below) so no
+        // tail tokens are lost.
+        let flushInterval: TimeInterval = 0.1
+        var pendingAssistant = ""
+        var pendingReasoning = ""
+        var lastFlush = Date()
+
+        @MainActor func flushIfDue(force: Bool = false) {
+            let now = Date()
+            guard force || now.timeIntervalSince(lastFlush) >= flushInterval else { return }
+            if !pendingAssistant.isEmpty {
+                liveAssistantText += pendingAssistant
+                pendingAssistant = ""
+            }
+            if !pendingReasoning.isEmpty {
+                liveReasoningText += pendingReasoning
+                pendingReasoning = ""
+            }
+            lastFlush = now
+        }
         do {
-            let result = try await sdk.run(prompt: effectivePrompt)
-            let runMessages = Array(result.messages.dropFirst(historyCountBefore))
+            for try await event in sdk.runStream(prompt: effectivePrompt) {
+                try Task.checkCancellation()
+
+                switch event {
+                case .stepStarted:
+                    // Each new step: clear live text so deltas accumulate fresh.
+                    // Reasoning is preserved across steps so the user can see
+                    // the full thought trail until the run ends.
+                    flushIfDue(force: true)
+                    liveAssistantText = ""
+
+                case .textDelta(let piece):
+                    pendingAssistant += piece
+                    flushIfDue()
+
+                case .reasoningDelta(let piece):
+                    pendingReasoning += piece
+                    flushIfDue()
+
+                case .assistantTurn(let text, _):
+                    flushIfDue(force: true)
+                    if !text.isEmpty { assembledFinalText = text }
+                    // Refresh tool executions snapshot from SDK history so the
+                    // tool timeline reflects calls the model just emitted.
+                    let allMessages = await sdk.history()
+                    let runMessages = Array(allMessages.dropFirst(historyCountBefore))
+                    let executions = extractToolExecutions(from: runMessages)
+                    let signature = signature(for: executions)
+                    if signature != lastToolSignature {
+                        latestToolExecutions = executions
+                        lastToolSignature = signature
+                    }
+
+                case .toolStarted, .toolFinished:
+                    flushIfDue(force: true)
+                    let allMessages = await sdk.history()
+                    let runMessages = Array(allMessages.dropFirst(historyCountBefore))
+                    let executions = extractToolExecutions(from: runMessages)
+                    let signature = signature(for: executions)
+                    if signature != lastToolSignature {
+                        latestToolExecutions = executions
+                        lastToolSignature = signature
+                    }
+
+                case .completed(let result):
+                    flushIfDue(force: true)
+                    finalResult = result
+                }
+            }
+
+            let result = finalResult
+            let runMessages: [AgentMessage]
+            if let result {
+                runMessages = Array(result.messages.dropFirst(historyCountBefore))
+                latestCompactionSummary = result.compactionSummary?.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                let allMessages = await sdk.history()
+                runMessages = Array(allMessages.dropFirst(historyCountBefore))
+            }
             latestToolExecutions = extractToolExecutions(from: runMessages)
-            latestCompactionSummary = result.compactionSummary?.trimmingCharacters(in: .whitespacesAndNewlines)
             contextUsage = await sdk.contextUsage()
 
-            let text = result.finalText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let candidate = result?.finalText ?? assembledFinalText
+            let text = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 if !latestToolExecutions.isEmpty {
                     return L10n.tr("agent.empty_after_tools", latestToolExecutions.count)
@@ -114,8 +196,8 @@ final class SessionAgent: ObservableObject, Identifiable {
             contextUsage = await sdk.contextUsage()
 
             if let lastAssistant = runMessages.last(where: { $0.role == .assistant }),
-               !lastAssistant.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return lastAssistant.content
+               !lastAssistant.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return lastAssistant.text
             }
 
             return L10n.tr("agent.max_steps_reached", latestToolExecutions.count)
@@ -160,46 +242,44 @@ final class SessionAgent: ObservableObject, Identifiable {
         var orderCounter = 0
 
         for message in messages where message.role == .assistant {
-            guard let callID = message.toolCallID,
-                  let name = message.toolName,
-                  trackedTools.contains(name)
-            else { continue }
-            pendingByCallID[callID] = PendingCall(name: name, argsJSON: message.toolArgumentsJSON, order: orderCounter)
-            pendingOrder.append(callID)
-            orderCounter += 1
+            for call in message.toolCalls {
+                guard trackedTools.contains(call.name) else { continue }
+                pendingByCallID[call.id] = PendingCall(name: call.name, argsJSON: call.argumentsJSON, order: orderCounter)
+                pendingOrder.append(call.id)
+                orderCounter += 1
+            }
         }
 
         var executions: [(order: Int, execution: AgentToolExecution)] = []
 
         for (index, message) in messages.enumerated() {
-            guard message.role == .tool,
-                  let name = message.toolName,
-                  trackedTools.contains(name)
-            else { continue }
+            guard message.role == .tool else { continue }
 
-            let output = message.content
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let failed = trimmed.hasPrefix("ERROR:")
-            let stableID = message.toolCallID ?? "\(name)-\(index)"
-            let pending = message.toolCallID.flatMap { pendingByCallID[$0] }
-            let argsJSON = pending?.argsJSON
-            let summary = buildToolSummary(toolName: name, argumentsJSON: argsJSON)
-            let displayOutput = failed ? mapToUserFriendlySandboxMessage(trimmed) + "\n\n" + L10n.tr("agent.raw_error") + ":\n\(trimmed)" : output
-            let order = pending?.order ?? (1_000_000 + index)
+            for (resultIndex, result) in message.toolResults.enumerated() {
+                guard trackedTools.contains(result.toolName) else { continue }
 
-            executions.append((
-                order: order,
-                execution: AgentToolExecution(
-                    id: stableID,
-                    toolName: name,
-                    status: failed ? .failed : .success,
-                    summary: summary,
-                    output: displayOutput
-                )
-            ))
+                let output = result.content
+                let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                let failed = result.isError || trimmed.hasPrefix("ERROR:")
+                let stableID = result.toolCallID.isEmpty ? "\(result.toolName)-\(index)-\(resultIndex)" : result.toolCallID
+                let pending = pendingByCallID[result.toolCallID]
+                let argsJSON = pending?.argsJSON
+                let summary = buildToolSummary(toolName: result.toolName, argumentsJSON: argsJSON)
+                let displayOutput = failed ? mapToUserFriendlySandboxMessage(trimmed) + "\n\n" + L10n.tr("agent.raw_error") + ":\n\(trimmed)" : output
+                let order = pending?.order ?? (1_000_000 + index * 1000 + resultIndex)
 
-            if let callID = message.toolCallID {
-                pendingByCallID.removeValue(forKey: callID)
+                executions.append((
+                    order: order,
+                    execution: AgentToolExecution(
+                        id: stableID,
+                        toolName: result.toolName,
+                        status: failed ? .failed : .success,
+                        summary: summary,
+                        output: displayOutput
+                    )
+                ))
+
+                pendingByCallID.removeValue(forKey: result.toolCallID)
             }
         }
 

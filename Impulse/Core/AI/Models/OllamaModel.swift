@@ -41,7 +41,7 @@ struct OllamaModel: AgentModel {
     }
 
     nonisolated private func makeRequestBody(from request: ModelRequest) throws -> Data {
-        let messages = request.messages.map { messageToDictionary($0) }
+        let messages = encodeMessages(request.messages)
         let tools = request.tools.map { toolToDictionary($0) }
 
         let payload: [String: Any] = [
@@ -54,20 +54,46 @@ struct OllamaModel: AgentModel {
         return try JSONSerialization.data(withJSONObject: payload, options: [])
     }
 
-    nonisolated private func messageToDictionary(_ message: AgentMessage) -> [String: Any] {
-        var dict: [String: Any] = [
-            "role": roleToOllamaRole(message.role),
-            "content": message.content
-        ]
-
-        if let toolName = message.toolName {
-            dict["name"] = toolName
+    nonisolated private func encodeMessages(_ messages: [AgentMessage]) -> [[String: Any]] {
+        var out: [[String: Any]] = []
+        for message in messages {
+            switch message.role {
+            case .system:
+                out.append(["role": "system", "content": message.text])
+            case .user:
+                out.append(["role": "user", "content": message.text])
+            case .assistant:
+                var dict: [String: Any] = [
+                    "role": "assistant",
+                    "content": message.text
+                ]
+                if !message.toolCalls.isEmpty {
+                    dict["tool_calls"] = message.toolCalls.map { call -> [String: Any] in
+                        let argsData = call.argumentsJSON.data(using: .utf8) ?? Data("{}".utf8)
+                        let argsObj = (try? JSONSerialization.jsonObject(with: argsData)) ?? [String: Any]()
+                        return [
+                            "id": call.id,
+                            "type": "function",
+                            "function": [
+                                "name": call.name,
+                                "arguments": argsObj
+                            ]
+                        ]
+                    }
+                }
+                out.append(dict)
+            case .tool:
+                for result in message.toolResults {
+                    out.append([
+                        "role": "tool",
+                        "content": result.content,
+                        "tool_call_id": result.toolCallID,
+                        "name": result.toolName
+                    ])
+                }
+            }
         }
-        if let toolCallID = message.toolCallID {
-            dict["tool_call_id"] = toolCallID
-        }
-
-        return dict
+        return out
     }
 
     nonisolated private func toolToDictionary(_ tool: ModelToolSpec) -> [String: Any] {
@@ -82,15 +108,6 @@ struct OllamaModel: AgentModel {
                 "parameters": schemaObject
             ]
         ]
-    }
-
-    nonisolated private func roleToOllamaRole(_ role: AgentRole) -> String {
-        switch role {
-        case .system: return "system"
-        case .user: return "user"
-        case .assistant: return "assistant"
-        case .tool: return "tool"
-        }
     }
 
     nonisolated private func parseResponse(_ data: Data) throws -> ModelResponse {

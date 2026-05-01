@@ -66,12 +66,19 @@ final class StoredMessage {
     var timestamp: Date
     var role: String                        // "user" | "assistant"
     var content: String
+    /// Optional chain-of-thought / reasoning text captured from the model
+    /// during a streaming response (e.g. NVIDIA NIM gpt-oss `reasoning_content`,
+    /// DeepSeek-R1 thinking, OpenAI o1-style). Surfaced in the UI as a
+    /// collapsible "Thinking" pane next to the assistant bubble. `nil` for
+    /// user messages and for assistant messages that didn't emit reasoning.
+    var reasoning: String?
     var session: StoredSession?
 
-    init(timestamp: Date, role: String, content: String, session: StoredSession? = nil) {
+    init(timestamp: Date, role: String, content: String, reasoning: String? = nil, session: StoredSession? = nil) {
         self.timestamp = timestamp
         self.role = role
         self.content = content
+        self.reasoning = reasoning
         self.session = session
     }
 

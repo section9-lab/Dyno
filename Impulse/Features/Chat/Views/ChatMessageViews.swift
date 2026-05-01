@@ -95,6 +95,56 @@ struct MessageView: View {
     }
 }
 
+/// Standalone row that displays a persisted reasoning trace as a collapsible
+/// "Thinking" pane. Rendered as its own `ChatRow.reasoning` entry so it can
+/// sit *before* the tool group that ran on behalf of the same assistant turn,
+/// keeping the visual order "thinking → tools → answer". Default collapsed.
+struct PersistedReasoningRow: View {
+    let text: String
+
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(.secondary)
+                    Text("Thinking")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary.opacity(0.6))
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Text(text)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.secondary.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.horizontal, 56)
+    }
+}
+
 struct ToolExecutionMessageView: View {
     let execution: AgentToolExecution
     var isLast: Bool = true
