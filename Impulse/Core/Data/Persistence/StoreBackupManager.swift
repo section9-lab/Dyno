@@ -26,13 +26,16 @@ struct StoreBackupManager {
     let schemaVersion: Int
 
     /// Default-configured manager pointing at the SwiftData default store
-    /// location (Application Support / `<bundleID>` / `default.store`).
+    /// location.
     ///
-    /// IMPORTANT: This assumes `ModelConfiguration` is created without an
-    /// explicit `url:`. If the app starts passing a custom URL to
-    /// `ModelConfiguration`, this path will go stale and backups will silently
-    /// no-op (the `fileExists` guard returns false). Update both call sites
-    /// together.
+    /// SwiftData's default `ModelConfiguration` (no `url:` argument) writes
+    /// to `~/Library/Application Support/default.store` directly — *not*
+    /// inside a bundle-id subfolder. Only the backup folder lives under the
+    /// bundle-id-scoped subdirectory we own.
+    ///
+    /// IMPORTANT: If `ModelConfiguration` ever starts taking an explicit
+    /// `url:`, update both call sites together — the `fileExists` guard in
+    /// `runDailyBackupIfNeeded` will silently no-op otherwise.
     static func `default`(keepCount: Int = 7) -> StoreBackupManager? {
         guard let appSupport = try? FileManager.default.url(
             for: .applicationSupportDirectory,
@@ -43,10 +46,12 @@ struct StoreBackupManager {
             return nil
         }
         let bundleID = Bundle.main.bundleIdentifier ?? "Impulse"
-        // SwiftData's default store path: <AppSupport>/<bundleID>/default.store
-        let appDir = appSupport.appendingPathComponent(bundleID, isDirectory: true)
-        let storeURL = appDir.appendingPathComponent("default.store", isDirectory: false)
-        let backupRoot = appDir.appendingPathComponent("store-backups", isDirectory: true)
+        let storeURL = appSupport.appendingPathComponent("default.store", isDirectory: false)
+        // Backups live in our own subdirectory so SwiftData never tries to
+        // open them.
+        let backupRoot = appSupport
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("store-backups", isDirectory: true)
         return StoreBackupManager(
             storeURL: storeURL,
             backupRoot: backupRoot,

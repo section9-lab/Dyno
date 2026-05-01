@@ -367,10 +367,12 @@ struct ImpulseApp: App {
         StoreBackupManager.default()?.runDailyBackupIfNeeded()
 
         let schema = Schema([
+            StoredProject.self,
             StoredSession.self,
             StoredMessage.self,
             StoredToolRun.self,
             StoredCompactionSummary.self,
+            StoredKanbanTask.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

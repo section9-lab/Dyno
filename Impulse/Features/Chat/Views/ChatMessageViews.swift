@@ -51,14 +51,14 @@ struct TypingIndicatorView: View {
 struct MessageView: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let item: Item
+    let message: StoredMessage
 
     var body: some View {
-        if item.isUser {
+        if message.isUser {
             HStack {
                 Spacer(minLength: 80)
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(item.content)
+                    Text(message.content)
                         .font(.system(size: 15, weight: .semibold))
                         .padding(.horizontal, 28)
                         .padding(.vertical, 16)
@@ -66,7 +66,7 @@ struct MessageView: View {
                         .foregroundColor(.primary)
                         .clipShape(Capsule())
 
-                    Text(item.timestamp, format: .dateTime.hour().minute())
+                    Text(message.timestamp, format: .dateTime.hour().minute())
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 }
@@ -74,14 +74,14 @@ struct MessageView: View {
             .padding(.horizontal, 56)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Markdown(item.content)
+                Markdown(message.content)
                     .markdownTextStyle {
                         FontSize(14)
                     }
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(item.timestamp, format: .dateTime.hour().minute())
+                Text(message.timestamp, format: .dateTime.hour().minute())
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
@@ -111,15 +111,15 @@ struct ToolExecutionMessageView: View {
 }
 
 struct PersistedToolExecutionMessageView: View {
-    let execution: PersistedToolExecution
+    let run: StoredToolRun
     var isLast: Bool = true
 
     var body: some View {
         ToolTimelineRow(
-            toolName: execution.toolName,
-            status: execution.status == "success" ? .success : .failed,
-            summary: execution.summary,
-            output: execution.output,
+            toolName: run.toolName,
+            status: run.status == "success" ? .success : (run.status == "failed" ? .failed : .running),
+            summary: run.summary,
+            output: run.output,
             isLast: isLast
         )
     }
@@ -129,7 +129,7 @@ struct PersistedToolExecutionMessageView: View {
 
 struct ToolExecutionGroup: Identifiable {
     let id: String
-    let executions: [PersistedToolExecution]
+    let runs: [StoredToolRun]
 }
 
 /// Renders a contiguous run of persisted tool executions as a collapsible
@@ -147,10 +147,10 @@ struct ToolExecutionGroupView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(group.executions.enumerated()), id: \.element.id) { index, execution in
+                    ForEach(Array(group.runs.enumerated()), id: \.element.id) { index, run in
                         PersistedToolExecutionMessageView(
-                            execution: execution,
-                            isLast: index == group.executions.count - 1
+                            run: run,
+                            isLast: index == group.runs.count - 1
                         )
                     }
 
@@ -160,8 +160,6 @@ struct ToolExecutionGroupView: View {
             }
         }
         .onAppear {
-            // Persisted groups are always already finished, so collapse by
-            // default the first time they appear.
             if !hasAutoCollapsed {
                 isExpanded = false
                 hasAutoCollapsed = true
@@ -214,9 +212,9 @@ struct ToolExecutionGroupView: View {
     }
 
     private var summaryText: String {
-        let count = group.executions.count
-        let bashCount = group.executions.filter { $0.toolName == "bash" }.count
-        let fileCount = group.executions.filter { ["read", "write", "edit"].contains($0.toolName) }.count
+        let count = group.runs.count
+        let bashCount = group.runs.filter { $0.toolName == "bash" }.count
+        let fileCount = group.runs.filter { ["read", "write", "edit"].contains($0.toolName) }.count
 
         if bashCount > 0 && fileCount > 0 {
             return "Ran \(bashCount) command\(bashCount == 1 ? "" : "s"), touched \(fileCount) file\(fileCount == 1 ? "" : "s")"

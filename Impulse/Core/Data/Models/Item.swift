@@ -1,63 +1,38 @@
 import Foundation
 import SwiftData
 
-/// The kind of message/event in a chat session. Used as the source of truth
-/// for both UI dispatch and the legacy on-disk JSON snapshots.
-///
-/// Schema-stable: do not rename existing raw values. The values below are
-/// also written to `ProjectSnapshot.SessionMessageSnapshot.kind` (JSON file
-/// outside the SwiftData store) and to legacy `Item.kind` rows still in
-/// circulation on developer machines.
-enum ItemKind: String, CaseIterable, Codable {
-    case userMessage = "user_message"
-    case assistantMessage = "assistant_message"
-    case toolExecution = "tool_execution"
-    case compactionSummary = "compaction_summary"
-}
-
-// MARK: - Item (value type — UI projection of SwiftData entities)
-
-/// A read-only snapshot of one row in a chat transcript. Produced by
-/// `ChatHistoryService` from the underlying SwiftData entities and consumed
-/// by the SwiftUI views.
-///
-/// Why a value type, not an `@Model`:
-///   - Multiple SwiftData entity types (StoredMessage, StoredToolRun,
-///     StoredCompactionSummary) flatten into a single homogeneous list for
-///     display ordering. Modeling that as a relational query with a UNION
-///     adds complexity SwiftData doesn't natively express.
-///   - Views never mutate Items — they're frozen at the moment of projection.
-///   - Decouples the on-disk schema from the UI surface, so future entity
-///     refactors don't immediately break every view.
-///
-/// Stable identity: `id` is the persistent identifier of the underlying
-/// SwiftData object; same row produces the same id across re-projections.
-struct Item: Identifiable, Hashable {
-    let id: PersistentIdentifier
-    let timestamp: Date
-    var content: String
-    let isUser: Bool
-    let kind: String
-    let conversationID: String
-    let projectPath: String
-
-    var kindEnum: ItemKind {
-        ItemKind(rawValue: kind) ?? .assistantMessage
-    }
-
-    static func == (lhs: Item, rhs: Item) -> Bool {
-        lhs.id == rhs.id
-            && lhs.timestamp == rhs.timestamp
-            && lhs.content == rhs.content
-            && lhs.kind == rhs.kind
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
 // MARK: - SwiftData entities (the on-disk truth)
+
+/// A project that the user has added to Impulse. Path-keyed; the on-disk
+/// folder this points at can move or disappear (see `isMissing`).
+///
+/// Sessions and Kanban tasks live in their own entities and reference the
+/// project by `projectPath` (denormalised). We don't use SwiftData
+/// relationships across `StoredProject ↔ StoredSession` either — explicit
+/// fetch-by-path is simpler and avoids SwiftData's inverse-relationship
+/// quirks at the project level.
+@Model
+final class StoredProject {
+    @Attribute(.unique) var path: String
+    var addedAt: Date
+
+    init(path: String, addedAt: Date = Date()) {
+        self.path = path
+        self.addedAt = addedAt
+    }
+
+    /// Folder name component, computed for display.
+    var displayName: String {
+        let last = URL(fileURLWithPath: path).lastPathComponent
+        return last.isEmpty ? path : last
+    }
+
+    /// Whether the underlying folder still exists on disk. Computed; not
+    /// persisted (filesystem state, not user data).
+    var isMissing: Bool {
+        !FileManager.default.fileExists(atPath: path)
+    }
+}
 
 /// One chat session within a project. Messages, tool runs, and compaction
 /// summaries hang off this entity via cascade relationships.
@@ -85,8 +60,7 @@ final class StoredSession {
     }
 }
 
-/// A user or assistant message. Role is a string for SwiftData compatibility;
-/// use `roleEnum` for type-safe access.
+/// A user or assistant message.
 @Model
 final class StoredMessage {
     var timestamp: Date
@@ -102,7 +76,6 @@ final class StoredMessage {
     }
 
     var isUser: Bool { role == "user" }
-    var kind: ItemKind { isUser ? .userMessage : .assistantMessage }
 }
 
 /// One tool invocation (read/write/edit/bash). The id is the SDK-provided
@@ -148,64 +121,5 @@ final class StoredCompactionSummary {
         self.timestamp = timestamp
         self.content = content
         self.session = session
-    }
-}
-
-// MARK: - Projection: SwiftData entity → Item
-
-extension StoredMessage {
-    /// Project this entity into a UI-facing `Item`.
-    func toItem() -> Item {
-        Item(
-            id: persistentModelID,
-            timestamp: timestamp,
-            content: content,
-            isUser: isUser,
-            kind: kind.rawValue,
-            conversationID: session?.id ?? "",
-            projectPath: session?.projectPath ?? ""
-        )
-    }
-}
-
-extension StoredToolRun {
-    /// Project into an Item whose `content` is the JSON-encoded
-    /// `PersistedToolExecution`. This preserves the existing UI contract:
-    /// tool rows ride alongside messages in the same `[Item]` list.
-    func toItem() -> Item? {
-        let payload = PersistedToolExecution(
-            id: id,
-            toolName: toolName,
-            status: status,
-            summary: summary,
-            output: output
-        )
-        guard let data = try? JSONEncoder().encode(payload),
-              let text = String(data: data, encoding: .utf8)
-        else { return nil }
-
-        return Item(
-            id: persistentModelID,
-            timestamp: timestamp,
-            content: text,
-            isUser: false,
-            kind: ItemKind.toolExecution.rawValue,
-            conversationID: session?.id ?? "",
-            projectPath: session?.projectPath ?? ""
-        )
-    }
-}
-
-extension StoredCompactionSummary {
-    func toItem() -> Item {
-        Item(
-            id: persistentModelID,
-            timestamp: timestamp,
-            content: content,
-            isUser: false,
-            kind: ItemKind.compactionSummary.rawValue,
-            conversationID: session?.id ?? "",
-            projectPath: session?.projectPath ?? ""
-        )
     }
 }

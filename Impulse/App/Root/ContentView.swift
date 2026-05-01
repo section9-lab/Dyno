@@ -4,48 +4,58 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \StoredSession.startedAt, order: .reverse) private var storedSessions: [StoredSession]
+    @Query(sort: \StoredProject.addedAt, order: .reverse) private var projects: [StoredProject]
+    @Query(sort: \StoredSession.startedAt, order: .reverse) private var allSessions: [StoredSession]
+    @Query(sort: \StoredKanbanTask.updatedAt, order: .reverse) private var allTasks: [StoredKanbanTask]
     @StateObject private var vm = ChatViewModel()
     @StateObject private var agent = AgentManager.shared
     @StateObject private var approvals = ToolApprovalCenter.shared
     @EnvironmentObject private var authSession: AuthSession
 
-    /// All chat rows projected to value-type `Item` for the UI. Computed
-    /// from the SwiftData `StoredSession` query above; callers further down
-    /// (ChatViewModel, ChatHistoryService) treat this as the source of truth
-    /// they used to read from the old single-table `Item` query.
-    private var items: [Item] {
-        vm.flattenAllItems(from: storedSessions)
+    private let kanban = KanbanController()
+
+    /// Sessions for the currently-selected project.
+    private var projectSessions: [StoredSession] {
+        guard let path = vm.selectedProjectPath else { return [] }
+        return allSessions.filter { $0.projectPath == path }
     }
 
-    private var projects: [ChatProject] {
-        vm.makeProjects(from: items)
+    /// Sessions grouped by project path; passed to the sidebar.
+    private var sessionsByProjectPath: [String: [StoredSession]] {
+        Dictionary(grouping: allSessions, by: { $0.projectPath })
     }
 
-    private var selectedSession: ChatSession? {
-        vm.makeSelectedSession(from: items)
+    private var selectedProject: StoredProject? {
+        guard let path = vm.selectedProjectPath else { return nil }
+        return projects.first(where: { $0.path == path })
     }
 
-    private var selectedProject: ChatProject? {
-        vm.makeSelectedProject(from: items)
+    private var selectedSession: StoredSession? {
+        guard let id = vm.selectedSessionID else { return nil }
+        return allSessions.first(where: { $0.id == id })
     }
 
-    private var displayedItems: [Item] {
-        vm.makeDisplayedItems(from: items)
+    private var kanbanTasks: [StoredKanbanTask] {
+        guard let path = vm.selectedProjectPath else { return [] }
+        return allTasks
+            .filter { $0.projectPath == path }
+            .sorted { lhs, rhs in
+                if lhs.status != rhs.status {
+                    return lhs.status.rawValue < rhs.status.rawValue
+                }
+                return lhs.updatedAt > rhs.updatedAt
+            }
     }
 
-    private var displayedRows: [ChatRow] {
-        vm.makeDisplayedRows(from: items)
+    /// Rows to render in the chat scroll area for the focused session.
+    /// Merges messages (user + assistant), tool runs, and compaction summaries
+    /// into one chronologically-sorted list, then folds adjacent tool runs
+    /// into a single collapsible group.
+    private var chatRows: [ChatRow] {
+        guard let session = selectedSession else { return [] }
+        return Self.buildChatRows(for: session)
     }
 
-    private var kanbanTasks: [KanbanTaskSnapshot] {
-        vm.makeKanbanTasks(from: items)
-    }
-
-    /// The SessionAgent powering the focused session.
-    /// Returns nil if no session is selected or the agent hasn't been
-    /// initialized yet — view lifecycle (`.task` / `.onChange`) creates it,
-    /// keeping side-effects out of the SwiftUI body.
     private var focusedSessionAgent: SessionAgent? {
         agent.existingSessionAgent(for: vm.selectedSessionID)
     }
@@ -93,9 +103,7 @@ struct ContentView: View {
                 )
             }
             .task {
-                vm.loadConversationsFromSessionFilesIfNeeded(items: items, modelContext: modelContext, agent: agent)
                 await agent.refreshServiceStatus()
-                persistProjects()
                 autoCreateSessionIfNeeded()
                 ensureFocusedSessionAgent()
             }
@@ -106,25 +114,17 @@ struct ContentView: View {
             .onChange(of: vm.selectedSessionID) { _, _ in
                 ensureFocusedSessionAgent()
             }
-            .onChange(of: items.count) { _, _ in
-                if !vm.isImportingSessionFiles {
-                    persistProjects()
-                }
-            }
             .frame(minWidth: 980, minHeight: 760)
             .animation(.easeInOut(duration: 0.2), value: vm.showKanbanPanel)
         }
     }
 
     // MARK: - Body subviews
-    //
-    // SwiftUI's type-checker can't handle the original 170-line `body` in
-    // reasonable time (Swift 6 compiler limit). Each subview owns one chunk
-    // and stays under the threshold individually.
 
     private var sidebar: some View {
         ChatSidebarView(
             projects: projects,
+            sessionsByProjectPath: sessionsByProjectPath,
             selectedProjectPath: vm.selectedProjectPath,
             selectedSessionID: vm.selectedSessionID,
             expandedProjectPaths: vm.expandedProjectPaths,
@@ -132,19 +132,19 @@ struct ContentView: View {
             onCreateSession: createSession,
             onToggleProject: { vm.toggleProjectExpansion($0.path) },
             onSelectProject: { vm.selectProject($0.path, agent: agent) },
-            onRemoveProject: removeProject,
+            onRemoveProject: { vm.removeProject(path: $0.path, modelContext: modelContext, agent: agent) },
             onSelectSession: { project, session in
                 vm.selectSession(projectPath: project.path, sessionID: session.id, agent: agent)
             },
-            onRenameSession: requestRename,
-            onDeleteSession: deleteSession,
-            onSettings: openSettings,
+            onRenameSession: vm.requestRename,
+            onDeleteSession: { vm.deleteSession($0, modelContext: modelContext) },
+            onSettings: { vm.showConfigSheet = true },
             onHelp: openHelp,
             accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
             accountSubtitle: authSession.provider.accountTitleKey,
             accountInitial: authSession.user?.avatarInitial ?? "G",
             accountAvatarURL: authSession.user?.avatarURL,
-            onLogout: handleLogout
+            onLogout: { authSession.signOut() }
         )
         .frame(width: vm.sidebarWidth)
     }
@@ -156,10 +156,22 @@ struct ContentView: View {
                     project: selectedProject,
                     selectedSession: selectedSession,
                     tasks: kanbanTasks,
-                    onCreateTask: createKanbanTask,
-                    onMoveTask: moveKanbanTask,
-                    onLinkSelectedSession: linkSelectedSessionToKanbanTask,
-                    onDeleteTask: deleteKanbanTask
+                    projectSessions: projectSessions,
+                    onCreateTask: { title, priority, status in
+                        kanban.createTask(
+                            title: title,
+                            priority: priority,
+                            status: status,
+                            projectPath: vm.selectedProjectPath,
+                            selectedSessionID: vm.selectedSessionID,
+                            modelContext: modelContext
+                        )
+                    },
+                    onMoveTask: { task, status in kanban.moveTask(task, to: status) },
+                    onLinkSelectedSession: { task in
+                        kanban.linkSession(task, sessionID: vm.selectedSessionID)
+                    },
+                    onDeleteTask: { task in kanban.deleteTask(task, modelContext: modelContext) }
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: 372)
@@ -190,7 +202,7 @@ struct ContentView: View {
                     if selectedSession == nil {
                         emptyState
                     } else {
-                        ForEach(displayedRows) { row in
+                        ForEach(chatRows) { row in
                             chatRowView(row)
                         }
                         if let focusedSessionAgent {
@@ -202,9 +214,9 @@ struct ContentView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 20)
             }
-            .onChange(of: items.count) { _, _ in
+            .onChange(of: chatRows.count) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo(displayedItems.last?.id, anchor: .bottom)
+                    proxy.scrollTo(chatRows.last?.id, anchor: .bottom)
                 }
             }
             .onChange(of: focusedSessionAgent?.isResponding ?? false) { _, responding in
@@ -213,7 +225,11 @@ struct ContentView: View {
                 }
             }
             .onChange(of: vm.selectedSessionID) { _, _ in
-                scrollToBottom(proxy: proxy, id: selectedSession?.messages.last?.id)
+                if let lastID = chatRows.last?.id {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(lastID, anchor: .bottom)
+                    }
+                }
             }
         }
     }
@@ -221,14 +237,14 @@ struct ContentView: View {
     @ViewBuilder
     private func chatRowView(_ row: ChatRow) -> some View {
         switch row {
-        case .message(let item):
-            if item.kindEnum == .compactionSummary {
-                EmptyView().id(item.id)
-            } else {
-                MessageView(item: item).id(item.id)
-            }
+        case .message(let m):
+            MessageView(message: m).id(row.id)
         case .toolGroup(let group):
             ToolExecutionGroupView(group: group).id(group.id)
+        case .compactionSummary:
+            // Compaction summaries are persisted but not rendered (they
+            // exist for the SDK prelude builder, not for the user).
+            EmptyView()
         }
     }
 
@@ -262,7 +278,7 @@ struct ContentView: View {
             vm.renamingSessionID = nil
         }
         Button("common.save") {
-            applyRename()
+            vm.applyRename(modelContext: modelContext)
         }
         .disabled(!vm.renameDraft.isNotBlank)
     }
@@ -308,87 +324,25 @@ struct ContentView: View {
         )
     }
 
+    // MARK: - Actions
+
     private func autoCreateSessionIfNeeded() {
         guard selectedProject != nil, selectedSession == nil else { return }
-        guard vm.startNewChat(items: items, agent: agent) else { return }
-        persistProjects()
+        _ = vm.startNewChat(modelContext: modelContext, agent: agent)
     }
 
     private func addProject() {
-        vm.addProject(agent: agent)
-        persistProjects()
+        vm.addProject(modelContext: modelContext, agent: agent)
     }
 
-    private func createSession(_ project: ChatProject) {
+    private func createSession(_ project: StoredProject) {
         vm.selectProject(project.path, agent: agent)
-        guard vm.startNewChat(items: items, agent: agent) else { return }
-        persistProjects()
-    }
-
-    private func persistProjects() {
-        vm.persistProjects(items: items, agent: agent)
-    }
-
-    private func scrollToBottom(proxy: ScrollViewProxy, id: AnyHashable?) {
-        guard let id else { return }
-        withAnimation(.easeOut(duration: 0.2)) {
-            proxy.scrollTo(id, anchor: .bottom)
-        }
+        _ = vm.startNewChat(modelContext: modelContext, agent: agent)
     }
 
     private func sendMessage() {
-        vm.sendMessage(
-            modelContext: modelContext,
-            agent: agent,
-            session: selectedSession,
-            conversationItems: displayedItems
-        ) {
-            persistProjects()
-        }
-    }
-
-    private func requestRename(_ session: ChatSession) {
-        vm.requestRename(session)
-    }
-
-    private func applyRename() {
-        let didRename = vm.applyRename(items: items, modelContext: modelContext)
-        guard didRename else { return }
-        persistProjects()
-    }
-
-    private func deleteSession(_ session: ChatSession) {
-        vm.deleteSession(session, modelContext: modelContext)
-        persistProjects()
-    }
-
-    private func removeProject(_ project: ChatProject) {
-        vm.removeProject(project, items: items, modelContext: modelContext, agent: agent)
-        persistProjects()
-    }
-
-    private func createKanbanTask(_ title: String, _ priority: KanbanTaskPriority, _ status: KanbanTaskStatus) {
-        vm.createKanbanTask(title: title, priority: priority, status: status)
-        persistProjects()
-    }
-
-    private func moveKanbanTask(_ task: KanbanTaskSnapshot, _ status: KanbanTaskStatus) {
-        vm.moveKanbanTask(task, to: status)
-        persistProjects()
-    }
-
-    private func linkSelectedSessionToKanbanTask(_ task: KanbanTaskSnapshot) {
-        vm.linkSelectedSessionToKanbanTask(task)
-        persistProjects()
-    }
-
-    private func deleteKanbanTask(_ task: KanbanTaskSnapshot) {
-        vm.deleteKanbanTask(task)
-        persistProjects()
-    }
-
-    private func openSettings() {
-        vm.showConfigSheet = true
+        guard let session = selectedSession else { return }
+        vm.sendMessage(modelContext: modelContext, agent: agent, session: session)
     }
 
     private func openHelp() {
@@ -397,8 +351,63 @@ struct ContentView: View {
         }
     }
 
-    private func handleLogout() {
-        authSession.signOut()
+    // MARK: - Row construction
+
+    /// Merge messages, tool runs, and compaction summaries into a single
+    /// chronologically-sorted list and fold adjacent tool runs into groups.
+    static func buildChatRows(for session: StoredSession) -> [ChatRow] {
+        // Each event has a kind so we can sort heterogeneously by timestamp.
+        enum Event {
+            case message(StoredMessage)
+            case toolRun(StoredToolRun)
+            case summary(StoredCompactionSummary)
+
+            var timestamp: Date {
+                switch self {
+                case .message(let m): return m.timestamp
+                case .toolRun(let r): return r.timestamp
+                case .summary(let s): return s.timestamp
+                }
+            }
+        }
+
+        var events: [Event] = []
+        events.reserveCapacity(session.messages.count + session.toolRuns.count + session.compactionSummaries.count)
+        events.append(contentsOf: session.messages.map(Event.message))
+        events.append(contentsOf: session.toolRuns.map(Event.toolRun))
+        events.append(contentsOf: session.compactionSummaries.map(Event.summary))
+        events.sort { $0.timestamp < $1.timestamp }
+
+        var rows: [ChatRow] = []
+        var pendingRuns: [StoredToolRun] = []
+        var groupAnchor: String?
+
+        func flush() {
+            guard !pendingRuns.isEmpty, let anchor = groupAnchor else {
+                pendingRuns = []
+                groupAnchor = nil
+                return
+            }
+            rows.append(.toolGroup(ToolExecutionGroup(id: "group-\(anchor)", runs: pendingRuns)))
+            pendingRuns = []
+            groupAnchor = nil
+        }
+
+        for event in events {
+            switch event {
+            case .toolRun(let run):
+                if groupAnchor == nil { groupAnchor = run.id }
+                pendingRuns.append(run)
+            case .message(let m):
+                flush()
+                rows.append(.message(m))
+            case .summary(let s):
+                flush()
+                rows.append(.compactionSummary(s))
+            }
+        }
+        flush()
+        return rows
     }
 }
 
@@ -499,13 +508,15 @@ private struct SeededRandomGenerator: RandomNumberGenerator {
 }
 
 enum ChatRow: Identifiable {
-    case message(Item)
+    case message(StoredMessage)
     case toolGroup(ToolExecutionGroup)
+    case compactionSummary(StoredCompactionSummary)
 
     var id: String {
         switch self {
-        case .message(let item): return "msg-\(item.id.hashValue)"
+        case .message(let m): return "msg-\(m.persistentModelID.hashValue)"
         case .toolGroup(let group): return group.id
+        case .compactionSummary(let s): return "sum-\(s.persistentModelID.hashValue)"
         }
     }
 }

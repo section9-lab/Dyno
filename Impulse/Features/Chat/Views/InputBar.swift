@@ -6,10 +6,10 @@ struct InputBar: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @Binding var inputText: String
-    let projects: [ChatProject]
+    let projects: [StoredProject]
     let selectedProjectPath: String?
     let isResponding: Bool
-    var onSelectProject: (ChatProject) -> Void
+    var onSelectProject: (StoredProject) -> Void
     var onSend: () -> Void
     /// nil when no session is selected. Tracks context usage / compact action
     /// for the focused session only.
@@ -40,7 +40,7 @@ struct InputBar: View {
         else {
             return L10n.tr("chat.project")
         }
-        return selectedProject.name
+        return selectedProject.displayName
     }
 
     var body: some View {
@@ -155,9 +155,9 @@ struct InputBar: View {
                         onSelectProject(project)
                     } label: {
                         if project.path == selectedProjectPath {
-                            Label(project.name, systemImage: "checkmark")
+                            Label(project.displayName, systemImage: "checkmark")
                         } else {
-                            Text(project.name)
+                            Text(project.displayName)
                         }
                     }
                 }

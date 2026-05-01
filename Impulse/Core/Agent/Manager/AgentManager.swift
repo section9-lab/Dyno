@@ -8,7 +8,6 @@ import SwiftCodingAgent
 ///   - `AgentRuntimeBootstrap` — disk layout (data/skills/memory dirs + legacy migration)
 ///   - `AgentSDKFactory`      — pure SDK builder (per-session)
 ///   - `SessionAgentPool`     — per-session pool + LRU + pending-config-rebuild
-///   - `AgentProjectStore`    — `ProjectSnapshot` JSON load/save
 ///   - `ModelRegistry`        — provider/model catalog (shared)
 ///
 /// Holds connection-status `@Published` state so views can observe a single
@@ -30,7 +29,6 @@ final class AgentManager: ObservableObject {
     let registry = ModelRegistry.shared
     private let configStore = AgentConfigStore()
     private let bootstrap = AgentRuntimeBootstrap()
-    private let projectStore = AgentProjectStore()
     let pool: SessionAgentPool
 
     // Forwarded for compatibility with existing call sites.
@@ -203,15 +201,5 @@ final class AgentManager: ObservableObject {
             isServiceConnected = false
             connectionStatusText = L10n.tr("agent.status.connection_failed", error.localizedDescription)
         }
-    }
-
-    // MARK: - Project persistence (forwarding)
-
-    func loadPersistedProjects() -> [ProjectSnapshot] {
-        projectStore.loadProjects()
-    }
-
-    func persistProjects(_ projects: [ProjectSnapshot]) {
-        projectStore.saveProjects(projects)
     }
 }

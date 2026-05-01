@@ -21,6 +21,8 @@ import Foundation
 ///   v1 — Single `Item` entity (deprecated; existed before this constant).
 ///   v2 — Split into StoredSession + StoredMessage + StoredToolRun
 ///        + StoredCompactionSummary with cascade relationships.
+///   v3 — Added StoredProject + StoredKanbanTask. ProjectSnapshot/Kanban
+///        JSON persistence removed; everything now lives in SwiftData.
 enum SchemaVersion {
-    static let current: Int = 2
+    static let current: Int = 3
 }

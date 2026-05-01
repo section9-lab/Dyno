@@ -3,18 +3,21 @@ import SwiftUI
 struct ChatSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    let projects: [ChatProject]
+    let projects: [StoredProject]
+    /// Sessions for each project, indexed by project path. Pre-grouped by
+    /// the parent so the sidebar doesn't have to re-filter.
+    let sessionsByProjectPath: [String: [StoredSession]]
     let selectedProjectPath: String?
     let selectedSessionID: String?
     let expandedProjectPaths: Set<String>
     var onAddProject: () -> Void
-    var onCreateSession: (ChatProject) -> Void
-    var onToggleProject: (ChatProject) -> Void
-    var onSelectProject: (ChatProject) -> Void
-    var onRemoveProject: (ChatProject) -> Void
-    var onSelectSession: (ChatProject, ChatSession) -> Void
-    var onRenameSession: (ChatSession) -> Void
-    var onDeleteSession: (ChatSession) -> Void
+    var onCreateSession: (StoredProject) -> Void
+    var onToggleProject: (StoredProject) -> Void
+    var onSelectProject: (StoredProject) -> Void
+    var onRemoveProject: (StoredProject) -> Void
+    var onSelectSession: (StoredProject, StoredSession) -> Void
+    var onRenameSession: (StoredSession) -> Void
+    var onDeleteSession: (StoredSession) -> Void
     var onSettings: () -> Void
     var onHelp: () -> Void
     var accountName: String
@@ -58,11 +61,12 @@ struct ChatSidebarView: View {
         .padding(.top, 12)
     }
 
-    private func projectSection(_ project: ChatProject) -> some View {
+    private func projectSection(_ project: StoredProject) -> some View {
         let isSelected = project.path == selectedProjectPath && selectedSessionID == nil
         let isHovered = hoveredButtonId == project.path
         let isExpanded = expandedProjectPaths.contains(project.path)
         let showsCreateSessionButton = isHovered || isSelected
+        let sessions = sessionsByProjectPath[project.path] ?? []
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
@@ -77,7 +81,7 @@ struct ChatSidebarView: View {
                             .frame(width: 16)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(project.name)
+                            Text(project.displayName)
                                 .font(.system(size: 14, weight: .semibold))
                                 .lineLimit(1)
                                 .foregroundColor(.primary)
@@ -131,14 +135,14 @@ struct ChatSidebarView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    if project.sessions.isEmpty {
+                    if sessions.isEmpty {
                         Text("chat.no_sessions")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                             .padding(.leading, 28)
                             .padding(.vertical, 4)
                     } else {
-                        ForEach(project.sessions) { session in
+                        ForEach(sessions) { session in
                             Button {
                                 onSelectSession(project, session)
                             } label: {

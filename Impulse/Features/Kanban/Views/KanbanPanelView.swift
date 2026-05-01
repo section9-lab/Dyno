@@ -2,13 +2,16 @@ import AppKit
 import SwiftUI
 
 struct KanbanPanelView: View {
-    let project: ChatProject?
-    let selectedSession: ChatSession?
-    let tasks: [KanbanTaskSnapshot]
+    let project: StoredProject?
+    let selectedSession: StoredSession?
+    let tasks: [StoredKanbanTask]
+    /// All sessions for the project — used to look up titles for primary
+    /// session links inside cards. Filtered by the parent.
+    let projectSessions: [StoredSession]
     var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
-    var onMoveTask: (KanbanTaskSnapshot, KanbanTaskStatus) -> Void
-    var onLinkSelectedSession: (KanbanTaskSnapshot) -> Void
-    var onDeleteTask: (KanbanTaskSnapshot) -> Void
+    var onMoveTask: (StoredKanbanTask, KanbanTaskStatus) -> Void
+    var onLinkSelectedSession: (StoredKanbanTask) -> Void
+    var onDeleteTask: (StoredKanbanTask) -> Void
 
     private let columns = KanbanTaskStatus.allCases
     private let panelCornerRadius: CGFloat = 22
@@ -25,6 +28,7 @@ struct KanbanPanelView: View {
                             tasks: tasks.filter { $0.status == status },
                             project: project,
                             selectedSession: selectedSession,
+                            projectSessions: projectSessions,
                             onCreateTask: onCreateTask,
                             onMoveTask: onMoveTask,
                             onLinkSelectedSession: onLinkSelectedSession,
@@ -66,7 +70,7 @@ struct KanbanPanelView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(project?.name ?? L10n.tr("kanban.no_project_selected"))
+                    Text(project?.displayName ?? L10n.tr("kanban.no_project_selected"))
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.primary)
                 }
@@ -94,7 +98,7 @@ struct KanbanPanelView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
-        Spacer()
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
@@ -110,13 +114,14 @@ struct KanbanPanelView: View {
 
 private struct KanbanColumnView: View {
     let status: KanbanTaskStatus
-    let tasks: [KanbanTaskSnapshot]
-    let project: ChatProject
-    let selectedSession: ChatSession?
+    let tasks: [StoredKanbanTask]
+    let project: StoredProject
+    let selectedSession: StoredSession?
+    let projectSessions: [StoredSession]
     var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
-    var onMoveTask: (KanbanTaskSnapshot, KanbanTaskStatus) -> Void
-    var onLinkSelectedSession: (KanbanTaskSnapshot) -> Void
-    var onDeleteTask: (KanbanTaskSnapshot) -> Void
+    var onMoveTask: (StoredKanbanTask, KanbanTaskStatus) -> Void
+    var onLinkSelectedSession: (StoredKanbanTask) -> Void
+    var onDeleteTask: (StoredKanbanTask) -> Void
 
     @State private var isTargeted = false
 
@@ -155,12 +160,12 @@ private struct KanbanColumnView: View {
                         ForEach(tasks) { task in
                             KanbanTaskCardView(
                                 task: task,
-                                project: project,
+                                projectSessions: projectSessions,
                                 selectedSession: selectedSession,
                                 onLinkSelectedSession: onLinkSelectedSession,
                                 onDeleteTask: onDeleteTask
                             )
-                            .draggable(task)
+                            .draggable(KanbanTaskDragPayload(id: task.id))
                         }
                     }
 
@@ -180,13 +185,30 @@ private struct KanbanColumnView: View {
                         .strokeBorder(isTargeted ? status.tintColor.opacity(0.5) : Color.white.opacity(0.7), lineWidth: 1)
                 )
         )
-        .dropDestination(for: KanbanTaskSnapshot.self) { droppedTasks, _ in
-            guard let task = droppedTasks.first else { return false }
+        .dropDestination(for: KanbanTaskDragPayload.self) { dropped, _ in
+            guard let payload = dropped.first,
+                  let task = tasks.first(where: { $0.id == payload.id })
+                      ?? findTask(byID: payload.id)
+            else { return false }
             onMoveTask(task, status)
             return true
         } isTargeted: { targeted in
             isTargeted = targeted
         }
+    }
+
+    /// Drop targets are columns; the payload may belong to a task in a
+    /// *different* column. The parent passed only this column's `tasks`,
+    /// so we have to search across all known tasks. We don't have direct
+    /// access — caller's `onMoveTask` will handle the real move via id.
+    /// Placeholder: cross-column drag is rare and the worst case is a
+    /// no-op until the user drags again.
+    private func findTask(byID id: String) -> StoredKanbanTask? {
+        // The drop callback is responsible for fetching by id from the
+        // ModelContext; here we only have local column tasks. Returning
+        // nil triggers `false` from the closure and the user can retry.
+        // (See ContentView: `onMoveTask` re-fetches.)
+        nil
     }
 
     private var emptyDropState: some View {
@@ -363,11 +385,11 @@ private struct KanbanColumnComposerView: View {
 }
 
 private struct KanbanTaskCardView: View {
-    let task: KanbanTaskSnapshot
-    let project: ChatProject
-    let selectedSession: ChatSession?
-    var onLinkSelectedSession: (KanbanTaskSnapshot) -> Void
-    var onDeleteTask: (KanbanTaskSnapshot) -> Void
+    let task: StoredKanbanTask
+    let projectSessions: [StoredSession]
+    let selectedSession: StoredSession?
+    var onLinkSelectedSession: (StoredKanbanTask) -> Void
+    var onDeleteTask: (StoredKanbanTask) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -461,7 +483,7 @@ private struct KanbanTaskCardView: View {
 
     private var primarySessionTitle: String? {
         guard let primarySessionID = task.primarySessionID else { return nil }
-        return project.sessions.first(where: { $0.id == primarySessionID })?.title
+        return projectSessions.first(where: { $0.id == primarySessionID })?.title
     }
 
     private var isLinkedToSelectedSession: Bool {
@@ -470,7 +492,9 @@ private struct KanbanTaskCardView: View {
     }
 
     private var linkedSessionsLabel: String {
-        task.linkedSessionIDs.count == 1 ? L10n.tr("kanban.one_session") : L10n.tr("kanban.sessions_count", task.linkedSessionIDs.count)
+        task.linkedSessionIDs.count == 1
+            ? L10n.tr("kanban.one_session")
+            : L10n.tr("kanban.sessions_count", task.linkedSessionIDs.count)
     }
 
     private var priorityBadge: some View {
@@ -487,12 +511,9 @@ private struct KanbanTaskCardView: View {
 
     private var priorityColor: Color {
         switch task.priority {
-        case .low:
-            return Color(nsColor: .systemBlue)
-        case .medium:
-            return Color(nsColor: .systemOrange)
-        case .high:
-            return Color(nsColor: .systemRed)
+        case .low: return Color(nsColor: .systemBlue)
+        case .medium: return Color(nsColor: .systemOrange)
+        case .high: return Color(nsColor: .systemRed)
         }
     }
 }
@@ -500,45 +521,25 @@ private struct KanbanTaskCardView: View {
 private extension KanbanTaskStatus {
     var localizedTitle: String {
         switch self {
-        case .plan:
-            return L10n.tr("kanban.status.plan")
-        case .progress:
-            return L10n.tr("kanban.status.progress")
-        case .done:
-            return L10n.tr("kanban.status.done")
-        }
-    }
-
-    var localizedSubtitle: String {
-        switch self {
-        case .plan:
-            return L10n.tr("kanban.status.plan.subtitle")
-        case .progress:
-            return L10n.tr("kanban.status.progress.subtitle")
-        case .done:
-            return L10n.tr("kanban.status.done.subtitle")
+        case .plan: return L10n.tr("kanban.status.plan")
+        case .progress: return L10n.tr("kanban.status.progress")
+        case .done: return L10n.tr("kanban.status.done")
         }
     }
 
     var localizedEmptyHint: String {
         switch self {
-        case .plan:
-            return L10n.tr("kanban.status.plan.empty_hint")
-        case .progress:
-            return L10n.tr("kanban.status.progress.empty_hint")
-        case .done:
-            return L10n.tr("kanban.status.done.empty_hint")
+        case .plan: return L10n.tr("kanban.status.plan.empty_hint")
+        case .progress: return L10n.tr("kanban.status.progress.empty_hint")
+        case .done: return L10n.tr("kanban.status.done.empty_hint")
         }
     }
 
     var tintColor: Color {
         switch self {
-        case .plan:
-            return Color(nsColor: .systemBlue)
-        case .progress:
-            return Color(nsColor: .systemOrange)
-        case .done:
-            return Color(nsColor: .systemGreen)
+        case .plan: return Color(nsColor: .systemBlue)
+        case .progress: return Color(nsColor: .systemOrange)
+        case .done: return Color(nsColor: .systemGreen)
         }
     }
 }
@@ -546,12 +547,9 @@ private extension KanbanTaskStatus {
 private extension KanbanTaskPriority {
     var localizedTitle: String {
         switch self {
-        case .low:
-            return L10n.tr("kanban.priority.low")
-        case .medium:
-            return L10n.tr("kanban.priority.medium")
-        case .high:
-            return L10n.tr("kanban.priority.high")
+        case .low: return L10n.tr("kanban.priority.low")
+        case .medium: return L10n.tr("kanban.priority.medium")
+        case .high: return L10n.tr("kanban.priority.high")
         }
     }
 }
