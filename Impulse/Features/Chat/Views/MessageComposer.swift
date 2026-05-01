@@ -99,6 +99,7 @@ struct MultilineMessageInput: NSViewRepresentable {
         Coordinator(parent: self)
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MultilineMessageInput
         weak var textView: NSTextView?
