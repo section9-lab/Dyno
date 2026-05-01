@@ -15,7 +15,7 @@ settings:
 
 packages:
   SwiftCodingAgent:
-    path: ../../../SwiftCodingAgent
+    path: ../SwiftCodingAgent
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: "2.4.0"
