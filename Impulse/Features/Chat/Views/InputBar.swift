@@ -48,13 +48,18 @@ struct InputBar: View {
             VStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        if inputText.isEmpty && !hasMarkedText {
-                            Text(L10n.tr("chat.send_message_placeholder"))
-                                .font(.system(size: 15, weight: .regular))
-                                .foregroundColor(.secondary)
-                                .padding(.top, 1)
-                                .allowsHitTesting(false)
-                        }
+                        // Placeholder is always in the tree, hidden by opacity,
+                        // so the ZStack's child list stays stable. A conditional
+                        // (`if inputText.isEmpty { Text }`) would invalidate the
+                        // structure on the first keystroke and force the
+                        // NSTextView through a layout pass that eats the first
+                        // character.
+                        Text(L10n.tr("chat.send_message_placeholder"))
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundColor(.secondary)
+                            .padding(.top, 1)
+                            .opacity(inputText.isEmpty && !hasMarkedText ? 1 : 0)
+                            .allowsHitTesting(false)
 
                         MultilineMessageInput(
                             text: $inputText,

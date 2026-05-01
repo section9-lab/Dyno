@@ -69,7 +69,7 @@ struct ChatSidebarView: View {
         let sessions = sessionsByProjectPath[project.path] ?? []
 
         return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
                 Button {
                     onToggleProject(project)
                     onSelectProject(project)
@@ -87,9 +87,12 @@ struct ChatSidebarView: View {
                                 .foregroundColor(.primary)
                         }
 
-                        Spacer()
+                        Spacer(minLength: 0)
                     }
+                    .padding(.leading, 12)
+                    .padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
@@ -105,6 +108,7 @@ struct ChatSidebarView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .padding(.horizontal, 12)
                 .help("chat.start_session")
                 .opacity(showsCreateSessionButton ? 1 : 0)
                 .allowsHitTesting(showsCreateSessionButton)
@@ -114,10 +118,9 @@ struct ChatSidebarView: View {
                     Text("chat.project_missing")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.orange)
+                        .padding(.trailing, 12)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(projectBackgroundColor(isSelected: isSelected, isHovered: isHovered))
@@ -147,18 +150,17 @@ struct ChatSidebarView: View {
                                 onSelectSession(project, session)
                             } label: {
                                 HStack(spacing: 6) {
+                                    SessionStatusBadge(sessionID: session.id)
                                     Text(previewText(for: session.title))
                                         .font(.system(size: 13, weight: .medium))
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                         .foregroundColor(.primary)
                                     Spacer(minLength: 0)
-                                    SessionStatusBadge(sessionID: session.id)
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 9)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, 14)
                             }
                             .buttonStyle(
                                 SidebarRowButtonStyle(
@@ -347,31 +349,51 @@ struct SidebarRowButtonStyle: ButtonStyle {
     }
 }
 
-/// Tiny dot/spinner shown next to a session row when its SessionAgent
-/// is currently producing a response. Looks up the agent on every render
-/// (cheap dictionary lookup) so it reflects state for *all* parallel sessions,
-/// not just the focused one.
+/// Live-pulse indicator shown to the left of a session title while its
+/// `SessionAgent` is producing a response. Reserves a fixed 10pt slot so
+/// titles don't shift horizontally when a task starts or stops.
 private struct SessionStatusBadge: View {
     let sessionID: String
-    @ObservedObject private var manager = AgentManager.shared
+    /// Observe the pool directly: `AgentManager.sessionAgents` is a
+    /// computed pass-through to `pool.sessionAgents`, so observing the
+    /// manager wouldn't pick up dictionary changes.
+    @ObservedObject private var pool = AgentManager.shared.pool
 
     var body: some View {
-        if let sessionAgent = manager.sessionAgents[sessionID], sessionAgent.isResponding {
-            ResponsiveSessionDot(sessionAgent: sessionAgent)
+        ZStack {
+            if let sessionAgent = pool.sessionAgents[sessionID] {
+                SessionLivePulse(sessionAgent: sessionAgent)
+            }
         }
+        .frame(width: 10, height: 10)
     }
 }
 
-private struct ResponsiveSessionDot: View {
+private struct SessionLivePulse: View {
     @ObservedObject var sessionAgent: SessionAgent
+    @State private var rotation: Double = 0
+
+    private let segmentCount = 8
 
     var body: some View {
         if sessionAgent.isResponding {
-            Circle()
-                .fill(Color.accentColor)
-                .frame(width: 6, height: 6)
-                .opacity(0.85)
-                .transition(.opacity)
+            ZStack {
+                ForEach(0..<segmentCount, id: \.self) { i in
+                    Capsule()
+                        .fill(Color.primary)
+                        .frame(width: 1.5, height: 3)
+                        .offset(y: -3.5)
+                        .opacity(0.18 + 0.72 * Double(i) / Double(segmentCount - 1))
+                        .rotationEffect(.degrees(Double(i) / Double(segmentCount) * 360))
+                }
+            }
+            .frame(width: 10, height: 10)
+            .rotationEffect(.degrees(rotation))
+            .onAppear {
+                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+                    rotation = 360
+                }
+            }
         }
     }
 }

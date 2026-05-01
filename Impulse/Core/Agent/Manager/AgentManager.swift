@@ -31,6 +31,12 @@ final class AgentManager: ObservableObject {
     private let bootstrap = AgentRuntimeBootstrap()
     let pool: SessionAgentPool
 
+    /// Forwards `pool.objectWillChange` so views observing the manager
+    /// (the documented façade) re-render when the session-agent dictionary
+    /// or focused-session changes. Without this, computed accessors like
+    /// `focusedSessionAgent` go stale.
+    private var poolForwarding: AnyCancellable?
+
     // Forwarded for compatibility with existing call sites.
     var sessionAgents: [String: SessionAgent] { pool.sessionAgents }
     var focusedSessionID: String? {
@@ -87,6 +93,10 @@ final class AgentManager: ObservableObject {
 
         registry.setApiKey(initialConfig.apiKey, for: initialConfig.providerId)
         bootstrap.bootstrap()
+
+        poolForwarding = pool.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
 
         Task {
             await registry.refresh()

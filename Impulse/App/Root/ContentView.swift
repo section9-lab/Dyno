@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -213,6 +214,7 @@ struct ContentView: View {
                 }
                 .padding(.top, 10)
                 .padding(.bottom, 20)
+                .background(OverlayScrollerHook().frame(width: 0, height: 0))
             }
             .onChange(of: chatRows.count) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) {
@@ -536,6 +538,24 @@ enum ChatRow: Identifiable {
         case .toolGroup(let group): return group.id
         case .compactionSummary(let s): return "sum-\(s.persistentModelID.hashValue)"
         case .reasoning(let m): return "reasoning-\(m.persistentModelID.hashValue)"
+        }
+    }
+}
+
+/// Walks up to the enclosing NSScrollView and switches it to overlay
+/// scrollers. The default "legacy" style paints a solid track background
+/// that doesn't blend with the chat surface; overlay scrollers float over
+/// content and fade out when idle.
+private struct OverlayScrollerHook: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { HookView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class HookView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            DispatchQueue.main.async { [weak self] in
+                self?.enclosingScrollView?.scrollerStyle = .overlay
+            }
         }
     }
 }

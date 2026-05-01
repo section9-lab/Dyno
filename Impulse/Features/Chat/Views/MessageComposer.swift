@@ -86,7 +86,10 @@ struct MultilineMessageInput: NSViewRepresentable {
             }
         }
 
-        if textView.string != text {
+        // Don't sync `text` into `textView.string` while the user is in the
+        // middle of an IME composition — assigning .string clears marked
+        // text and the user loses the in-flight character.
+        if textView.string != text && !textView.hasMarkedText() {
             textView.string = text
         }
 

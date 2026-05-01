@@ -1,12 +1,9 @@
 import Foundation
 
-/// Input/output modality a model accepts or emits. Raw values match the
-/// strings emitted by models.dev's `modalities.input` / `modalities.output`
-/// so JSON parsing is a direct `init(rawValue:)`.
-///
-/// `allCases` order is the canonical display order used by the UI — keep
-/// `text` first so it sorts naturally when rendered, even though the
-/// capability badge view filters it out.
+/// Raw values match the strings emitted by models.dev's
+/// `modalities.input` / `modalities.output` so parsing is a direct
+/// `init(rawValue:)`. `allCases` order doubles as the UI display order;
+/// reorder cases at your peril.
 enum Modality: String, Codable, CaseIterable, Hashable {
     case text
     case image
@@ -21,9 +18,8 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
     var reasoning: Bool
     var contextWindow: Int?
     var isLive: Bool
-    /// Modalities the model accepts as input. Defaults to `[.text]` for
-    /// live-discovered models (their endpoints don't expose this) and for
-    /// any models.dev entry that omits the field.
+    /// Defaults to `[.text]` for live-discovered models (their endpoints
+    /// don't expose this) and for models.dev entries that omit the field.
     var inputModalities: Set<Modality>
 
     init(
@@ -44,22 +40,21 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
         self.inputModalities = inputModalities
     }
 
-    /// Custom decoder so older cached `ModelInfo` blobs (which predate the
-    /// modality field) decode cleanly with `[.text]` as the default rather
-    /// than failing the whole provider cache load.
     private enum CodingKeys: String, CodingKey {
         case id, name, toolCall, reasoning, contextWindow, isLive
         case inputModalities
     }
 
+    /// Custom decoder so cached blobs from before `inputModalities` was
+    /// added still load — the rest of the fields are required.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try c.decode(String.self, forKey: .id)
         self.name = try c.decode(String.self, forKey: .name)
-        self.toolCall = try c.decodeIfPresent(Bool.self, forKey: .toolCall) ?? true
-        self.reasoning = try c.decodeIfPresent(Bool.self, forKey: .reasoning) ?? false
+        self.toolCall = try c.decode(Bool.self, forKey: .toolCall)
+        self.reasoning = try c.decode(Bool.self, forKey: .reasoning)
         self.contextWindow = try c.decodeIfPresent(Int.self, forKey: .contextWindow)
-        self.isLive = try c.decodeIfPresent(Bool.self, forKey: .isLive) ?? false
+        self.isLive = try c.decode(Bool.self, forKey: .isLive)
         self.inputModalities = try c.decodeIfPresent(Set<Modality>.self, forKey: .inputModalities) ?? [.text]
     }
 }

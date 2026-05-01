@@ -1,26 +1,14 @@
 import SwiftUI
 
-/// One pill rendered by `ModelCapabilityBadges`. The view is dumb — it
-/// just iterates `ModelInfo.capabilityPills` and renders each entry.
-/// Adding a new capability is a one-spot change in `capabilityPills`.
-///
-/// `color` is intentionally a `Color`, not a Codable token — capabilities
-/// are a pure presentation concern and never persisted.
 struct Capability: Identifiable, Hashable {
-    let id: String          // stable key for ForEach diffing
-    let labelKey: String    // L10n key; resolved at render time
+    let id: String
+    let labelKey: String
     let color: Color
 }
 
 extension ModelInfo {
-    /// Ordered list of capability pills the UI should render for this
-    /// model. Single source of truth for "which pills, in what order, in
-    /// what color" — the view layer just iterates this.
-    ///
-    /// Order: reasoning → tools → non-text input modalities (image,
-    /// audio, video). Output modalities are deliberately omitted; almost
-    /// every chat-style model emits text only, so a pill there would be
-    /// noise.
+    /// Output modalities are deliberately omitted — almost every chat
+    /// model emits text only, and a pill there would be noise.
     var capabilityPills: [Capability] {
         var pills: [Capability] = []
         if reasoning {
@@ -57,9 +45,6 @@ extension ModelInfo {
     }
 }
 
-/// Compact row of capability pills shown next to a model in the picker.
-/// Each pill is intentionally tiny (font 9) so the row reads at a glance
-/// without dominating the model name.
 struct ModelCapabilityBadges: View {
     let model: ModelInfo
 

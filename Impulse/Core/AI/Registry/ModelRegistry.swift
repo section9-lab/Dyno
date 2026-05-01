@@ -27,10 +27,9 @@ final class ModelRegistry: ObservableObject {
     @Published var providers: [Provider] = []
     @Published var isLoading = false
 
-    // ModelInfo's custom `init(from:)` defaults missing fields, so adding
-    // `inputModalities` is a forward-compatible schema change — old v1
-    // blobs decode cleanly with `[.text]`. Keep the key on v1; bumping it
-    // would empty the model list for offline users until the next refresh.
+    // Stays on v1: bumping would empty the model list for offline users
+    // until the next refresh. New `ModelInfo` fields use `decodeIfPresent`
+    // so old blobs still load.
     private static let cacheKey = "modelregistry.modelsdev.cache.v1"
     private static let providersCacheKey = "modelregistry.modelsdev.providers.cache.v1"
     private static let customProvidersKey = "modelregistry.custom.providers.v1"
@@ -241,10 +240,9 @@ final class ModelRegistry: ObservableObject {
         .sorted { $0.id < $1.id }
     }
 
-    /// Map raw strings from models.dev (`["text", "image", ...]`) onto the
-    /// `Modality` enum; unknown strings are dropped silently. Empty / nil
-    /// input falls back to `[.text]` so we never persist an empty set
-    /// (which the UI would treat as "no modalities at all").
+    /// Empty / nil falls back to `[.text]` so the UI never sees an empty
+    /// set (which it would treat as "no modalities at all"). Unknown
+    /// strings are dropped silently.
     private static func parseModalities(_ raw: [String]?) -> Set<Modality> {
         guard let raw, !raw.isEmpty else { return [.text] }
         let parsed = raw.compactMap(Modality.init(rawValue:))
