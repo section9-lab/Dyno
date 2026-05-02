@@ -130,6 +130,7 @@
 "kanban.hide_board" = "Ocultar tablero";
 "kanban.link_current_session" = "Vincular sesión actual";
 "kanban.no_project_selected" = "Ningún proyecto seleccionado";
+"kanban.all_projects" = "Todos los proyectos";
 "kanban.one_session" = "1 sesión";
 "kanban.priority" = "Prioridad";
 "kanban.priority.high" = "Alta";

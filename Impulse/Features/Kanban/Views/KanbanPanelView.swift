@@ -2,11 +2,20 @@ import AppKit
 import SwiftUI
 
 struct KanbanPanelView: View {
-    let project: StoredProject?
+    /// All projects available — used to populate the picker. The header
+    /// picker drives `selectedProjectPath`; tasks/sessions are filtered by
+    /// the parent based on that selection.
+    let projects: [StoredProject]
+    /// Which project the kanban currently scopes to. `nil` means "all
+    /// projects" — the default aggregate view.
+    @Binding var selectedProjectPath: String?
     let selectedSession: StoredSession?
+    /// All tasks across the workspace. The view filters by
+    /// `selectedProjectPath` itself so the parent doesn't have to recompute
+    /// when the picker changes.
     let tasks: [StoredKanbanTask]
-    /// All sessions for the project — used to look up titles for primary
-    /// session links inside cards. Filtered by the parent.
+    /// Sessions for the currently-scoped project (or all sessions when in
+    /// aggregate mode). Used to look up titles for primary-session links.
     let projectSessions: [StoredSession]
     var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
     var onMoveTask: (StoredKanbanTask, KanbanTaskStatus) -> Void
@@ -15,47 +24,139 @@ struct KanbanPanelView: View {
 
     private let columns = KanbanTaskStatus.allCases
 
+    /// In aggregate mode, the composer needs to know which project a new
+    /// task belongs to. Default to the first available project; user can
+    /// switch via the composer's own picker (kept inline to avoid extra UI
+    /// when only one project exists).
+    @State private var composerProjectPath: String?
+
+    private var scopedProject: StoredProject? {
+        guard let path = selectedProjectPath else { return nil }
+        return projects.first(where: { $0.path == path })
+    }
+
+    private var scopedTasks: [StoredKanbanTask] {
+        guard let path = selectedProjectPath else { return tasks }
+        return tasks.filter { $0.projectPath == path }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             header
             Divider().opacity(0.5)
 
-            if let project {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(columns) { status in
-                        KanbanColumnView(
-                            status: status,
-                            tasks: tasks.filter { $0.status == status },
-                            project: project,
-                            selectedSession: selectedSession,
-                            projectSessions: projectSessions,
-                            onCreateTask: onCreateTask,
-                            onMoveTask: onMoveTask,
-                            onLinkSelectedSession: onLinkSelectedSession,
-                            onDeleteTask: onDeleteTask
-                        )
-                    }
+            HStack(alignment: .top, spacing: 16) {
+                ForEach(columns) { status in
+                    KanbanColumnView(
+                        status: status,
+                        tasks: scopedTasks.filter { $0.status == status },
+                        showProjectName: selectedProjectPath == nil,
+                        projectsByPath: projectsByPath,
+                        composerProjectPath: effectiveComposerProjectPath,
+                        canCompose: effectiveComposerProjectPath != nil,
+                        selectedSession: selectedSession,
+                        projectSessions: projectSessions,
+                        onCreateTask: { title, priority, statusValue in
+                            onCreateTask(title, priority, statusValue)
+                        },
+                        onMoveTask: onMoveTask,
+                        onLinkSelectedSession: onLinkSelectedSession,
+                        onDeleteTask: onDeleteTask
+                    )
                 }
-            } else {
-                emptyState
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            if composerProjectPath == nil {
+                composerProjectPath = selectedProjectPath ?? projects.first?.path
+            }
+        }
+        .onChange(of: selectedProjectPath) { _, newValue in
+            if let newValue {
+                composerProjectPath = newValue
+            }
+        }
+    }
+
+    private var projectsByPath: [String: StoredProject] {
+        Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
+    }
+
+    /// Path used by the composer when creating a task. In aggregate mode we
+    /// fall back to the first project so the user can still add tasks
+    /// without first switching scope.
+    private var effectiveComposerProjectPath: String? {
+        if let selectedProjectPath {
+            return selectedProjectPath
+        }
+        return composerProjectPath ?? projects.first?.path
     }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
-            Text(project?.displayName ?? L10n.tr("kanban.no_project_selected"))
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(.primary)
+            projectPicker
 
             Spacer(minLength: 12)
 
             HStack(spacing: 16) {
-                metricLabel(value: tasks.count, label: "kanban.tasks")
+                metricLabel(value: scopedTasks.count, label: "kanban.tasks")
                 metricLabel(value: linkedSessionCount, label: "kanban.sessions")
             }
         }
+    }
+
+    private var projectPicker: some View {
+        Menu {
+            Button {
+                selectedProjectPath = nil
+            } label: {
+                HStack {
+                    Text("kanban.all_projects")
+                    if selectedProjectPath == nil {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+
+            if !projects.isEmpty {
+                Divider()
+                ForEach(projects, id: \.path) { project in
+                    Button {
+                        selectedProjectPath = project.path
+                    } label: {
+                        HStack {
+                            Text(project.displayName)
+                            if selectedProjectPath == project.path {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(headerTitle)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.primary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    private var headerTitle: String {
+        if let scopedProject {
+            return scopedProject.displayName
+        }
+        return L10n.tr("kanban.all_projects")
     }
 
     private func metricLabel(value: Int, label: LocalizedStringKey) -> some View {
@@ -69,34 +170,20 @@ struct KanbanPanelView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(alignment: .center, spacing: 10) {
-            Spacer()
-            Image(systemName: "rectangle.3.group")
-                .font(.system(size: 26, weight: .light))
-                .foregroundColor(.secondary.opacity(0.7))
-            Text("kanban.select_project_to_open")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.primary.opacity(0.85))
-            Text("kanban.tasks_organized_description")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var linkedSessionCount: Int {
-        Set(tasks.flatMap(\.linkedSessionIDs)).count
+        Set(scopedTasks.flatMap(\.linkedSessionIDs)).count
     }
 }
 
 private struct KanbanColumnView: View {
     let status: KanbanTaskStatus
     let tasks: [StoredKanbanTask]
-    let project: StoredProject
+    let showProjectName: Bool
+    let projectsByPath: [String: StoredProject]
+    /// Project path the inline composer will create tasks under. May be
+    /// `nil` when there are no projects at all.
+    let composerProjectPath: String?
+    let canCompose: Bool
     let selectedSession: StoredSession?
     let projectSessions: [StoredSession]
     var onCreateTask: (String, KanbanTaskPriority, KanbanTaskStatus) -> Void
@@ -115,6 +202,7 @@ private struct KanbanColumnView: View {
                     ForEach(tasks) { task in
                         KanbanTaskCardView(
                             task: task,
+                            projectName: showProjectName ? projectsByPath[task.projectPath]?.displayName : nil,
                             projectSessions: projectSessions,
                             selectedSession: selectedSession,
                             onLinkSelectedSession: onLinkSelectedSession,
@@ -123,7 +211,9 @@ private struct KanbanColumnView: View {
                         .draggable(KanbanTaskDragPayload(id: task.id))
                     }
 
-                    KanbanColumnComposerView(status: status, onCreateTask: onCreateTask)
+                    if canCompose {
+                        KanbanColumnComposerView(status: status, onCreateTask: onCreateTask)
+                    }
                 }
                 .padding(.bottom, 4)
             }
@@ -292,6 +382,10 @@ private struct KanbanColumnComposerView: View {
 
 private struct KanbanTaskCardView: View {
     let task: StoredKanbanTask
+    /// Non-nil only in aggregate ("all projects") mode — shown as a small
+    /// badge on the card so the user can tell which project a task belongs
+    /// to without switching scope.
+    let projectName: String?
     let projectSessions: [StoredSession]
     let selectedSession: StoredSession?
     var onLinkSelectedSession: (StoredKanbanTask) -> Void
@@ -326,6 +420,14 @@ private struct KanbanTaskCardView: View {
             }
 
             HStack(spacing: 10) {
+                if let projectName {
+                    Label(projectName, systemImage: "folder")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(.secondary)
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                }
+
                 if task.priority != .medium {
                     Text(task.priority.localizedTitle)
                         .font(.system(size: 10, weight: .medium))

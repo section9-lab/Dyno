@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @ObservedObject var viewModel: GeneralSettingsViewModel
+    @StateObject private var permissions = ScreenCapturePermissionManager.shared
 
     private let contentWidth: CGFloat = 560
     private let menuControlWidth: CGFloat = 220
@@ -73,7 +74,7 @@ struct GeneralSettingsView: View {
             Text("settings.general.screen_capture")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
-            
+
             Toggle(isOn: $viewModel.ocrEnabled) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("settings.general.auto_ocr")
@@ -83,7 +84,58 @@ struct GeneralSettingsView: View {
                 }
             }
             .toggleStyle(.switch)
+            .onChange(of: viewModel.ocrEnabled) { _, newValue in
+                if newValue {
+                    Task { await permissions.requestPermissionIfNeeded() }
+                }
+            }
+
+            if viewModel.ocrEnabled, permissions.isGranted == false {
+                permissionBanner
+            }
         }
+        .task {
+            await permissions.probe()
+        }
+    }
+
+    private var permissionBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
+                .font(.system(size: 14))
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("settings.general.screen_capture.missing_permission")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("settings.general.screen_capture.missing_permission.description")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Button("settings.general.screen_capture.open_settings") {
+                        permissions.openSystemSettings()
+                    }
+                    .controlSize(.small)
+
+                    Button("settings.general.screen_capture.recheck") {
+                        Task { await permissions.probe() }
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.orange.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.orange.opacity(0.30), lineWidth: 1)
+        )
     }
     
     private var voiceSection: some View {
