@@ -191,7 +191,9 @@ struct ContentView: View {
                 isResponding: focusedSessionAgent?.isResponding ?? false,
                 onSelectProject: { vm.selectProject($0.path, agent: agent) },
                 onSend: sendMessage,
-                sessionAgent: focusedSessionAgent
+                sessionAgent: focusedSessionAgent,
+                agent: agent,
+                onOpenSettings: { vm.showConfigSheet = true }
             )
         }
     }

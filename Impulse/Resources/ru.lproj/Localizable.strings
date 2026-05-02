@@ -35,6 +35,9 @@
 "settings.general.voice_shortcut.description" = "Удерживайте клавишу, чтобы говорить, и отпустите для отправки.";
 "settings.model.title" = "Настройки модели";
 "settings.model.connection" = "Подключение модели";
+"settings.model.favorites_hint" = "Установите флажок рядом с моделью ниже, чтобы добавить её сюда.";
+"settings.model.no_favorites" = "Модели ещё не выбраны";
+"settings.model.manage_favorites" = "Управление моделями в настройках…";
 "settings.model.provider" = "Поставщик модели";
 "settings.model.select_provider" = "Выбрать поставщика";
 "settings.model.add_custom_provider" = "Добавить своего поставщика";

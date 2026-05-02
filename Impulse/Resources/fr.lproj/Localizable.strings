@@ -35,6 +35,9 @@
 "settings.general.voice_shortcut.description" = "Maintenez le raccourci pour parler, puis relâchez pour envoyer.";
 "settings.model.title" = "Réglages du modèle";
 "settings.model.connection" = "Connexion au modèle";
+"settings.model.favorites_hint" = "Cochez la case d'un modèle ci-dessous pour l'ajouter ici.";
+"settings.model.no_favorites" = "Aucun modèle sélectionné";
+"settings.model.manage_favorites" = "Gérer les modèles dans Réglages…";
 "settings.model.provider" = "Fournisseur du modèle";
 "settings.model.select_provider" = "Sélectionner un fournisseur";
 "settings.model.add_custom_provider" = "Ajouter un fournisseur personnalisé";

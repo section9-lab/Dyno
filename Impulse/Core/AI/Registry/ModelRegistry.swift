@@ -26,6 +26,7 @@ final class ModelRegistry: ObservableObject {
 
     @Published var providers: [Provider] = []
     @Published var isLoading = false
+    @Published var favorites: [FavoriteModelRef] = []
 
     // Stays on v1: bumping would empty the model list for offline users
     // until the next refresh. New `ModelInfo` fields use `decodeIfPresent`
@@ -34,9 +35,11 @@ final class ModelRegistry: ObservableObject {
     private static let providersCacheKey = "modelregistry.modelsdev.providers.cache.v1"
     private static let customProvidersKey = "modelregistry.custom.providers.v1"
     private static let providerApiKeysKey = "modelregistry.apikeys.v1"
+    private static let favoritesKey = "modelregistry.favorites.v1"
 
     private init() {
         loadProviders()
+        favorites = loadFavorites()
     }
 
     // MARK: - Public API
@@ -99,10 +102,46 @@ final class ModelRegistry: ObservableObject {
     func removeCustomProvider(_ providerId: String) {
         providers.removeAll { $0.id == providerId && $0.isCustom }
         saveCustomProviders()
+        // Drop any favorites that referenced this provider so the chat
+        // switcher doesn't show stale entries.
+        let before = favorites.count
+        favorites.removeAll { $0.providerId == providerId }
+        if favorites.count != before { saveFavorites() }
     }
 
     func provider(for id: String) -> Provider? {
         providers.first { $0.id == id }
+    }
+
+    // MARK: - Favorites
+
+    func isFavorite(providerId: String, modelId: String) -> Bool {
+        favorites.contains(FavoriteModelRef(providerId: providerId, modelId: modelId))
+    }
+
+    func toggleFavorite(providerId: String, modelId: String) {
+        let ref = FavoriteModelRef(providerId: providerId, modelId: modelId)
+        if let idx = favorites.firstIndex(of: ref) {
+            favorites.remove(at: idx)
+        } else {
+            favorites.append(ref)
+        }
+        saveFavorites()
+    }
+
+    /// Resolved (provider, model) pairs for currently-favorited refs.
+    /// Refs that no longer match a known provider/model are silently dropped
+    /// so the UI never shows ghosts.
+    func favoriteModels() -> [(provider: Provider, model: ModelInfo)] {
+        favorites.compactMap { ref in
+            guard let provider = providers.first(where: { $0.id == ref.providerId }) else { return nil }
+            // Match against catalog or live-discovered. If neither, synthesize a
+            // bare ModelInfo so the user still sees their pick.
+            if let model = provider.models.first(where: { $0.id == ref.modelId }) {
+                return (provider, model)
+            }
+            return (provider, ModelInfo(id: ref.modelId, name: ref.modelId, toolCall: true, isLive: false))
+        }
     }
 
     // MARK: - Load
@@ -324,6 +363,19 @@ final class ModelRegistry: ObservableObject {
         }
         if let data = try? JSONEncoder().encode(keys) {
             UserDefaults.standard.set(data, forKey: Self.providerApiKeysKey)
+        }
+    }
+
+    // MARK: - Favorites persistence
+
+    private func loadFavorites() -> [FavoriteModelRef] {
+        guard let data = UserDefaults.standard.data(forKey: Self.favoritesKey) else { return [] }
+        return (try? JSONDecoder().decode([FavoriteModelRef].self, from: data)) ?? []
+    }
+
+    private func saveFavorites() {
+        if let data = try? JSONEncoder().encode(favorites) {
+            UserDefaults.standard.set(data, forKey: Self.favoritesKey)
         }
     }
 }
