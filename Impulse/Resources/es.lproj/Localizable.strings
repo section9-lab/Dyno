@@ -60,6 +60,7 @@
 "settings.model.cap.video" = "Vídeo";
 "settings.model.name" = "Nombre";
 "settings.model.api_key_optional" = "API Key (opcional)";
+"settings.model.model_optional" = "Modelo (opcional)";
 "settings.files.title" = "Ajustes de archivos";
 "settings.files.data_directory" = "Directorio de datos de Impulse";
 "settings.files.storage_description" = "Las sesiones, skills y memoria futura de Impulse se guardan aquí, no ligadas al directorio del proyecto.";

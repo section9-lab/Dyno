@@ -61,6 +61,7 @@
 "settings.model.cap.video" = "Video";
 "settings.model.name" = "Name";
 "settings.model.api_key_optional" = "API Key (optional)";
+"settings.model.model_optional" = "Model (optional)";
 "settings.files.title" = "File Settings";
 "settings.files.data_directory" = "Impulse Data Directory";
 "settings.files.storage_description" = "Impulse sessions, skills, and future memory are stored here instead of being tied to the project directory.";
