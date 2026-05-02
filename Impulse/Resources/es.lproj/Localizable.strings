@@ -40,6 +40,9 @@
 "settings.general.voice_shortcut.description" = "Mantén pulsado el atajo para hablar y suéltalo para enviar.";
 "settings.model.title" = "Ajustes del modelo";
 "settings.model.connection" = "Conexión del modelo";
+"settings.model.favorites_hint" = "Marca la casilla junto a un modelo abajo para añadirlo aquí.";
+"settings.model.no_favorites" = "Ningún modelo seleccionado";
+"settings.model.manage_favorites" = "Gestionar modelos en Ajustes…";
 "settings.model.provider" = "Proveedor del modelo";
 "settings.model.select_provider" = "Seleccionar proveedor";
 "settings.model.add_custom_provider" = "Añadir proveedor personalizado";

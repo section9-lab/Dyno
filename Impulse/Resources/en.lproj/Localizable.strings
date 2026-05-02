@@ -42,6 +42,9 @@
 "settings.general.voice_shortcut.description" = "Hold the shortcut to speak, then release to send.";
 "settings.model.title" = "Model Settings";
 "settings.model.connection" = "Model Connection";
+"settings.model.favorites_hint" = "Tick the checkbox next to a model below to add it here.";
+"settings.model.no_favorites" = "No models selected yet";
+"settings.model.manage_favorites" = "Manage models in Settings…";
 "settings.model.provider" = "Model Provider";
 "settings.model.select_provider" = "Select Provider";
 "settings.model.add_custom_provider" = "Add Custom Provider";

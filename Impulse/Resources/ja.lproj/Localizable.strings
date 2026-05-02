@@ -40,6 +40,9 @@
 "settings.general.voice_shortcut.description" = "ショートカットを押したまま話し、離すと送信します。";
 "settings.model.title" = "モデル設定";
 "settings.model.connection" = "モデル接続";
+"settings.model.favorites_hint" = "下のモデルのチェックボックスをオンにして追加します。";
+"settings.model.no_favorites" = "選択されたモデルはありません";
+"settings.model.manage_favorites" = "設定でモデルを管理…";
 "settings.model.provider" = "モデルプロバイダー";
 "settings.model.select_provider" = "プロバイダーを選択";
 "settings.model.add_custom_provider" = "カスタムプロバイダーを追加";

@@ -3,6 +3,7 @@ import SwiftUI
 struct ModelSettingsView: View {
     @ObservedObject var agent: AgentManager
     @ObservedObject var viewModel: ModelSettingsViewModel
+    @ObservedObject private var registry = ModelRegistry.shared
     @State private var didRequestNetworkProviders = false
     @State private var providerOptionsProviderId: String?
 
@@ -45,9 +46,11 @@ struct ModelSettingsView: View {
         SettingsCard(title: "settings.model.connection") {
             VStack(alignment: .leading, spacing: 14) {
                 connectionStatusRow
-                
+
+                favoritesChipsRow
+
                 Divider()
-                
+
                 providerSection
             }
         }
@@ -55,7 +58,7 @@ struct ModelSettingsView: View {
             addCustomProviderSheet
         }
     }
-    
+
     private var connectionStatusRow: some View {
         HStack(spacing: 8) {
             Circle()
@@ -69,6 +72,56 @@ struct ModelSettingsView: View {
                     .controlSize(.small)
             }
         }
+    }
+
+    @ViewBuilder
+    private var favoritesChipsRow: some View {
+        let favorites = agent.registry.favoriteModels()
+        if favorites.isEmpty {
+            Text("settings.model.favorites_hint")
+                .font(.system(size: 11.5))
+                .foregroundColor(.secondary)
+        } else {
+            FavoritesFlow(spacing: 6) {
+                ForEach(Array(favorites.enumerated()), id: \.offset) { _, entry in
+                    favoriteChip(provider: entry.provider, model: entry.model)
+                }
+            }
+        }
+    }
+
+    private func favoriteChip(provider: Provider, model: ModelInfo) -> some View {
+        let isCurrent = provider.id == agent.config.providerId && model.id == agent.config.modelId
+        return HStack(spacing: 6) {
+            Circle()
+                .fill(isCurrent ? Color.accentColor : Color.secondary.opacity(0.55))
+                .frame(width: 6, height: 6)
+            Text(provider.name)
+                .font(.system(size: 10.5))
+                .foregroundColor(.secondary)
+            Text(model.name)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+            Button {
+                agent.registry.toggleFavorite(providerId: provider.id, modelId: model.id)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(isCurrent ? Color.accentColor.opacity(0.14) : Color.black.opacity(0.06))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(isCurrent ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
     }
     
     private var providerSection: some View {
@@ -429,21 +482,31 @@ struct ModelSettingsView: View {
             ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(models) { model in
+                        let favorited = agent.registry.isFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
                         Button {
                             viewModel.draftModelId = model.id
                         } label: {
                             HStack(spacing: 8) {
+                                Button {
+                                    agent.registry.toggleFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
+                                } label: {
+                                    Image(systemName: favorited ? "checkmark.square.fill" : "square")
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundColor(favorited ? .accentColor : .secondary)
+                                }
+                                .buttonStyle(.plain)
+
                                 if live {
                                     Circle().fill(.green).frame(width: 6, height: 6)
                                 } else {
                                     Circle().fill(.gray.opacity(0.3)).frame(width: 6, height: 6)
                                 }
-                                
+
                                 Text(model.name)
                                     .font(.system(size: 13))
                                     .foregroundColor(live ? .primary : .secondary)
                                     .lineLimit(1)
-                                
+
                                 Spacer()
 
                                 ModelCapabilityBadges(model: model)
@@ -453,7 +516,7 @@ struct ModelSettingsView: View {
                                         .font(.system(size: 10))
                                         .foregroundColor(.secondary)
                                 }
-                                
+
                                 if model.id == viewModel.draftModelId {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 11, weight: .semibold))
@@ -636,4 +699,53 @@ struct ModelSettingsView: View {
 #Preview {
     ModelSettingsView(agent: AgentManager.shared, viewModel: ModelSettingsViewModel())
         .frame(width: 600)
+}
+
+/// Minimal flow layout: lays children left-to-right and wraps to the next
+/// line when the current row exceeds the proposed width. Used for the
+/// favorites chip strip in the connection card.
+struct FavoritesFlow: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if rowWidth + size.width > maxWidth, rowWidth > 0 {
+                totalHeight += rowHeight + spacing
+                totalWidth = max(totalWidth, rowWidth - spacing)
+                rowWidth = 0
+                rowHeight = 0
+            }
+            rowWidth += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        totalHeight += rowHeight
+        totalWidth = max(totalWidth, rowWidth - spacing)
+        return CGSize(width: totalWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxWidth = bounds.width
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.minX + maxWidth, x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
 }

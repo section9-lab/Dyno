@@ -14,6 +14,8 @@ struct InputBar: View {
     /// nil when no session is selected. Tracks context usage / compact action
     /// for the focused session only.
     var sessionAgent: SessionAgent?
+    @ObservedObject var agent: AgentManager
+    var onOpenSettings: () -> Void
 
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var micPulse = false
@@ -93,6 +95,8 @@ struct InputBar: View {
                     }
 
                     Spacer()
+
+                    ChatModelSwitcher(agent: agent, onOpenSettings: onOpenSettings)
 
                     micButton
 
