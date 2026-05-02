@@ -384,6 +384,17 @@ struct ModelSettingsView: View {
 
             // Test model row
             HStack(spacing: 10) {
+                Button("common.cancel") {
+                    providerOptionsProviderId = nil
+                }
+                .buttonStyle(.bordered)
+
+                Button("common.save") {
+                    saveSelectedModel()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
+
                 if isTesting {
                     ProgressView().controlSize(.small)
                     Text("测试中…").font(.system(size: 12)).foregroundColor(.secondary)
@@ -542,6 +553,18 @@ struct ModelSettingsView: View {
         }
     }
     
+    private func saveSelectedModel() {
+        var newConfig = agent.config
+        newConfig.providerId = viewModel.selectedProviderId
+        newConfig.baseURL = viewModel.draftBaseURL
+        newConfig.apiKey = viewModel.draftApiKey
+        newConfig.modelId = viewModel.draftModelId
+        Task {
+            await agent.applyConfig(newConfig)
+            providerOptionsProviderId = nil
+        }
+    }
+
     private func testModel() {
         guard !viewModel.draftModelId.isEmpty, !viewModel.draftBaseURL.isEmpty else { return }
         isTesting = true
