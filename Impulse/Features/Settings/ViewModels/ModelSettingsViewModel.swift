@@ -12,6 +12,7 @@ class ModelSettingsViewModel: ObservableObject {
     @Published var customName: String
     @Published var customBaseURL: String
     @Published var customApiKey: String
+    @Published var customModelId: String
     @Published var visibleProviderCount: Int
 
     init(
@@ -25,6 +26,7 @@ class ModelSettingsViewModel: ObservableObject {
         customName: String = "",
         customBaseURL: String = "",
         customApiKey: String = "",
+        customModelId: String = "",
         visibleProviderCount: Int = 5
     ) {
         self.selectedProviderId = selectedProviderId
@@ -37,6 +39,7 @@ class ModelSettingsViewModel: ObservableObject {
         self.customName = customName
         self.customBaseURL = customBaseURL
         self.customApiKey = customApiKey
+        self.customModelId = customModelId
         self.visibleProviderCount = visibleProviderCount
     }
 

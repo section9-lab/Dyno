@@ -472,8 +472,9 @@ struct ModelSettingsView: View {
                 labeledTextField("settings.model.name", text: $viewModel.customName)
                 labeledTextField("Base URL", text: $viewModel.customBaseURL)
                 labeledTextField("settings.model.api_key_optional", text: $viewModel.customApiKey)
+                labeledTextField("settings.model.model_optional", text: $viewModel.customModelId)
             }
-            
+
             HStack {
                 Button("common.cancel") { viewModel.showCustomSheet = false }
                 Spacer()
@@ -481,13 +482,14 @@ struct ModelSettingsView: View {
                     let name = viewModel.customName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let url = viewModel.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty, !url.isEmpty else { return }
-                    agent.registry.addCustomProvider(name: name, baseURL: url, apiKey: viewModel.customApiKey)
+                    agent.registry.addCustomProvider(name: name, baseURL: url, apiKey: viewModel.customApiKey, modelId: viewModel.customModelId)
                     if let provider = agent.registry.providers.last(where: { $0.isCustom && $0.name == name && $0.baseURL == url }) {
                         selectProvider(provider)
                     }
                     viewModel.customName = ""
                     viewModel.customBaseURL = ""
                     viewModel.customApiKey = ""
+                    viewModel.customModelId = ""
                     viewModel.showCustomSheet = false
                 }
                 .disabled(!viewModel.customName.isNotBlank || !viewModel.customBaseURL.isNotBlank)

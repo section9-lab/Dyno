@@ -61,6 +61,7 @@
 "settings.model.cap.video" = "视频";
 "settings.model.name" = "名称";
 "settings.model.api_key_optional" = "API Key（可选）";
+"settings.model.model_optional" = "模型（可选）";
 "settings.files.title" = "文件设置";
 "settings.files.data_directory" = "Impulse 数据目录";
 "settings.files.storage_description" = "Impulse 的会话、skills 和后续 memory 都放在这里，不再跟项目目录绑定。";

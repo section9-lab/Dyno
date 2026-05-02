@@ -60,6 +60,7 @@
 "settings.model.cap.video" = "動画";
 "settings.model.name" = "名前";
 "settings.model.api_key_optional" = "API Key（任意）";
+"settings.model.model_optional" = "モデル（任意）";
 "settings.files.title" = "ファイル設定";
 "settings.files.data_directory" = "Impulse データディレクトリ";
 "settings.files.storage_description" = "Impulse のセッション、skills、今後の memory はここに保存され、プロジェクトディレクトリには紐づきません。";

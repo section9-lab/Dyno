@@ -88,9 +88,13 @@ final class ModelRegistry: ObservableObject {
         saveApiKeys()
     }
 
-    func addCustomProvider(name: String, baseURL: String, apiKey: String) {
+    func addCustomProvider(name: String, baseURL: String, apiKey: String, modelId: String = "") {
         let id = "custom-\(UUID().uuidString.prefix(8).lowercased())"
-        let provider = Provider(id: id, name: name, baseURL: baseURL, apiKey: apiKey, isCustom: true)
+        var provider = Provider(id: id, name: name, baseURL: baseURL, apiKey: apiKey, isCustom: true)
+        let trimmedModel = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedModel.isEmpty {
+            provider.models = [ModelInfo(id: trimmedModel, name: trimmedModel, isLive: true)]
+        }
         providers.append(provider)
         saveCustomProviders()
         saveApiKeys()
