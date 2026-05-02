@@ -115,7 +115,7 @@ private struct LiveReasoningPane: View {
                     Image(systemName: "brain")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.secondary)
-                    Text("chat.thinking")
+                    Text("Thinking")
                         .chatFont(.body)
                         .foregroundColor(.secondary)
                     Image(systemName: "chevron.down")
