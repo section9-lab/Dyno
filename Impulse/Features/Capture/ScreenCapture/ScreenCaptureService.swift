@@ -21,7 +21,12 @@ final class ScreenCaptureService: @unchecked Sendable {
     private let permissionManager = ScreenCapturePermissionManager.shared
 
     func captureScreen(promptIfNeeded: Bool = true) async throws -> NSImage {
-        let hasPermission = permissionManager.ensurePermissionForCapture(promptIfNeeded: promptIfNeeded)
+        let hasPermission: Bool
+        if promptIfNeeded {
+            hasPermission = await permissionManager.requestPermissionIfNeeded()
+        } else {
+            hasPermission = await permissionManager.probe()
+        }
 
         guard hasPermission else {
             throw CaptureError.permissionDenied
@@ -42,16 +47,10 @@ final class ScreenCaptureService: @unchecked Sendable {
 
             let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
 
-            await MainActor.run {
-                permissionManager.updatePermissionState(granted: true)
-            }
-
             return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
         } catch {
             if isLikelyPermissionError(error) {
-                await MainActor.run {
-                    permissionManager.updatePermissionState(granted: false)
-                }
+                _ = await permissionManager.probe()
                 throw CaptureError.permissionDenied
             }
             throw error

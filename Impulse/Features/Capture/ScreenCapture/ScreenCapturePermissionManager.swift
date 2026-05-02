@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Combine
 import ScreenCaptureKit
 import CoreGraphics
@@ -8,74 +9,106 @@ final class ScreenCapturePermissionManager: ObservableObject {
     static let shared = ScreenCapturePermissionManager()
 
     @Published private(set) var isGranted: Bool?
-    
-    private var isChecking = false
-    private var lastCheckTime: Date?
-    private var hasRequestedThisLaunch = false
 
-    private init() {}
+    private var isProbing = false
+    private var lastProbeTime: Date?
+    private var didRequestThisLaunch = false
+    private var didInstallActivationObserver = false
 
-    func checkPermissionIfNeeded() {
-        // Only check if we haven't checked or if last check was more than 5 seconds ago
-        if let last = lastCheckTime, Date().timeIntervalSince(last) < 5.0 {
-            return
-        }
-        
-        guard !isChecking else { return }
-        checkPermission()
+    private init() {
+        installActivationObserver()
     }
 
-    func checkPermission() {
-        isChecking = true
-        defer {
-            isChecking = false
-            lastCheckTime = Date()
-        }
-
-        // 仅做静默检查，避免在后台轮询时触发不稳定的请求行为。
-        let granted = CGPreflightScreenCaptureAccess()
-        print("📸 [Permission] Preflight Check: \(granted)")
-        isGranted = granted
+    /// Quick, non-authoritative hint. Use only as a fast path; truth comes from `probe()`.
+    var preflightHint: Bool {
+        CGPreflightScreenCaptureAccess()
     }
 
+    /// Authoritative permission check. Tries the real ScreenCaptureKit API which is the only
+    /// reliable signal — `CGPreflightScreenCaptureAccess` frequently disagrees with the actual
+    /// TCC state, especially for Xcode DerivedData builds whose cdhash changes on rebuild.
     @discardableResult
-    func ensurePermissionForCapture(promptIfNeeded: Bool = true) -> Bool {
-        // 每次触发截图时都先静默检查一次。
-        checkPermission()
-        if isGranted == true {
-            return true
+    func probe() async -> Bool {
+        if isProbing {
+            return isGranted ?? false
+        }
+        isProbing = true
+        defer {
+            isProbing = false
+            lastProbeTime = Date()
         }
 
-        guard promptIfNeeded else {
-            return false
+        let granted: Bool
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            granted = true
+        } catch {
+            granted = false
         }
 
-        // 本次启动只主动请求一次，避免后台周期任务反复弹系统提示。
-        guard !hasRequestedThisLaunch else {
-            print("📸 [Permission] Already requested in this launch, skip prompting")
-            return false
-        }
-
-        hasRequestedThisLaunch = true
-        let granted = CGRequestScreenCaptureAccess()
-        print("📸 [Permission] On-demand request: \(granted)")
+        let preflight = CGPreflightScreenCaptureAccess()
+        print("📸 [Permission] Probe granted=\(granted) preflight=\(preflight)")
         isGranted = granted
-        lastCheckTime = Date()
         return granted
     }
 
-    func requestPermission() {
-        _ = ensurePermissionForCapture(promptIfNeeded: true)
+    func probeIfStale(maxAge: TimeInterval = 5.0) async {
+        if let last = lastProbeTime, Date().timeIntervalSince(last) < maxAge {
+            return
+        }
+        _ = await probe()
     }
 
-    func updatePermissionState(granted: Bool) {
-        isGranted = granted
-        lastCheckTime = Date()
+    /// Trigger the system permission prompt at most once per launch, then probe.
+    /// Returns the post-prompt permission state.
+    @discardableResult
+    func requestPermissionIfNeeded() async -> Bool {
+        if await probe() {
+            return true
+        }
+
+        if !didRequestThisLaunch {
+            didRequestThisLaunch = true
+            // CGRequestScreenCaptureAccess only shows the system prompt the first time a given
+            // binary asks. Subsequent launches (or rebuilt binaries with stale TCC entries)
+            // return false silently — that's why we always fall back to the settings deep link.
+            let immediate = CGRequestScreenCaptureAccess()
+            print("📸 [Permission] CGRequestScreenCaptureAccess immediate=\(immediate)")
+        }
+
+        return await probe()
+    }
+
+    /// Opens System Settings → Privacy & Security → Screen Recording.
+    /// Used as the always-available fallback when TCC silently denies.
+    func openSystemSettings() {
+        let urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     func resetCache() {
         isGranted = nil
-        lastCheckTime = nil
-        hasRequestedThisLaunch = false
+        lastProbeTime = nil
+        didRequestThisLaunch = false
+    }
+
+    // MARK: - App activation re-probe
+
+    private func installActivationObserver() {
+        guard !didInstallActivationObserver else { return }
+        didInstallActivationObserver = true
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                _ = await self.probe()
+            }
+        }
     }
 }

@@ -38,6 +38,10 @@
 "settings.general.screen_capture" = "屏幕捕获";
 "settings.general.auto_ocr" = "自动 OCR 截屏";
 "settings.general.auto_ocr.description" = "在系统空闲时自动捕获屏幕并进行 OCR 识别。";
+"settings.general.screen_capture.missing_permission" = "缺少屏幕录制权限";
+"settings.general.screen_capture.missing_permission.description" = "macOS 未授予 Impulse 屏幕录制权限。如已在系统设置中开启仍无效，可能是签名变化导致的 TCC 缓存失效——请关掉再重新打开开关，或将 App 拖入 /Applications 后重试。";
+"settings.general.screen_capture.open_settings" = "打开系统设置";
+"settings.general.screen_capture.recheck" = "重新检查";
 "settings.general.voice_shortcut" = "语音输入快捷键";
 "settings.general.voice_shortcut.description" = "按住快捷键说话，松开发送。";
 "settings.model.title" = "模型设置";
