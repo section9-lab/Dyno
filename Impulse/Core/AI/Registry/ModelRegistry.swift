@@ -133,6 +133,18 @@ final class ModelRegistry: ObservableObject {
         saveFavorites()
     }
 
+    func addFavorite(providerId: String, modelId: String) {
+        let ref = FavoriteModelRef(providerId: providerId, modelId: modelId)
+        guard !favorites.contains(ref) else { return }
+        favorites.append(ref)
+        saveFavorites()
+    }
+
+    func removeFavorite(providerId: String, modelId: String) {
+        favorites.removeAll { $0.providerId == providerId && $0.modelId == modelId }
+        saveFavorites()
+    }
+
     /// Resolved (provider, model) pairs for currently-favorited refs.
     /// Refs that no longer match a known provider/model are silently dropped
     /// so the UI never shows ghosts.

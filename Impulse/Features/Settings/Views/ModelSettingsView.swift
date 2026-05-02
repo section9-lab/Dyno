@@ -9,10 +9,22 @@ struct ModelSettingsView: View {
 
     @State private var isTesting = false
     @State private var testResult: ModelTestResult? = nil
+    @State private var favoriteRowStates: [String: FavoriteRowState] = [:]
 
     private enum ModelTestResult {
         case success(latency: String)
         case failure(message: String)
+    }
+
+    private enum FavoriteRowState {
+        case testing
+        case success(latency: String)
+        case failure(message: String)
+
+        var isTesting: Bool {
+            if case .testing = self { return true }
+            return false
+        }
     }
 
     private let fieldWidth: CGFloat = 560
@@ -49,6 +61,11 @@ struct ModelSettingsView: View {
 
                 favoritesChipsRow
 
+                if !agent.registry.favorites.isEmpty {
+                    Divider()
+                    favoritesSection
+                }
+
                 Divider()
 
                 providerSection
@@ -56,6 +73,144 @@ struct ModelSettingsView: View {
         }
         .sheet(isPresented: $viewModel.showCustomSheet) {
             addCustomProviderSheet
+        }
+    }
+
+    private var favoritesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("已连接模型")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 4) {
+                ForEach(Array(agent.registry.favoriteModels().enumerated()), id: \.offset) { _, entry in
+                    favoriteRow(provider: entry.provider, model: entry.model)
+                }
+            }
+            .padding(6)
+            .frame(width: providerListWidth, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.62))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+                    )
+            )
+        }
+    }
+
+    private func favoriteRow(provider: Provider, model: ModelInfo) -> some View {
+        let isActive = provider.id == agent.config.providerId && model.id == agent.config.modelId
+        let testKey = "\(provider.id)::\(model.id)"
+        let rowState = favoriteRowStates[testKey]
+
+        return HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(isActive ? Color.accentColor.opacity(0.16) : Color.black.opacity(0.05))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(isActive ? .accentColor : .secondary)
+            }
+            .frame(width: 26, height: 26)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                Text(provider.name)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            if let state = rowState {
+                switch state {
+                case .testing:
+                    ProgressView().controlSize(.small)
+                case .success(let latency):
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    Text(latency).font(.system(size: 11)).foregroundColor(.green)
+                case .failure(let msg):
+                    Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                    Text(msg).font(.system(size: 11)).foregroundColor(.red).lineLimit(1)
+                }
+            }
+
+            Button("测试") {
+                testFavorite(provider: provider, model: model)
+            }
+            .buttonStyle(.borderless)
+            .disabled(rowState?.isTesting == true)
+
+            Button(role: .destructive) {
+                agent.registry.removeFavorite(providerId: provider.id, modelId: model.id)
+                favoriteRowStates.removeValue(forKey: testKey)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
+
+            if isActive {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.accentColor)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+    }
+
+    private func testFavorite(provider: Provider, model: ModelInfo) {
+        let key = "\(provider.id)::\(model.id)"
+        favoriteRowStates[key] = .testing
+        let baseURL = provider.baseURL
+        let apiKey = provider.apiKey
+
+        Task {
+            let start = Date()
+            let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+            guard let url = URL(string: "\(base)/chat/completions") else {
+                favoriteRowStates[key] = .failure(message: "URL 无效")
+                return
+            }
+            var request = URLRequest(url: url, timeoutInterval: 15)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if !apiKey.isEmpty {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+            let body: [String: Any] = [
+                "model": model.id,
+                "messages": [["role": "user", "content": "hi"]],
+                "max_tokens": 1,
+                "stream": false
+            ]
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                let (_, response) = try await URLSession.shared.data(for: request)
+                let elapsed = String(format: "%.0fms", Date().timeIntervalSince(start) * 1000)
+                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                    favoriteRowStates[key] = .success(latency: elapsed)
+                } else if let http = response as? HTTPURLResponse {
+                    favoriteRowStates[key] = .failure(message: "HTTP \(http.statusCode)")
+                } else {
+                    favoriteRowStates[key] = .failure(message: "无响应")
+                }
+            } catch {
+                favoriteRowStates[key] = .failure(message: error.localizedDescription)
+            }
         }
     }
 
@@ -437,16 +592,10 @@ struct ModelSettingsView: View {
 
             // Test model row
             HStack(spacing: 10) {
-                Button("common.cancel") {
-                    providerOptionsProviderId = nil
+                Button("测试模型") {
+                    testModel()
                 }
-                .buttonStyle(.bordered)
-
-                Button("common.save") {
-                    saveSelectedModel()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
+                .disabled(isTesting || viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
 
                 if isTesting {
                     ProgressView().controlSize(.small)
@@ -461,11 +610,19 @@ struct ModelSettingsView: View {
                         Text(msg).font(.system(size: 12)).foregroundColor(.red).lineLimit(1)
                     }
                 }
+
                 Spacer()
-                Button("测试模型") {
-                    testModel()
+
+                Button("common.cancel") {
+                    providerOptionsProviderId = nil
                 }
-                .disabled(isTesting || viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
+                .buttonStyle(.bordered)
+
+                Button("common.save") {
+                    saveSelectedModel()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
             }
             .padding(.top, 4)
         }
@@ -484,7 +641,7 @@ struct ModelSettingsView: View {
                     ForEach(models) { model in
                         let favorited = agent.registry.isFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
                         Button {
-                            viewModel.draftModelId = model.id
+                            toggleFavorite(model: model)
                         } label: {
                             HStack(spacing: 8) {
                                 Button {
@@ -618,6 +775,17 @@ struct ModelSettingsView: View {
         }
     }
     
+    private func toggleFavorite(model: ModelInfo) {
+        let providerId = viewModel.selectedProviderId
+        guard !providerId.isEmpty else { return }
+        if agent.registry.isFavorite(providerId: providerId, modelId: model.id) {
+            agent.registry.removeFavorite(providerId: providerId, modelId: model.id)
+        } else {
+            agent.registry.addFavorite(providerId: providerId, modelId: model.id)
+            viewModel.draftModelId = model.id
+        }
+    }
+
     private func saveSelectedModel() {
         var newConfig = agent.config
         newConfig.providerId = viewModel.selectedProviderId
