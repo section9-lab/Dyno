@@ -116,7 +116,7 @@ struct PersistedReasoningRow: View {
                     Image(systemName: "brain")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.secondary)
-                    Text("chat.thinking")
+                    Text("Thinking")
                         .chatFont(.body)
                         .foregroundColor(.secondary)
                     Image(systemName: "chevron.down")
@@ -233,7 +233,7 @@ struct ToolExecutionGroupView: View {
             HStack(spacing: 6) {
                 Text(summaryText)
                     .chatFont(.body)
-                    .foregroundColor(.primary.opacity(0.85))
+                    .foregroundColor(.secondary)
 
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
