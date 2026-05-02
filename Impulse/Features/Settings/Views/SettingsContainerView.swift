@@ -47,6 +47,7 @@ struct SettingsContainerView: View {
         _generalSettings = StateObject(wrappedValue: GeneralSettingsViewModel(
             language: LocalizationManager.shared.language.rawValue,
             theme: ThemeManager.shared.theme.rawValue,
+            textSize: ThemeManager.shared.textSize.rawValue,
             ocrEnabled: true,
             voiceShortcut: "Option"
         ))
@@ -80,6 +81,10 @@ struct SettingsContainerView: View {
         .onChange(of: generalSettings.theme) { _, newValue in
             guard let theme = AppTheme(rawValue: newValue) else { return }
             themeManager.theme = theme
+        }
+        .onChange(of: generalSettings.textSize) { _, newValue in
+            guard let size = AppTextSize(rawValue: newValue) else { return }
+            themeManager.textSize = size
         }
     }
     
@@ -153,6 +158,9 @@ struct SettingsContainerView: View {
         var newConfig = agent.config
         if let theme = AppTheme(rawValue: generalConfig.theme) {
             themeManager.theme = theme
+        }
+        if let size = AppTextSize(rawValue: generalConfig.textSize) {
+            themeManager.textSize = size
         }
 
         if let model = modelConfig {

@@ -31,6 +31,10 @@
 "settings.general.theme.auto" = "Auto";
 "settings.general.theme.light" = "Light";
 "settings.general.theme.dark" = "Dark";
+"settings.general.text_size" = "Text Size";
+"settings.general.text_size.small" = "Small";
+"settings.general.text_size.medium" = "Medium";
+"settings.general.text_size.large" = "Large";
 "settings.general.screen_capture" = "Screen Capture";
 "settings.general.auto_ocr" = "Automatic OCR screenshots";
 "settings.general.auto_ocr.description" = "Capture the screen and run OCR automatically while the system is idle.";
@@ -85,6 +89,18 @@
 "settings.files.reauthorize_panel_message" = "Reauthorize the directory for this entry.";
 
 "chat.add_project" = "Add Project";
+"sidebar.action.new_chat" = "New Chat";
+"sidebar.action.auto_intelligence" = "Proactive";
+"sidebar.action.kanban" = "Kanban";
+"sidebar.section.projects" = "Projects";
+"sidebar.section.projects.empty" = "No projects yet";
+"sidebar.section.conversations" = "Conversations";
+"sidebar.draft.unsent" = "New chat (unsent)";
+"sidebar.auto_intelligence.coming_soon.title" = "Proactive Intelligence";
+"sidebar.auto_intelligence.coming_soon.subtitle" = "Coming soon";
+"chat.draft.title" = "Start a new conversation";
+"chat.draft.subtitle.no_project" = "This chat will land in Conversations once you send the first message.";
+"chat.draft.subtitle.in_project" = "Send your first message to create the session in this project.";
 "chat.add_project_panel_message" = "Choose a local directory as a project.";
 "chat.compaction_completed" = "Context compaction completed.";
 "chat.compaction_failed" = "Sorry, compaction failed: %@";
@@ -216,3 +232,15 @@
 "settings.diagnostics.schema_unknown" = "Unknown schema";
 "settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
 "settings.diagnostics.confirm_restore.message_unknown_schema" = "This backup from %@ has no schema metadata. It may have been created by an older version of Impulse and could fail to load. Continue anyway?";
+
+/* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
+"chat.thinking" = "Thinking";
+"chat.tool_group.done" = "Done";
+"settings.storage_root" = "Storage Root";
+"settings.active_project" = "Active Project";
+"settings.model.base_url" = "Base URL";
+"settings.model.test_model" = "Test Model";
+"settings.model.testing" = "Testing…";
+"settings.model.test.invalid_url" = "Invalid URL";
+"settings.model.test.no_response" = "No response";
+"settings.model.test.http_error" = "HTTP %d";

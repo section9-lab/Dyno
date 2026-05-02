@@ -12,6 +12,7 @@ struct GeneralSettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 languageSection
                 themeSection
+                textSizeSection
                 ocrSection
                 voiceSection
             }
@@ -40,11 +41,27 @@ struct GeneralSettingsView: View {
             Text("settings.general.theme")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
-            
+
             Picker("", selection: $viewModel.theme) {
                 Text("settings.general.theme.auto").tag("auto")
                 Text("settings.general.theme.light").tag("light")
                 Text("settings.general.theme.dark").tag("dark")
+            }
+            .pickerStyle(.segmented)
+            .frame(width: segmentedControlWidth, alignment: .leading)
+        }
+    }
+
+    private var textSizeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("settings.general.text_size")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            Picker("", selection: $viewModel.textSize) {
+                Text("settings.general.text_size.small").tag("small")
+                Text("settings.general.text_size.medium").tag("medium")
+                Text("settings.general.text_size.large").tag("large")
             }
             .pickerStyle(.segmented)
             .frame(width: segmentedControlWidth, alignment: .leading)

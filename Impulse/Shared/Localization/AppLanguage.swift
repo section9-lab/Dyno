@@ -50,21 +50,50 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
+enum AppTextSize: String, CaseIterable, Identifiable {
+    case small
+    case medium
+    case large
+
+    var id: String { rawValue }
+
+    /// Multiplier applied to base font sizes used by chat views. The spread
+    /// (~0.92 / 1.0 / 1.14) is wide enough to be visible without breaking
+    /// existing layouts that rely on row heights / line wrapping.
+    var multiplier: CGFloat {
+        switch self {
+        case .small:  return 0.92
+        case .medium: return 1.0
+        case .large:  return 1.14
+        }
+    }
+}
+
 @MainActor
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
-    private static let storageKey = "app.theme"
+    private static let themeKey = "app.theme"
+    private static let textSizeKey = "app.textSize"
 
     @Published var theme: AppTheme {
         didSet {
-            UserDefaults.standard.set(theme.rawValue, forKey: Self.storageKey)
+            UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey)
+        }
+    }
+
+    @Published var textSize: AppTextSize {
+        didSet {
+            UserDefaults.standard.set(textSize.rawValue, forKey: Self.textSizeKey)
         }
     }
 
     private init() {
-        let stored = UserDefaults.standard.string(forKey: Self.storageKey)
-        self.theme = stored.flatMap(AppTheme.init(rawValue:)) ?? .auto
+        let storedTheme = UserDefaults.standard.string(forKey: Self.themeKey)
+        self.theme = storedTheme.flatMap(AppTheme.init(rawValue:)) ?? .auto
+
+        let storedSize = UserDefaults.standard.string(forKey: Self.textSizeKey)
+        self.textSize = storedSize.flatMap(AppTextSize.init(rawValue:)) ?? .medium
     }
 }
 

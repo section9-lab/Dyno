@@ -4,18 +4,24 @@ struct ChatSidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let projects: [StoredProject]
-    /// Sessions for each project, indexed by project path. Pre-grouped by
-    /// the parent so the sidebar doesn't have to re-filter.
     let sessionsByProjectPath: [String: [StoredSession]]
+    /// Sessions whose `projectPath` is empty — surfaced in the bottom
+    /// "Conversations" section as project-less chats.
+    let projectlessSessions: [StoredSession]
+    let route: ChatRoute
+    let isComposingDraft: Bool
     let selectedProjectPath: String?
     let selectedSessionID: String?
     let expandedProjectPaths: Set<String>
     var onAddProject: () -> Void
-    var onCreateSession: (StoredProject) -> Void
+    var onBeginDraft: () -> Void
+    var onAutoIntelligence: () -> Void
+    var onKanban: () -> Void
+    var onBeginDraftInProject: (StoredProject) -> Void
     var onToggleProject: (StoredProject) -> Void
     var onSelectProject: (StoredProject) -> Void
     var onRemoveProject: (StoredProject) -> Void
-    var onSelectSession: (StoredProject, StoredSession) -> Void
+    var onSelectSession: (StoredProject?, StoredSession) -> Void
     var onRenameSession: (StoredSession) -> Void
     var onDeleteSession: (StoredSession) -> Void
     var onSettings: () -> Void
@@ -31,12 +37,12 @@ struct ChatSidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            actionButtons
-
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(projects) { project in
-                        projectSection(project)
+                VStack(alignment: .leading, spacing: 14) {
+                    actionsSection
+                    projectsSection
+                    if !projectlessSessions.isEmpty || isComposingDraft {
+                        conversationsSection
                     }
                 }
                 .padding(.horizontal, 12)
@@ -48,21 +54,192 @@ struct ChatSidebarView: View {
         }
     }
 
-    private var actionButtons: some View {
-        VStack(spacing: 8) {
-            sidebarActionButton(
-                id: "add_project",
-                title: "chat.add_project",
-                systemImage: "folder.badge.plus",
-                enabled: true,
-                action: onAddProject
+    // MARK: - Section 1: top actions
+
+    private var actionsSection: some View {
+        VStack(spacing: 4) {
+            actionRow(
+                id: "action.new_chat",
+                title: "sidebar.action.new_chat",
+                systemImage: "square.and.pencil",
+                isActive: route == .chat && isComposingDraft,
+                action: onBeginDraft
+            )
+            actionRow(
+                id: "action.auto_intelligence",
+                title: "sidebar.action.auto_intelligence",
+                systemImage: "sparkles",
+                isActive: route == .autoIntelligence,
+                action: onAutoIntelligence
+            )
+            actionRow(
+                id: "action.kanban",
+                title: "sidebar.action.kanban",
+                systemImage: "rectangle.3.group",
+                isActive: route == .kanban,
+                action: onKanban
             )
         }
-        .padding(.top, 12)
     }
 
+    private func actionRow(
+        id: String,
+        title: LocalizedStringKey,
+        systemImage: String,
+        isActive: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(.secondary)
+                    .frame(width: 18)
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SidebarRowButtonStyle(isSelected: isActive, isHovered: hoveredButtonId == id))
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                hoveredButtonId = hovering ? id : nil
+            }
+        }
+    }
+
+    // MARK: - Section 2: projects
+
+    private var projectsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionHeader(
+                title: "sidebar.section.projects",
+                trailingIcon: "folder.badge.plus",
+                trailingHelp: "chat.add_project",
+                trailingAction: onAddProject
+            )
+
+            if projects.isEmpty {
+                Text("sidebar.section.projects.empty")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(projects) { project in
+                        projectSection(project)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Section 3: project-less conversations
+
+    private var conversationsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionHeader(title: "sidebar.section.conversations")
+
+            if isComposingDraft && (selectedSessionID == nil) && (selectedProjectPath == nil) {
+                draftPlaceholderRow
+            }
+
+            ForEach(projectlessSessions) { session in
+                conversationRow(session)
+            }
+        }
+    }
+
+    private var draftPlaceholderRow: some View {
+        HStack(spacing: 6) {
+            SessionStatusBadge(sessionID: "")
+            Text("sidebar.draft.unsent")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(selectedBackgroundColor)
+        )
+    }
+
+    private func conversationRow(_ session: StoredSession) -> some View {
+        let id = "conv::\(session.id)"
+        let isSelected = session.id == selectedSessionID
+        let isHovered = hoveredButtonId == id
+
+        return Button {
+            onSelectSession(nil, session)
+        } label: {
+            HStack(spacing: 6) {
+                SessionStatusBadge(sessionID: session.id)
+                Text(previewText(for: session.title))
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundColor(.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(SidebarRowButtonStyle(isSelected: isSelected, isHovered: isHovered))
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                hoveredButtonId = hovering ? id : nil
+            }
+        }
+        .contextMenu {
+            Button("common.rename", systemImage: "pencil") { onRenameSession(session) }
+            Button("common.delete", systemImage: "trash", role: .destructive) { onDeleteSession(session) }
+        }
+    }
+
+    // MARK: - Section header
+
+    @ViewBuilder
+    private func sectionHeader(
+        title: LocalizedStringKey,
+        trailingIcon: String? = nil,
+        trailingHelp: LocalizedStringKey? = nil,
+        trailingAction: (() -> Void)? = nil
+    ) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+                .textCase(.none)
+            Spacer()
+            if let trailingIcon, let trailingAction {
+                Button(action: trailingAction) {
+                    Image(systemName: trailingIcon)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(trailingHelp ?? "")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+    }
+
+    // MARK: - Project row + nested sessions
+
     private func projectSection(_ project: StoredProject) -> some View {
-        let isSelected = project.path == selectedProjectPath && selectedSessionID == nil
+        let isSelected = project.path == selectedProjectPath && selectedSessionID == nil && !isComposingDraft
         let isHovered = hoveredButtonId == project.path
         let isExpanded = expandedProjectPaths.contains(project.path)
         let showsCreateSessionButton = isHovered || isSelected
@@ -80,12 +257,10 @@ struct ChatSidebarView: View {
                             .foregroundColor(.secondary)
                             .frame(width: 16)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(project.displayName)
-                                .font(.system(size: 14, weight: .semibold))
-                                .lineLimit(1)
-                                .foregroundColor(.primary)
-                        }
+                        Text(project.displayName)
+                            .font(.system(size: 14, weight: .semibold))
+                            .lineLimit(1)
+                            .foregroundColor(.primary)
 
                         Spacer(minLength: 0)
                     }
@@ -97,7 +272,7 @@ struct ChatSidebarView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    onCreateSession(project)
+                    onBeginDraftInProject(project)
                 } label: {
                     Label("chat.new_session", systemImage: "plus")
                         .labelStyle(.iconOnly)
@@ -138,7 +313,11 @@ struct ChatSidebarView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    if sessions.isEmpty {
+                    if isComposingDraft && selectedProjectPath == project.path && selectedSessionID == nil {
+                        draftPlaceholderRow
+                    }
+
+                    if sessions.isEmpty && !(isComposingDraft && selectedProjectPath == project.path) {
                         Text("chat.no_sessions")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
@@ -188,29 +367,7 @@ struct ChatSidebarView: View {
         }
     }
 
-    private func sidebarActionButton(
-        id: String,
-        title: LocalizedStringKey,
-        systemImage: String,
-        enabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(enabled ? .primary : .secondary)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .disabled(!enabled)
-        .buttonStyle(SidebarRowButtonStyle(isSelected: false, isHovered: hoveredButtonId == id))
-        .onHover { isHovered in
-            withAnimation(.easeOut(duration: 0.12)) {
-                hoveredButtonId = isHovered ? id : nil
-            }
-        }
-    }
+    // MARK: - User avatar footer
 
     private var userAvatarSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -354,14 +511,11 @@ struct SidebarRowButtonStyle: ButtonStyle {
 /// titles don't shift horizontally when a task starts or stops.
 private struct SessionStatusBadge: View {
     let sessionID: String
-    /// Observe the pool directly: `AgentManager.sessionAgents` is a
-    /// computed pass-through to `pool.sessionAgents`, so observing the
-    /// manager wouldn't pick up dictionary changes.
     @ObservedObject private var pool = AgentManager.shared.pool
 
     var body: some View {
         ZStack {
-            if let sessionAgent = pool.sessionAgents[sessionID] {
+            if !sessionID.isEmpty, let sessionAgent = pool.sessionAgents[sessionID] {
                 SessionLivePulse(sessionAgent: sessionAgent)
             }
         }

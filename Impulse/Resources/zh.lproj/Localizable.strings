@@ -31,6 +31,10 @@
 "settings.general.theme.auto" = "自动";
 "settings.general.theme.light" = "浅色";
 "settings.general.theme.dark" = "深色";
+"settings.general.text_size" = "字号";
+"settings.general.text_size.small" = "小";
+"settings.general.text_size.medium" = "中";
+"settings.general.text_size.large" = "大";
 "settings.general.screen_capture" = "屏幕捕获";
 "settings.general.auto_ocr" = "自动 OCR 截屏";
 "settings.general.auto_ocr.description" = "在系统空闲时自动捕获屏幕并进行 OCR 识别。";
@@ -85,6 +89,18 @@
 "settings.files.reauthorize_panel_message" = "为该条目重新授权目录。";
 
 "chat.add_project" = "添加项目";
+"sidebar.action.new_chat" = "新对话";
+"sidebar.action.auto_intelligence" = "主动智能";
+"sidebar.action.kanban" = "看板";
+"sidebar.section.projects" = "项目";
+"sidebar.section.projects.empty" = "暂无项目";
+"sidebar.section.conversations" = "对话";
+"sidebar.draft.unsent" = "新对话（未发送）";
+"sidebar.auto_intelligence.coming_soon.title" = "主动智能";
+"sidebar.auto_intelligence.coming_soon.subtitle" = "敬请期待";
+"chat.draft.title" = "开始新对话";
+"chat.draft.subtitle.no_project" = "发送第一条消息后，会话将出现在「对话」分组。";
+"chat.draft.subtitle.in_project" = "发送第一条消息后，会话将归入当前项目。";
 "chat.add_project_panel_message" = "选择一个本地目录作为项目。";
 "chat.compaction_completed" = "已完成上下文压缩。";
 "chat.compaction_failed" = "抱歉，压缩失败：%@";
@@ -216,3 +232,15 @@
 "settings.diagnostics.schema_unknown" = "未知架构";
 "settings.diagnostics.schema_mismatch" = "v%d（不兼容）";
 "settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ 的备份缺少架构信息，可能由旧版 Impulse 创建，恢复后可能无法启动。仍要继续？";
+
+/* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
+"chat.thinking" = "思考中";
+"chat.tool_group.done" = "完成";
+"settings.storage_root" = "存储根目录";
+"settings.active_project" = "当前项目";
+"settings.model.base_url" = "Base URL";
+"settings.model.test_model" = "测试模型";
+"settings.model.testing" = "测试中…";
+"settings.model.test.invalid_url" = "URL 无效";
+"settings.model.test.no_response" = "无响应";
+"settings.model.test.http_error" = "HTTP %d";

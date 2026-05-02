@@ -28,6 +28,11 @@
 "settings.general.theme.auto" = "Auto";
 "settings.general.theme.light" = "Clair";
 "settings.general.theme.dark" = "Sombre";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"settings.general.text_size" = "Taille du texte";
+"settings.general.text_size.small" = "Petite";
+"settings.general.text_size.medium" = "Moyenne";
+"settings.general.text_size.large" = "Grande";
 "settings.general.screen_capture" = "Capture d'écran";
 "settings.general.auto_ocr" = "Captures OCR automatiques";
 "settings.general.auto_ocr.description" = "Capture l'écran et exécute l'OCR automatiquement lorsque le système est inactif.";
@@ -83,6 +88,19 @@
 "settings.files.authorize_panel_message" = "Choisissez un dossier que l'agent peut lire et écrire.";
 "settings.files.reauthorize_panel_message" = "Réautorisez le dossier pour cette entrée.";
 "chat.add_project" = "Ajouter un projet";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"sidebar.action.new_chat" = "Nouvelle conversation";
+"sidebar.action.auto_intelligence" = "Intelligence proactive";
+"sidebar.action.kanban" = "Kanban";
+"sidebar.section.projects" = "Projets";
+"sidebar.section.projects.empty" = "Aucun projet pour l'instant";
+"sidebar.section.conversations" = "Conversations";
+"sidebar.draft.unsent" = "Nouvelle conversation (non envoyée)";
+"sidebar.auto_intelligence.coming_soon.title" = "Intelligence proactive";
+"sidebar.auto_intelligence.coming_soon.subtitle" = "Bientôt disponible";
+"chat.draft.title" = "Commencer une nouvelle conversation";
+"chat.draft.subtitle.no_project" = "Cette conversation apparaîtra dans Conversations après le premier message.";
+"chat.draft.subtitle.in_project" = "Envoyez le premier message pour créer la session dans ce projet.";
 "chat.add_project_panel_message" = "Choisissez un dossier local comme projet.";
 "chat.compaction_completed" = "Compactage du contexte terminé.";
 "chat.compaction_failed" = "Désolé, le compactage a échoué : %@";
@@ -210,3 +228,15 @@
 "settings.diagnostics.schema_unknown" = "Schéma inconnu";
 "settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
 "settings.diagnostics.confirm_restore.message_unknown_schema" = "La sauvegarde du %@ n'a pas de métadonnées de schéma. Elle a peut-être été créée par une ancienne version d'Impulse et pourrait ne pas se charger. Continuer ?";
+
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"chat.thinking" = "Réflexion";
+"chat.tool_group.done" = "Terminé";
+"settings.storage_root" = "Racine du stockage";
+"settings.active_project" = "Projet actif";
+"settings.model.base_url" = "Base URL";
+"settings.model.test_model" = "Tester le modèle";
+"settings.model.testing" = "Test en cours…";
+"settings.model.test.invalid_url" = "URL invalide";
+"settings.model.test.no_response" = "Aucune réponse";
+"settings.model.test.http_error" = "HTTP %d";

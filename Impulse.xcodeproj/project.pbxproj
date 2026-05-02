@@ -73,6 +73,7 @@
 		E75DE81725552E5FBABF40C9 /* AgentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B372A66861EA9DC728FC9F0 /* AgentManager.swift */; };
 		E98C47E7DE6001F7AF35C652 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ADAA4D769CC4896B25858C2 /* AppLog.swift */; };
 		EC0EF218A734E6597DEB5A6C /* OCRManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B634BD2B1F5522A71D8E81FF /* OCRManager.swift */; };
+		F287023DABA55B65295CC30B /* ChatFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8B9F3A2D4B187ACE8875C9 /* ChatFont.swift */; };
 		F3BDAB86D832E4802B665DE7 /* SessionAgentPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5842AC1398CC11E089583BA3 /* SessionAgentPool.swift */; };
 		F59D9517D4F20DACE455CE05 /* AgentConfigStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CAE722F05A75BF3F571B06 /* AgentConfigStoreTests.swift */; };
 		F9597270FC4C8BC42CE3714A /* ChatMessageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A268FB0490CB9E8E165D0A5B /* ChatMessageViews.swift */; };
@@ -168,6 +169,7 @@
 		E7342673108D223155240E33 /* SessionAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAgent.swift; sourceTree = "<group>"; };
 		E809CF2E4297D75E66EDF96A /* ScreenCapturePermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapturePermissionManager.swift; sourceTree = "<group>"; };
 		E8D20BF85185F315C708CC56 /* ModelProviderConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProviderConfigView.swift; sourceTree = "<group>"; };
+		EF8B9F3A2D4B187ACE8875C9 /* ChatFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatFont.swift; sourceTree = "<group>"; };
 		F1AEB96E3791CA1A5C5EAD8B /* ChatSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSidebarView.swift; sourceTree = "<group>"; };
 		F29763011DDEF85183EC3062 /* KanbanPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanPanelView.swift; sourceTree = "<group>"; };
 		F5E7A71454F33A0B3D97F492 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -238,6 +240,14 @@
 				DC6C5E89A7032E5F5279F940 /* UserAlertCenterTests.swift */,
 			);
 			path = ImpulseTests;
+			sourceTree = "<group>";
+		};
+		10BEB099B6CB1A2F6A0B4221 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				EF8B9F3A2D4B187ACE8875C9 /* ChatFont.swift */,
+			);
+			path = Theme;
 			sourceTree = "<group>";
 		};
 		1885AC60A3B377F6757D6F44 /* ScreenCapture */ = {
@@ -443,6 +453,7 @@
 				3E142495CCF65F094237CD22 /* Design */,
 				0B4CF811B249B6826C72FDD6 /* Extensions */,
 				37D02046B3329355281CF885 /* Localization */,
+				10BEB099B6CB1A2F6A0B4221 /* Theme */,
 				4DD024DC01ED91ED04F80821 /* Utilities */,
 			);
 			name = Shared;
@@ -776,6 +787,7 @@
 				776E06FCDEB134676BE09CEB /* AuthSession.swift in Sources */,
 				416F552C98547BD03AC35694 /* AuthTokenSet.swift in Sources */,
 				55FE5C7F09CD14FF93C2B6CF /* AuthUser.swift in Sources */,
+				F287023DABA55B65295CC30B /* ChatFont.swift in Sources */,
 				F9597270FC4C8BC42CE3714A /* ChatMessageViews.swift in Sources */,
 				99452EE84EFBBD573B70C894 /* ChatSidebarView.swift in Sources */,
 				7324770CE6EA60872BC744DE /* ChatViewModel.swift in Sources */,

@@ -4,6 +4,22 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+/// Top-level destination for the main content column. The sidebar's first
+/// section flips this; chat is the default.
+enum ChatRoute {
+    case chat
+    case kanban
+    case autoIntelligence
+}
+
+/// In-memory placeholder for a session the user has begun composing but
+/// has not yet sent the first message in. Promoted to a real
+/// `StoredSession` only on first send. `projectPath == nil` means the
+/// session, once committed, will be a project-less ("conversations") row.
+struct DraftSession {
+    var projectPath: String?
+}
+
 /// Owns view-state for the chat surface and the message-write side effects.
 /// Reads come straight from SwiftData via `@Query` in views; this class no
 /// longer ferries data between disk and UI.
@@ -13,9 +29,14 @@ final class ChatViewModel: ObservableObject {
 
     @Published var inputText: String = ""
     @Published var showConfigSheet: Bool = false
-    @Published var showKanbanPanel: Bool = false
+    @Published var route: ChatRoute = .chat
     @Published var selectedProjectPath: String?
     @Published var selectedSessionID: String?
+    /// Set when the user clicks "新对话" (or a project's `+`) but has not
+    /// yet sent a message. Cleared by `selectSession` / selecting a project
+    /// row / route changes. Committed to a real `StoredSession` on the
+    /// first `sendMessage` so empty sessions never pile up.
+    @Published var draft: DraftSession?
     @Published var showRenameDialog: Bool = false
     @Published var renamingSessionID: String?
     @Published var renameDraft: String = ""
@@ -32,6 +53,12 @@ final class ChatViewModel: ObservableObject {
 
     var canStartNewChat: Bool {
         selectedProjectPath?.isEmpty == false
+    }
+
+    /// True when the chat pane should accept input but render an empty
+    /// state instead of an existing session's transcript.
+    var isComposingDraft: Bool {
+        draft != nil && selectedSessionID == nil
     }
 
     func toggleSidebar() {
@@ -54,9 +81,12 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    func toggleKanbanPanel() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showKanbanPanel.toggle()
+    /// Switch the main column to a non-chat destination. Always discards any
+    /// in-progress draft because the chat pane is no longer visible.
+    func setRoute(_ newRoute: ChatRoute) {
+        route = newRoute
+        if newRoute != .chat {
+            draft = nil
         }
     }
 
@@ -66,17 +96,37 @@ final class ChatViewModel: ObservableObject {
         selectedProjectPath = projectPath
         selectedSessionID = nil
         inputText = ""
+        draft = nil
+        route = .chat
         agent.setActiveProjectPath(projectPath)
     }
 
     func selectSession(projectPath: String, sessionID: String, agent: AgentManager) {
-        selectedProjectPath = projectPath
+        selectedProjectPath = projectPath.isEmpty ? nil : projectPath
         selectedSessionID = sessionID
-        agent.setActiveProjectPath(projectPath)
+        draft = nil
+        route = .chat
+        agent.setActiveProjectPath(projectPath.isEmpty ? nil : projectPath)
         // Make sure a SessionAgent exists for this session — does not reset
         // an in-flight one if it already exists (parallel sessions).
         _ = agent.sessionAgent(for: sessionID, projectPath: projectPath)
         agent.focusedSessionID = sessionID
+    }
+
+    /// Begin composing a new chat without yet creating a `StoredSession`.
+    /// `projectPath == nil` means the eventual session will be a
+    /// project-less ("conversations") row. The `StoredSession` is only
+    /// inserted on the first `sendMessage` (see `commitDraftIfNeeded`).
+    func beginDraftSession(projectPath: String?, agent: AgentManager) {
+        selectedProjectPath = projectPath
+        selectedSessionID = nil
+        inputText = ""
+        draft = DraftSession(projectPath: projectPath)
+        route = .chat
+        if let projectPath {
+            expandedProjectPaths.insert(projectPath)
+        }
+        agent.setActiveProjectPath(projectPath)
     }
 
     // MARK: - Project lifecycle
@@ -148,13 +198,16 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Create an empty `StoredSession` under the currently-selected project,
-    /// select it, and reset the SessionAgent so the new chat starts clean.
+    /// Commit the in-progress `draft` into a real `StoredSession` and
+    /// return it. Caller is responsible for invoking only when there is
+    /// actually a draft. After this returns, `selectedSessionID` is set
+    /// and `draft` is cleared.
     @discardableResult
-    func startNewChat(modelContext: ModelContext, agent: AgentManager) -> Bool {
-        guard let projectPath = selectedProjectPath else { return false }
+    func commitDraftIfNeeded(modelContext: ModelContext, agent: AgentManager) -> StoredSession? {
+        guard let draft else { return nil }
 
         let sessionID = UUID().uuidString
+        let projectPath = draft.projectPath ?? ""
         let session = StoredSession(
             id: sessionID,
             projectPath: projectPath,
@@ -163,13 +216,16 @@ final class ChatViewModel: ObservableObject {
         )
         modelContext.insert(session)
 
+        selectedProjectPath = projectPath.isEmpty ? nil : projectPath
         selectedSessionID = sessionID
-        inputText = ""
-        expandedProjectPaths.insert(projectPath)
-        agent.setActiveProjectPath(projectPath)
+        self.draft = nil
+        if !projectPath.isEmpty {
+            expandedProjectPaths.insert(projectPath)
+        }
+        agent.setActiveProjectPath(projectPath.isEmpty ? nil : projectPath)
         agent.resetSessionAgent(for: sessionID, projectPath: projectPath)
         agent.focusedSessionID = sessionID
-        return true
+        return session
     }
 
     // MARK: - Session rename / delete
@@ -218,31 +274,40 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Message send / compact
 
-    /// Send the user's input on the given session. Empties `inputText` on
-    /// success. Caller must already have a SwiftData-resident `StoredSession`.
-    func sendMessage(modelContext: ModelContext, agent: AgentManager, session: StoredSession) {
+    /// Send the user's input on the given session, or commit the current
+    /// draft and send on the freshly-created session. Empties `inputText`
+    /// on success.
+    func sendMessage(modelContext: ModelContext, agent: AgentManager, session: StoredSession?) {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        if trimmed.lowercased().hasPrefix("/compact") {
-            handleCompactCommand(input: trimmed, modelContext: modelContext, agent: agent, session: session)
+        // Resolve target session: either the one the caller passed (a
+        // committed StoredSession) or commit the current draft.
+        let targetSession: StoredSession
+        if let session {
+            targetSession = session
+        } else if let committed = commitDraftIfNeeded(modelContext: modelContext, agent: agent) {
+            targetSession = committed
+        } else {
             return
         }
 
-        let projectPath = session.projectPath
-        let sessionID = session.id
+        if trimmed.lowercased().hasPrefix("/compact") {
+            handleCompactCommand(input: trimmed, modelContext: modelContext, agent: agent, session: targetSession)
+            return
+        }
 
-        let prelude = buildContinuationPrelude(from: session)
+        let prelude = buildContinuationPrelude(from: targetSession)
 
         // Insert the user message + update title if this is the first.
-        let userMsg = StoredMessage(timestamp: Date(), role: "user", content: trimmed, session: session)
+        let userMsg = StoredMessage(timestamp: Date(), role: "user", content: trimmed, session: targetSession)
         modelContext.insert(userMsg)
-        if session.title == L10n.tr("chat.new_session") || session.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            session.title = normalizedTitle(from: trimmed)
+        if targetSession.title == L10n.tr("chat.new_session") || targetSession.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            targetSession.title = normalizedTitle(from: trimmed)
         }
         inputText = ""
 
-        let sessionAgent = agent.sessionAgent(for: sessionID, projectPath: projectPath)
+        let sessionAgent = agent.sessionAgent(for: targetSession.id, projectPath: targetSession.projectPath)
 
         let task = Task { [weak self] in
             do {
@@ -251,7 +316,7 @@ final class ChatViewModel: ObservableObject {
                     self?.persistRunResults(
                         responseText: response,
                         sessionAgent: sessionAgent,
-                        session: session,
+                        session: targetSession,
                         modelContext: modelContext
                     )
                 }
@@ -260,7 +325,7 @@ final class ChatViewModel: ObservableObject {
                     self?.persistRunResults(
                         responseText: L10n.tr("chat.error_message", error.localizedDescription),
                         sessionAgent: sessionAgent,
-                        session: session,
+                        session: targetSession,
                         modelContext: modelContext
                     )
                 }

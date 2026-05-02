@@ -28,6 +28,11 @@
 "settings.general.theme.auto" = "Авто";
 "settings.general.theme.light" = "Светлая";
 "settings.general.theme.dark" = "Темная";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"settings.general.text_size" = "Размер текста";
+"settings.general.text_size.small" = "Маленький";
+"settings.general.text_size.medium" = "Средний";
+"settings.general.text_size.large" = "Большой";
 "settings.general.screen_capture" = "Захват экрана";
 "settings.general.auto_ocr" = "Автоматические OCR-снимки";
 "settings.general.auto_ocr.description" = "Автоматически захватывать экран и выполнять OCR, когда система простаивает.";
@@ -83,6 +88,19 @@
 "settings.files.authorize_panel_message" = "Выберите каталог, который агент сможет читать и записывать.";
 "settings.files.reauthorize_panel_message" = "Повторно разрешите каталог для этой записи.";
 "chat.add_project" = "Добавить проект";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"sidebar.action.new_chat" = "Новый чат";
+"sidebar.action.auto_intelligence" = "Проактивный ИИ";
+"sidebar.action.kanban" = "Канбан";
+"sidebar.section.projects" = "Проекты";
+"sidebar.section.projects.empty" = "Пока нет проектов";
+"sidebar.section.conversations" = "Беседы";
+"sidebar.draft.unsent" = "Новый чат (не отправлено)";
+"sidebar.auto_intelligence.coming_soon.title" = "Проактивный ИИ";
+"sidebar.auto_intelligence.coming_soon.subtitle" = "Скоро";
+"chat.draft.title" = "Начать новую беседу";
+"chat.draft.subtitle.no_project" = "После первого сообщения чат появится в разделе «Беседы».";
+"chat.draft.subtitle.in_project" = "Отправьте первое сообщение, чтобы создать сессию в этом проекте.";
 "chat.add_project_panel_message" = "Выберите локальный каталог как проект.";
 "chat.compaction_completed" = "Сжатие контекста завершено.";
 "chat.compaction_failed" = "Не удалось выполнить сжатие: %@";
@@ -210,3 +228,15 @@
 "settings.diagnostics.schema_unknown" = "Неизвестная схема";
 "settings.diagnostics.schema_mismatch" = "v%d (несовместимо)";
 "settings.diagnostics.confirm_restore.message_unknown_schema" = "Резервная копия от %@ не имеет метаданных схемы. Возможно, она создана старой версией Impulse и может не загрузиться. Продолжить?";
+
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"chat.thinking" = "Размышление";
+"chat.tool_group.done" = "Готово";
+"settings.storage_root" = "Корневой каталог";
+"settings.active_project" = "Активный проект";
+"settings.model.base_url" = "Base URL";
+"settings.model.test_model" = "Проверить модель";
+"settings.model.testing" = "Проверка…";
+"settings.model.test.invalid_url" = "Неверный URL";
+"settings.model.test.no_response" = "Нет ответа";
+"settings.model.test.http_error" = "HTTP %d";

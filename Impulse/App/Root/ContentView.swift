@@ -23,7 +23,13 @@ struct ContentView: View {
 
     /// Sessions grouped by project path; passed to the sidebar.
     private var sessionsByProjectPath: [String: [StoredSession]] {
-        Dictionary(grouping: allSessions, by: { $0.projectPath })
+        Dictionary(grouping: allSessions.filter { !$0.projectPath.isEmpty }, by: { $0.projectPath })
+    }
+
+    /// Sessions with no project, surfaced in the sidebar's "Conversations"
+    /// section. Sorted by most recent first (matching `@Query` order).
+    private var projectlessSessions: [StoredSession] {
+        allSessions.filter { $0.projectPath.isEmpty }
     }
 
     private var selectedProject: StoredProject? {
@@ -105,18 +111,16 @@ struct ContentView: View {
             }
             .task {
                 await agent.refreshServiceStatus()
-                autoCreateSessionIfNeeded()
                 ensureFocusedSessionAgent()
             }
             .onChange(of: vm.selectedProjectPath) { _, _ in
-                autoCreateSessionIfNeeded()
                 ensureFocusedSessionAgent()
             }
             .onChange(of: vm.selectedSessionID) { _, _ in
                 ensureFocusedSessionAgent()
             }
             .frame(minWidth: 980, minHeight: 760)
-            .animation(.easeInOut(duration: 0.2), value: vm.showKanbanPanel)
+            .animation(.easeInOut(duration: 0.2), value: vm.route)
         }
     }
 
@@ -126,16 +130,24 @@ struct ContentView: View {
         ChatSidebarView(
             projects: projects,
             sessionsByProjectPath: sessionsByProjectPath,
+            projectlessSessions: projectlessSessions,
+            route: vm.route,
+            isComposingDraft: vm.isComposingDraft,
             selectedProjectPath: vm.selectedProjectPath,
             selectedSessionID: vm.selectedSessionID,
             expandedProjectPaths: vm.expandedProjectPaths,
             onAddProject: addProject,
-            onCreateSession: createSession,
+            onBeginDraft: { vm.beginDraftSession(projectPath: nil, agent: agent) },
+            onAutoIntelligence: { vm.setRoute(.autoIntelligence) },
+            onKanban: { vm.setRoute(.kanban) },
+            onBeginDraftInProject: { project in
+                vm.beginDraftSession(projectPath: project.path, agent: agent)
+            },
             onToggleProject: { vm.toggleProjectExpansion($0.path) },
             onSelectProject: { vm.selectProject($0.path, agent: agent) },
             onRemoveProject: { vm.removeProject(path: $0.path, modelContext: modelContext, agent: agent) },
             onSelectSession: { project, session in
-                vm.selectSession(projectPath: project.path, sessionID: session.id, agent: agent)
+                vm.selectSession(projectPath: project?.path ?? "", sessionID: session.id, agent: agent)
             },
             onRenameSession: vm.requestRename,
             onDeleteSession: { vm.deleteSession($0, modelContext: modelContext) },
@@ -150,38 +162,20 @@ struct ContentView: View {
         .frame(width: vm.sidebarWidth)
     }
 
+    @ViewBuilder
     private var mainColumn: some View {
-        VStack(spacing: 0) {
-            if vm.showKanbanPanel {
-                KanbanPanelView(
-                    project: selectedProject,
-                    selectedSession: selectedSession,
-                    tasks: kanbanTasks,
-                    projectSessions: projectSessions,
-                    onCreateTask: { title, priority, status in
-                        kanban.createTask(
-                            title: title,
-                            priority: priority,
-                            status: status,
-                            projectPath: vm.selectedProjectPath,
-                            selectedSessionID: vm.selectedSessionID,
-                            modelContext: modelContext
-                        )
-                    },
-                    onMoveTask: { task, status in kanban.moveTask(task, to: status) },
-                    onLinkSelectedSession: { task in
-                        kanban.linkSession(task, sessionID: vm.selectedSessionID)
-                    },
-                    onDeleteTask: { task in kanban.deleteTask(task, modelContext: modelContext) }
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 372)
-                .padding(.horizontal, 56)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
+        switch vm.route {
+        case .chat:
+            chatColumn
+        case .kanban:
+            kanbanColumn
+        case .autoIntelligence:
+            autoIntelligenceColumn
+        }
+    }
 
+    private var chatColumn: some View {
+        VStack(spacing: 0) {
             chatScrollArea
 
             InputBar(
@@ -196,11 +190,55 @@ struct ContentView: View {
         }
     }
 
+    private var kanbanColumn: some View {
+        KanbanPanelView(
+            project: selectedProject,
+            selectedSession: selectedSession,
+            tasks: kanbanTasks,
+            projectSessions: projectSessions,
+            onCreateTask: { title, priority, status in
+                kanban.createTask(
+                    title: title,
+                    priority: priority,
+                    status: status,
+                    projectPath: vm.selectedProjectPath,
+                    selectedSessionID: vm.selectedSessionID,
+                    modelContext: modelContext
+                )
+            },
+            onMoveTask: { task, status in kanban.moveTask(task, to: status) },
+            onLinkSelectedSession: { task in
+                kanban.linkSession(task, sessionID: vm.selectedSessionID)
+            },
+            onDeleteTask: { task in kanban.deleteTask(task, modelContext: modelContext) }
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 56)
+        .padding(.vertical, 24)
+    }
+
+    private var autoIntelligenceColumn: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 44, weight: .light))
+                .foregroundColor(.secondary.opacity(0.7))
+            Text("sidebar.auto_intelligence.coming_soon.title")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.primary.opacity(0.85))
+            Text("sidebar.auto_intelligence.coming_soon.subtitle")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private var chatScrollArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    if selectedSession == nil {
+                    if vm.isComposingDraft {
+                        draftEmptyState
+                    } else if selectedSession == nil {
                         emptyState
                     } else {
                         ForEach(chatRows) { row in
@@ -263,18 +301,6 @@ struct ContentView: View {
                 Image(systemName: vm.isSidebarCollapsed ? "sidebar.left" : "sidebar.leading")
             }
         }
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                vm.toggleKanbanPanel()
-            } label: {
-                Label(
-                    vm.showKanbanPanel ? "kanban.hide_board" : "kanban.show_board",
-                    systemImage: vm.showKanbanPanel ? "rectangle.compress.vertical" : "rectangle.3.group"
-                )
-            }
-            .labelStyle(.iconOnly)
-            .help("kanban.toggle")
-        }
     }
 
     @ViewBuilder
@@ -300,6 +326,27 @@ struct ContentView: View {
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundColor(.primary.opacity(0.88))
             }
+        }
+        .frame(maxWidth: .infinity, minHeight: 360)
+        .padding(.top, 80)
+    }
+
+    /// Welcome surface shown while the user is composing a fresh chat
+    /// that has not yet been committed to a `StoredSession`. The first
+    /// `sendMessage` will create the row in the right sidebar section.
+    private var draftEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 40, weight: .light))
+                .foregroundColor(.secondary.opacity(0.7))
+            Text("chat.draft.title")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.primary.opacity(0.88))
+            Text(vm.draft?.projectPath == nil
+                 ? "chat.draft.subtitle.no_project"
+                 : "chat.draft.subtitle.in_project")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 360)
         .padding(.top, 80)
@@ -332,23 +379,14 @@ struct ContentView: View {
 
     // MARK: - Actions
 
-    private func autoCreateSessionIfNeeded() {
-        guard selectedProject != nil, selectedSession == nil else { return }
-        _ = vm.startNewChat(modelContext: modelContext, agent: agent)
-    }
-
     private func addProject() {
         vm.addProject(modelContext: modelContext, agent: agent)
     }
 
-    private func createSession(_ project: StoredProject) {
-        vm.selectProject(project.path, agent: agent)
-        _ = vm.startNewChat(modelContext: modelContext, agent: agent)
-    }
-
     private func sendMessage() {
-        guard let session = selectedSession else { return }
-        vm.sendMessage(modelContext: modelContext, agent: agent, session: session)
+        // selectedSession can be nil when the user is composing a draft;
+        // ChatViewModel.sendMessage handles the commit-then-send case.
+        vm.sendMessage(modelContext: modelContext, agent: agent, session: selectedSession)
     }
 
     private func openHelp() {

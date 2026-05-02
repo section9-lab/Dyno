@@ -32,7 +32,7 @@ struct SandboxSettingsView: View {
         SettingsCard(title: "settings.files.data_directory") {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Storage Root")
+                    Text("settings.storage_root")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
                     Text(storageDirectoryURL.path)
@@ -42,7 +42,7 @@ struct SandboxSettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Active Project")
+                    Text("settings.active_project")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
                     Text(agent.activeProjectPath ?? L10n.tr("common.not_selected"))

@@ -28,6 +28,11 @@
 "settings.general.theme.auto" = "自動";
 "settings.general.theme.light" = "ライト";
 "settings.general.theme.dark" = "ダーク";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"settings.general.text_size" = "文字サイズ";
+"settings.general.text_size.small" = "小";
+"settings.general.text_size.medium" = "中";
+"settings.general.text_size.large" = "大";
 "settings.general.screen_capture" = "画面キャプチャ";
 "settings.general.auto_ocr" = "自動 OCR スクリーンショット";
 "settings.general.auto_ocr.description" = "システムがアイドル状態のときに画面を自動取得し、OCR を実行します。";
@@ -83,6 +88,19 @@
 "settings.files.authorize_panel_message" = "エージェントが読み書きできるディレクトリを選択してください。";
 "settings.files.reauthorize_panel_message" = "この項目のディレクトリを再認証してください。";
 "chat.add_project" = "プロジェクトを追加";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"sidebar.action.new_chat" = "新しい会話";
+"sidebar.action.auto_intelligence" = "プロアクティブ AI";
+"sidebar.action.kanban" = "カンバン";
+"sidebar.section.projects" = "プロジェクト";
+"sidebar.section.projects.empty" = "プロジェクトなし";
+"sidebar.section.conversations" = "会話";
+"sidebar.draft.unsent" = "新しい会話（未送信）";
+"sidebar.auto_intelligence.coming_soon.title" = "プロアクティブ AI";
+"sidebar.auto_intelligence.coming_soon.subtitle" = "近日公開";
+"chat.draft.title" = "新しい会話を始める";
+"chat.draft.subtitle.no_project" = "最初のメッセージを送信すると「会話」セクションに表示されます。";
+"chat.draft.subtitle.in_project" = "最初のメッセージを送信すると、このプロジェクトに会話が作成されます。";
 "chat.add_project_panel_message" = "ローカルディレクトリをプロジェクトとして選択します。";
 "chat.compaction_completed" = "コンテキストの圧縮が完了しました。";
 "chat.compaction_failed" = "圧縮に失敗しました: %@";
@@ -210,3 +228,15 @@
 "settings.diagnostics.schema_unknown" = "不明なスキーマ";
 "settings.diagnostics.schema_mismatch" = "v%d（非互換）";
 "settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ のバックアップにスキーマ情報がありません。古いバージョンの Impulse で作成された可能性があり、起動に失敗する場合があります。続行しますか？";
+
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"chat.thinking" = "思考中";
+"chat.tool_group.done" = "完了";
+"settings.storage_root" = "ストレージルート";
+"settings.active_project" = "現在のプロジェクト";
+"settings.model.base_url" = "Base URL";
+"settings.model.test_model" = "モデルをテスト";
+"settings.model.testing" = "テスト中…";
+"settings.model.test.invalid_url" = "URL が無効";
+"settings.model.test.no_response" = "応答なし";
+"settings.model.test.http_error" = "HTTP %d";

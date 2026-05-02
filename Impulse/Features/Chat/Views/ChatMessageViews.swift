@@ -6,7 +6,7 @@ import SwiftUI
 struct ChatWelcomeHeader: View {
     var body: some View {
         Text("chat.welcome")
-            .font(.system(size: 28, weight: .semibold))
+            .chatFont(.title, weight: .semibold)
             .foregroundColor(.primary.opacity(0.88))
             .frame(maxWidth: .infinity)
             .padding(.top, 24)
@@ -50,6 +50,7 @@ struct TypingIndicatorView: View {
 
 struct MessageView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var themeManager: ThemeManager
 
     let message: StoredMessage
 
@@ -59,7 +60,7 @@ struct MessageView: View {
                 Spacer(minLength: 80)
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(message.content)
-                        .font(.system(size: 15, weight: .semibold))
+                        .chatFont(.body, weight: .semibold)
                         .padding(.horizontal, 28)
                         .padding(.vertical, 16)
                         .background(userMessageBackground)
@@ -67,7 +68,7 @@ struct MessageView: View {
                         .clipShape(Capsule())
 
                     Text(message.timestamp, format: .dateTime.hour().minute())
-                        .font(.system(size: 10))
+                        .chatFont(.footnote)
                         .foregroundColor(.secondary)
                 }
             }
@@ -76,13 +77,13 @@ struct MessageView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Markdown(message.content)
                     .markdownTextStyle {
-                        FontSize(14)
+                        FontSize(14 * themeManager.textSize.multiplier)
                     }
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(message.timestamp, format: .dateTime.hour().minute())
-                    .font(.system(size: 10))
+                    .chatFont(.footnote)
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -113,10 +114,10 @@ struct PersistedReasoningRow: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "brain")
-                        .font(.system(size: 11, weight: .regular))
+                        .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.secondary)
-                    Text("Thinking")
-                        .font(.system(size: 12, weight: .medium))
+                    Text("chat.thinking")
+                        .chatFont(.body)
                         .foregroundColor(.secondary)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
@@ -130,7 +131,7 @@ struct PersistedReasoningRow: View {
 
             if isExpanded {
                 Text(text)
-                    .font(.system(size: 12))
+                    .chatFont(.caption)
                     .foregroundColor(.secondary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -148,6 +149,10 @@ struct PersistedReasoningRow: View {
 struct ToolExecutionMessageView: View {
     let execution: AgentToolExecution
     var isLast: Bool = true
+    /// `true` only for the row that is currently the focus of execution
+    /// (the last entry whose status is `.running`). Earlier completed
+    /// rows pass `false` so they don't pulse alongside the live one.
+    var isActive: Bool = true
 
     var body: some View {
         ToolTimelineRow(
@@ -155,7 +160,8 @@ struct ToolExecutionMessageView: View {
             status: execution.status,
             summary: execution.summary,
             output: execution.output,
-            isLast: isLast
+            isLast: isLast,
+            isActive: isActive
         )
     }
 }
@@ -170,7 +176,8 @@ struct PersistedToolExecutionMessageView: View {
             status: run.status == "success" ? .success : (run.status == "failed" ? .failed : .running),
             summary: run.summary,
             output: run.output,
-            isLast: isLast
+            isLast: isLast,
+            isActive: false
         )
     }
 }
@@ -225,7 +232,7 @@ struct ToolExecutionGroupView: View {
         } label: {
             HStack(spacing: 6) {
                 Text(summaryText)
-                    .font(.system(size: 14, weight: .regular))
+                    .chatFont(.body)
                     .foregroundColor(.primary.opacity(0.85))
 
                 Image(systemName: "chevron.down")
@@ -251,8 +258,8 @@ struct ToolExecutionGroupView: View {
             }
             .frame(width: 22, height: 22)
 
-            Text("Done")
-                .font(.system(size: 14, weight: .semibold))
+            Text("chat.tool_group.done")
+                .chatFont(.body, weight: .semibold)
                 .foregroundColor(.primary.opacity(0.92))
 
             Spacer(minLength: 0)
@@ -285,9 +292,16 @@ private struct ToolTimelineRow: View {
     let summary: String
     let output: String
     let isLast: Bool
+    /// Whether this row is the currently-focused execution. Controls the
+    /// pulse animation: only the active row pulses, even if multiple rows
+    /// happen to share `.running` status (rare, but possible during retries
+    /// or parallel tool calls).
+    let isActive: Bool
 
     @State private var isExpanded = false
     @State private var pulseOn = false
+
+    private var shouldPulse: Bool { status == .running && isActive }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -297,8 +311,8 @@ private struct ToolTimelineRow: View {
                     Image(systemName: iconName)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(iconColor)
-                        .opacity(status == .running && !pulseOn ? 0.35 : 1.0)
-                        .scaleEffect(status == .running && pulseOn ? 1.05 : 1.0)
+                        .opacity(shouldPulse && !pulseOn ? 0.35 : 1.0)
+                        .scaleEffect(shouldPulse && pulseOn ? 1.05 : 1.0)
                 }
                 .frame(width: 22, height: 22)
 
@@ -320,7 +334,7 @@ private struct ToolTimelineRow: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text(titleText)
-                            .font(.system(size: 14, weight: .regular))
+                            .chatFont(.body)
                             .foregroundColor(.primary.opacity(status == .running ? 0.7 : 0.92))
 
                         Image(systemName: "chevron.right")
@@ -334,7 +348,7 @@ private struct ToolTimelineRow: View {
                 // Subtitle chip — Script / Result / Request style
                 if let chip = chipText {
                     Text(chip)
-                        .font(.system(size: 10, design: .monospaced))
+                        .chatFont(.footnote, design: .monospaced)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(chipBackground)
@@ -354,10 +368,10 @@ private struct ToolTimelineRow: View {
         }
         .padding(.horizontal, 56)
         .onAppear {
-            if status == .running { startPulse() }
+            if shouldPulse { startPulse() }
         }
-        .onChange(of: status) { _, newValue in
-            if newValue == .running {
+        .onChange(of: shouldPulse) { _, newValue in
+            if newValue {
                 startPulse()
             } else {
                 pulseOn = false
@@ -466,7 +480,7 @@ private struct ToolDetailPanel: View {
                 outputSection
             } else {
                 Text(L10n.tr("tool.no_output"))
-                    .font(.system(size: 10))
+                    .chatFont(.footnote)
                     .foregroundColor(.secondary)
             }
         }
@@ -483,12 +497,12 @@ private struct ToolDetailPanel: View {
     private var argumentSection: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(argumentLabel)
-                .font(.system(size: 9, weight: .semibold))
+                .chatFont(.footnote, weight: .semibold)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
 
             Text(argumentValue)
-                .font(.system(size: 11, design: argumentMonospaced ? .monospaced : .default))
+                .chatFont(.caption, design: argumentMonospaced ? .monospaced : .default)
                 .foregroundColor(.primary.opacity(0.85))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -499,7 +513,7 @@ private struct ToolDetailPanel: View {
     private var outputSection: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(outputLabel)
-                .font(.system(size: 9, weight: .semibold))
+                .chatFont(.footnote, weight: .semibold)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
 
@@ -507,7 +521,7 @@ private struct ToolDetailPanel: View {
             let display = trimmed.isEmpty ? L10n.tr("tool.no_output") : trimmed
             ScrollView {
                 Text(display)
-                    .font(.system(size: 11, design: .monospaced))
+                    .chatFont(.caption, design: .monospaced)
                     .foregroundColor(.primary.opacity(0.8))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
