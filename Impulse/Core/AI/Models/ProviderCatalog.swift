@@ -80,3 +80,13 @@ struct Provider: Identifiable, Codable, Equatable {
         self.isCustom = isCustom
     }
 }
+
+struct FavoriteModel: Identifiable, Codable, Equatable, Hashable {
+    var providerId: String
+    var providerName: String
+    var baseURL: String
+    var modelId: String
+    var modelName: String
+
+    var id: String { "\(providerId)::\(modelId)" }
+}

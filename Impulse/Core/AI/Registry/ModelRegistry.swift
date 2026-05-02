@@ -26,6 +26,7 @@ final class ModelRegistry: ObservableObject {
 
     @Published var providers: [Provider] = []
     @Published var isLoading = false
+    @Published var favorites: [FavoriteModel] = []
 
     // Stays on v1: bumping would empty the model list for offline users
     // until the next refresh. New `ModelInfo` fields use `decodeIfPresent`
@@ -34,9 +35,11 @@ final class ModelRegistry: ObservableObject {
     private static let providersCacheKey = "modelregistry.modelsdev.providers.cache.v1"
     private static let customProvidersKey = "modelregistry.custom.providers.v1"
     private static let providerApiKeysKey = "modelregistry.apikeys.v1"
+    private static let favoritesKey = "modelregistry.favorites.v1"
 
     private init() {
         loadProviders()
+        favorites = loadFavorites()
     }
 
     // MARK: - Public API
@@ -107,6 +110,45 @@ final class ModelRegistry: ObservableObject {
 
     func provider(for id: String) -> Provider? {
         providers.first { $0.id == id }
+    }
+
+    // MARK: - Favorites
+
+    func isFavorite(providerId: String, modelId: String) -> Bool {
+        favorites.contains { $0.providerId == providerId && $0.modelId == modelId }
+    }
+
+    func addFavorite(providerId: String, modelId: String) {
+        guard !modelId.isEmpty, !providerId.isEmpty else { return }
+        guard !isFavorite(providerId: providerId, modelId: modelId) else { return }
+        guard let provider = provider(for: providerId) else { return }
+        let modelName = provider.models.first { $0.id == modelId }?.name ?? modelId
+        favorites.append(
+            FavoriteModel(
+                providerId: providerId,
+                providerName: provider.name,
+                baseURL: provider.baseURL,
+                modelId: modelId,
+                modelName: modelName
+            )
+        )
+        saveFavorites()
+    }
+
+    func removeFavorite(providerId: String, modelId: String) {
+        favorites.removeAll { $0.providerId == providerId && $0.modelId == modelId }
+        saveFavorites()
+    }
+
+    private func loadFavorites() -> [FavoriteModel] {
+        guard let data = UserDefaults.standard.data(forKey: Self.favoritesKey) else { return [] }
+        return (try? JSONDecoder().decode([FavoriteModel].self, from: data)) ?? []
+    }
+
+    private func saveFavorites() {
+        if let data = try? JSONEncoder().encode(favorites) {
+            UserDefaults.standard.set(data, forKey: Self.favoritesKey)
+        }
     }
 
     // MARK: - Load
