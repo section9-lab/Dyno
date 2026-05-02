@@ -127,6 +127,7 @@
 "kanban.hide_board" = "Masquer le tableau";
 "kanban.link_current_session" = "Lier la session actuelle";
 "kanban.no_project_selected" = "Aucun projet sélectionné";
+"kanban.all_projects" = "Tous les projets";
 "kanban.one_session" = "1 session";
 "kanban.priority" = "Priorité";
 "kanban.priority.high" = "Haute";

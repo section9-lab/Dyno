@@ -132,6 +132,7 @@
 "kanban.hide_board" = "隐藏看板";
 "kanban.link_current_session" = "关联当前会话";
 "kanban.no_project_selected" = "未选择项目";
+"kanban.all_projects" = "所有项目";
 "kanban.one_session" = "1 个会话";
 "kanban.priority" = "优先级";
 "kanban.priority.high" = "高";

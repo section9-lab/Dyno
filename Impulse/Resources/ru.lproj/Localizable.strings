@@ -127,6 +127,7 @@
 "kanban.hide_board" = "Скрыть доску";
 "kanban.link_current_session" = "Связать текущую сессию";
 "kanban.no_project_selected" = "Проект не выбран";
+"kanban.all_projects" = "Все проекты";
 "kanban.one_session" = "1 сессия";
 "kanban.priority" = "Приоритет";
 "kanban.priority.high" = "Высокий";

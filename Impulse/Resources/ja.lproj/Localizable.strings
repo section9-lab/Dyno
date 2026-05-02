@@ -127,6 +127,7 @@
 "kanban.hide_board" = "ボードを隠す";
 "kanban.link_current_session" = "現在のセッションをリンク";
 "kanban.no_project_selected" = "プロジェクトが選択されていません";
+"kanban.all_projects" = "すべてのプロジェクト";
 "kanban.one_session" = "1 セッション";
 "kanban.priority" = "優先度";
 "kanban.priority.high" = "高";

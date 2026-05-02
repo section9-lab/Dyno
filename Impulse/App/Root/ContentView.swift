@@ -13,6 +13,11 @@ struct ContentView: View {
     @StateObject private var approvals = ToolApprovalCenter.shared
     @EnvironmentObject private var authSession: AuthSession
 
+    /// Project the kanban scopes to. `nil` means "all projects" — the
+    /// default aggregate view. Independent from `vm.selectedProjectPath`
+    /// so the chat sidebar's selection doesn't snap the board around.
+    @State private var kanbanScopePath: String? = nil
+
     private let kanban = KanbanController()
 
     /// Sessions for the currently-selected project.
@@ -42,16 +47,24 @@ struct ContentView: View {
         return allSessions.first(where: { $0.id == id })
     }
 
+    /// Tasks visible to the kanban — all projects when in aggregate mode,
+    /// scoped to a single project otherwise. Sorted by status, then most
+    /// recent first within a status. Filtering by project happens inside
+    /// the view to keep the picker UI responsive without re-deriving here.
     private var kanbanTasks: [StoredKanbanTask] {
-        guard let path = vm.selectedProjectPath else { return [] }
-        return allTasks
-            .filter { $0.projectPath == path }
-            .sorted { lhs, rhs in
-                if lhs.status != rhs.status {
-                    return lhs.status.rawValue < rhs.status.rawValue
-                }
-                return lhs.updatedAt > rhs.updatedAt
+        allTasks.sorted { lhs, rhs in
+            if lhs.status != rhs.status {
+                return lhs.status.rawValue < rhs.status.rawValue
             }
+            return lhs.updatedAt > rhs.updatedAt
+        }
+    }
+
+    /// Sessions to surface in kanban cards — all sessions for the scoped
+    /// project, or every session in aggregate mode.
+    private var kanbanProjectSessions: [StoredSession] {
+        guard let path = kanbanScopePath else { return allSessions }
+        return allSessions.filter { $0.projectPath == path }
     }
 
     /// Rows to render in the chat scroll area for the focused session.
@@ -192,16 +205,17 @@ struct ContentView: View {
 
     private var kanbanColumn: some View {
         KanbanPanelView(
-            project: selectedProject,
+            projects: projects,
+            selectedProjectPath: $kanbanScopePath,
             selectedSession: selectedSession,
             tasks: kanbanTasks,
-            projectSessions: projectSessions,
+            projectSessions: kanbanProjectSessions,
             onCreateTask: { title, priority, status in
                 kanban.createTask(
                     title: title,
                     priority: priority,
                     status: status,
-                    projectPath: vm.selectedProjectPath,
+                    projectPath: kanbanScopePath ?? projects.first?.path,
                     selectedSessionID: vm.selectedSessionID,
                     modelContext: modelContext
                 )
