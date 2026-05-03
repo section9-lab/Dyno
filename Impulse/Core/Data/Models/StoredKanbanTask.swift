@@ -3,17 +3,19 @@ import CoreTransferable
 import SwiftData
 
 enum KanbanTaskStatus: String, Codable, CaseIterable, Identifiable {
-    case plan
-    case progress
+    case todo
+    case inProgress
+    case pendingReview
     case done
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .plan: return "Plan"
-        case .progress: return "Progress"
-        case .done: return "Done"
+        case .todo:          return "Todo"
+        case .inProgress:    return "In Progress"
+        case .pendingReview: return "Pending Review"
+        case .done:          return "Done"
         }
     }
 }
@@ -38,9 +40,9 @@ enum KanbanTaskPriority: String, Codable, CaseIterable, Identifiable {
 /// relationship — explicit fetch by `projectPath`, same convention as
 /// `StoredSession`).
 ///
-/// `linkedSessionIDs` is a comma-joined string because SwiftData has spotty
-/// support for `[String]` value-type collections; the wrapper accessors keep
-/// callers strongly typed.
+/// `linkedSessionIDs` and `labels` are comma-joined strings because SwiftData
+/// has spotty support for `[String]` value-type collections; the wrapper
+/// accessors keep callers strongly typed.
 @Model
 final class StoredKanbanTask {
     @Attribute(.unique) var id: String
@@ -54,6 +56,9 @@ final class StoredKanbanTask {
     /// Comma-joined session ids. Empty string == no links. Use
     /// `linkedSessionIDs` for typed access.
     var linkedSessionIDsRaw: String
+    /// Comma-joined free-form label strings. Empty string == no labels. Use
+    /// `labels` for typed access.
+    var labelsRaw: String = ""
     var assigneeName: String
     var notes: String
     var createdAt: Date
@@ -67,6 +72,7 @@ final class StoredKanbanTask {
         priority: KanbanTaskPriority,
         primarySessionID: String? = nil,
         linkedSessionIDs: [String] = [],
+        labels: [String] = [],
         assigneeName: String = "AI",
         notes: String = "",
         createdAt: Date = Date(),
@@ -79,6 +85,7 @@ final class StoredKanbanTask {
         self.priorityRaw = priority.rawValue
         self.primarySessionID = primarySessionID
         self.linkedSessionIDsRaw = linkedSessionIDs.joined(separator: ",")
+        self.labelsRaw = labels.joined(separator: ",")
         self.assigneeName = assigneeName
         self.notes = notes
         self.createdAt = createdAt
@@ -86,7 +93,7 @@ final class StoredKanbanTask {
     }
 
     var status: KanbanTaskStatus {
-        get { KanbanTaskStatus(rawValue: statusRaw) ?? .plan }
+        get { KanbanTaskStatus(rawValue: statusRaw) ?? .todo }
         set { statusRaw = newValue.rawValue }
     }
 
@@ -102,6 +109,21 @@ final class StoredKanbanTask {
                 : linkedSessionIDsRaw.split(separator: ",").map(String.init)
         }
         set { linkedSessionIDsRaw = newValue.joined(separator: ",") }
+    }
+
+    var labels: [String] {
+        get {
+            labelsRaw.isEmpty
+                ? []
+                : labelsRaw.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+        }
+        set {
+            labelsRaw = newValue
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+                .joined(separator: ",")
+        }
     }
 }
 

@@ -95,8 +95,16 @@ final class ChatViewModel: ObservableObject {
     func selectProject(_ projectPath: String, agent: AgentManager) {
         selectedProjectPath = projectPath
         selectedSessionID = nil
-        inputText = ""
-        draft = nil
+        // Preserve an in-progress New Chat draft — just retarget it to the
+        // newly-selected project. Without this, picking a project from the
+        // input-bar dropdown after tapping "New Chat" would clear the draft
+        // and leave the user unable to send.
+        if draft != nil {
+            draft = DraftSession(projectPath: projectPath)
+            expandedProjectPaths.insert(projectPath)
+        } else {
+            inputText = ""
+        }
         route = .chat
         agent.setActiveProjectPath(projectPath)
     }

@@ -10,6 +10,7 @@ struct ModelSettingsView: View {
     @State private var isTesting = false
     @State private var testResult: ModelTestResult? = nil
     @State private var favoriteRowStates: [String: FavoriteRowState] = [:]
+    @State private var showProviderSheet = false
 
     private enum ModelTestResult {
         case success(latency: String)
@@ -59,8 +60,6 @@ struct ModelSettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 connectionStatusRow
 
-                favoritesChipsRow
-
                 if !agent.registry.favorites.isEmpty {
                     Divider()
                     favoritesSection
@@ -68,12 +67,88 @@ struct ModelSettingsView: View {
 
                 Divider()
 
-                providerSection
+                addProviderButton
             }
         }
         .sheet(isPresented: $viewModel.showCustomSheet) {
             addCustomProviderSheet
         }
+        .sheet(isPresented: $showProviderSheet) {
+            providerSheet
+        }
+    }
+
+    private var addProviderButton: some View {
+        Button {
+            showProviderSheet = true
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.14))
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.accentColor)
+                }
+                .frame(width: 26, height: 26)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Add Model Provider")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
+                    Text("settings.model.provider")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.85))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(width: providerListWidth, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.62))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var providerSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("settings.model.provider")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button {
+                    showProviderSheet = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
+            }
+
+            providerSection
+
+            HStack {
+                Spacer()
+                Button("common.close") { showProviderSheet = false }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(width: providerListWidth + 60)
     }
 
     private var favoritesSection: some View {
@@ -229,56 +304,6 @@ struct ModelSettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var favoritesChipsRow: some View {
-        let favorites = agent.registry.favoriteModels()
-        if favorites.isEmpty {
-            Text("settings.model.favorites_hint")
-                .font(.system(size: 11.5))
-                .foregroundColor(.secondary)
-        } else {
-            FavoritesFlow(spacing: 6) {
-                ForEach(Array(favorites.enumerated()), id: \.offset) { _, entry in
-                    favoriteChip(provider: entry.provider, model: entry.model)
-                }
-            }
-        }
-    }
-
-    private func favoriteChip(provider: Provider, model: ModelInfo) -> some View {
-        let isCurrent = provider.id == agent.config.providerId && model.id == agent.config.modelId
-        return HStack(spacing: 6) {
-            Circle()
-                .fill(isCurrent ? Color.accentColor : Color.secondary.opacity(0.55))
-                .frame(width: 6, height: 6)
-            Text(provider.name)
-                .font(.system(size: 10.5))
-                .foregroundColor(.secondary)
-            Text(model.name)
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundColor(.primary)
-                .lineLimit(1)
-            Button {
-                agent.registry.toggleFavorite(providerId: provider.id, modelId: model.id)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            Capsule(style: .continuous)
-                .fill(isCurrent ? Color.accentColor.opacity(0.14) : Color.black.opacity(0.06))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(isCurrent ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-        )
-    }
-    
     private var providerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("settings.model.provider")
@@ -867,53 +892,4 @@ struct ModelSettingsView: View {
 #Preview {
     ModelSettingsView(agent: AgentManager.shared, viewModel: ModelSettingsViewModel())
         .frame(width: 600)
-}
-
-/// Minimal flow layout: lays children left-to-right and wraps to the next
-/// line when the current row exceeds the proposed width. Used for the
-/// favorites chip strip in the connection card.
-struct FavoritesFlow: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var rowWidth: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var totalHeight: CGFloat = 0
-        var totalWidth: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if rowWidth + size.width > maxWidth, rowWidth > 0 {
-                totalHeight += rowHeight + spacing
-                totalWidth = max(totalWidth, rowWidth - spacing)
-                rowWidth = 0
-                rowHeight = 0
-            }
-            rowWidth += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-        totalHeight += rowHeight
-        totalWidth = max(totalWidth, rowWidth - spacing)
-        return CGSize(width: totalWidth, height: totalHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let maxWidth = bounds.width
-        var x: CGFloat = bounds.minX
-        var y: CGFloat = bounds.minY
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > bounds.minX + maxWidth, x > bounds.minX {
-                x = bounds.minX
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-    }
 }

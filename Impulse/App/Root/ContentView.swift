@@ -212,12 +212,13 @@ struct ContentView: View {
             selectedSession: selectedSession,
             tasks: kanbanTasks,
             projectSessions: kanbanProjectSessions,
-            onCreateTask: { title, priority, status in
+            onCreateTask: { projectPath, title, priority, status, labels in
                 kanban.createTask(
                     title: title,
                     priority: priority,
                     status: status,
-                    projectPath: kanbanScopePath ?? projects.first?.path,
+                    labels: labels,
+                    projectPath: projectPath,
                     selectedSessionID: vm.selectedSessionID,
                     modelContext: modelContext
                 )
@@ -226,7 +227,8 @@ struct ContentView: View {
             onLinkSelectedSession: { task in
                 kanban.linkSession(task, sessionID: vm.selectedSessionID)
             },
-            onDeleteTask: { task in kanban.deleteTask(task, modelContext: modelContext) }
+            onDeleteTask: { task in kanban.deleteTask(task, modelContext: modelContext) },
+            onUpdateLabels: { task, labels in kanban.setLabels(task, labels: labels) }
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 56)

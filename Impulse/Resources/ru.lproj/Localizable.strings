@@ -125,11 +125,13 @@
 "chat.welcome" = "Здравствуйте. Чем я могу помочь сегодня?";
 "kanban.add_task" = "Добавить задачу";
 "kanban.add_task_placeholder" = "Добавить задачу для этого проекта";
+"kanban.add_label" = "Добавить метку";
 "kanban.delete_task" = "Удалить задачу";
 "kanban.drop_task_here" = "Перетащите задачу сюда";
 "kanban.hide_board" = "Скрыть доску";
 "kanban.link_current_session" = "Связать текущую сессию";
 "kanban.no_project_selected" = "Проект не выбран";
+"kanban.select_project" = "Выберите проект…";
 "kanban.all_projects" = "Все проекты";
 "kanban.one_session" = "1 сессия";
 "kanban.priority" = "Приоритет";

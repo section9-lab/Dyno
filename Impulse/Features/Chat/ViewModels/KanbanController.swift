@@ -10,6 +10,7 @@ struct KanbanController {
         title rawTitle: String,
         priority: KanbanTaskPriority,
         status: KanbanTaskStatus,
+        labels: [String] = [],
         projectPath: String?,
         selectedSessionID: String?,
         modelContext: ModelContext
@@ -25,9 +26,15 @@ struct KanbanController {
             status: status,
             priority: priority,
             primarySessionID: selectedSessionID,
-            linkedSessionIDs: linked
+            linkedSessionIDs: linked,
+            labels: labels
         )
         modelContext.insert(task)
+    }
+
+    func setLabels(_ task: StoredKanbanTask, labels: [String]) {
+        task.labels = labels
+        task.updatedAt = Date()
     }
 
     func moveTask(_ task: StoredKanbanTask, to status: KanbanTaskStatus) {

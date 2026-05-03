@@ -46,7 +46,8 @@ struct ChatModelSwitcher: View {
             .foregroundColor(.primary.opacity(0.78))
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .frame(maxWidth: 180)
+            .frame(maxWidth: 160)
+            .fixedSize(horizontal: true, vertical: false)
             .background(
                 Capsule(style: .continuous).fill(chipBackground)
             )

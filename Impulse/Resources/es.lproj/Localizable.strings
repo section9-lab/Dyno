@@ -125,11 +125,13 @@
 "chat.welcome" = "Hola. ¿En qué puedo ayudarte hoy?";
 "kanban.add_task" = "Añadir tarea";
 "kanban.add_task_placeholder" = "Añade una tarea para este proyecto";
+"kanban.add_label" = "Añadir etiqueta";
 "kanban.delete_task" = "Eliminar tarea";
 "kanban.drop_task_here" = "Suelta la tarea aquí";
 "kanban.hide_board" = "Ocultar tablero";
 "kanban.link_current_session" = "Vincular sesión actual";
 "kanban.no_project_selected" = "Ningún proyecto seleccionado";
+"kanban.select_project" = "Seleccionar proyecto…";
 "kanban.all_projects" = "Todos los proyectos";
 "kanban.one_session" = "1 sesión";
 "kanban.priority" = "Prioridad";

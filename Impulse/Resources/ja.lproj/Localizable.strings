@@ -125,11 +125,13 @@
 "chat.welcome" = "こんにちは。今日は何をお手伝いできますか？";
 "kanban.add_task" = "タスクを追加";
 "kanban.add_task_placeholder" = "このプロジェクトのタスクを追加";
+"kanban.add_label" = "ラベルを追加";
 "kanban.delete_task" = "タスクを削除";
 "kanban.drop_task_here" = "ここにタスクをドロップ";
 "kanban.hide_board" = "ボードを隠す";
 "kanban.link_current_session" = "現在のセッションをリンク";
 "kanban.no_project_selected" = "プロジェクトが選択されていません";
+"kanban.select_project" = "プロジェクトを選択…";
 "kanban.all_projects" = "すべてのプロジェクト";
 "kanban.one_session" = "1 セッション";
 "kanban.priority" = "優先度";

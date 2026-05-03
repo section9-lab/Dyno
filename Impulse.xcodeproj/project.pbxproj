@@ -128,7 +128,7 @@
 		583B5B0278B358AFEC033F74 /* AgentRuntimeBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRuntimeBootstrap.swift; sourceTree = "<group>"; };
 		5842AC1398CC11E089583BA3 /* SessionAgentPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAgentPool.swift; sourceTree = "<group>"; };
 		58F2C65119291BEDEA4E8564 /* Impulse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Impulse.entitlements; sourceTree = "<group>"; };
-		5C5E7DA5CF6AC275031372DD /* StoreBackupManagerTests.swift.bak */ = {isa = PBXFileReference; path = StoreBackupManagerTests.swift.bak; sourceTree = "<group>"; };
+		5C5E7DA5CF6AC275031372DD /* StoreBackupManagerTests.swift.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreBackupManagerTests.swift.bak; sourceTree = "<group>"; };
 		62E89B50E4670FD44E9C3F60 /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		641FD7736C28866239E8FD95 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		64DC798388F10748F51C2C48 /* ContextUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextUsageView.swift; sourceTree = "<group>"; };
@@ -708,7 +708,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					B029E5C098AE6F9D7DAA7C5C = {
-						DevelopmentTeam = 6BWZP56JX9;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1033,7 +1032,7 @@
 				CODE_SIGN_ENTITLEMENTS = Impulse/Resources/Impulse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 6BWZP56JX9;
+				DEVELOPMENT_TEAM = YP86S77K2X;
 				INFOPLIST_FILE = Impulse/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1051,7 +1050,7 @@
 				CODE_SIGN_ENTITLEMENTS = Impulse/Resources/Impulse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 6BWZP56JX9;
+				DEVELOPMENT_TEAM = YP86S77K2X;
 				INFOPLIST_FILE = Impulse/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
