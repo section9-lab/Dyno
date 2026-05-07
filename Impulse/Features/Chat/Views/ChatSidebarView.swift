@@ -41,7 +41,7 @@ struct ChatSidebarView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     actionsSection
                     projectsSection
-                    if !projectlessSessions.isEmpty || isComposingDraft {
+                    if !projectlessSessions.isEmpty {
                         conversationsSection
                     }
                 }
@@ -62,7 +62,12 @@ struct ChatSidebarView: View {
                 id: "action.new_chat",
                 title: "sidebar.action.new_chat",
                 systemImage: "square.and.pencil",
-                isActive: route == .chat && isComposingDraft,
+                // Top-level "New Chat" is only the active row when the user is
+                // composing a *project-less* draft. If they hit the "+" inside
+                // a project, `isComposingDraft` is also true but the draft
+                // belongs to that project — we shouldn't light up the global
+                // button as well.
+                isActive: route == .chat && isComposingDraft && selectedProjectPath == nil,
                 action: onBeginDraft
             )
             actionRow(
@@ -146,32 +151,14 @@ struct ChatSidebarView: View {
         VStack(alignment: .leading, spacing: 6) {
             sectionHeader(title: "sidebar.section.conversations")
 
-            if isComposingDraft && (selectedSessionID == nil) && (selectedProjectPath == nil) {
-                draftPlaceholderRow
-            }
-
+            // Intentionally no draft placeholder row here — an unsent draft
+            // should not appear as a ghost session in the sidebar. A real
+            // row is created only once the first message is sent and a
+            // session exists.
             ForEach(projectlessSessions) { session in
                 conversationRow(session)
             }
         }
-    }
-
-    private var draftPlaceholderRow: some View {
-        HStack(spacing: 6) {
-            SessionStatusBadge(sessionID: "")
-            Text("sidebar.draft.unsent")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(selectedBackgroundColor)
-        )
     }
 
     private func conversationRow(_ session: StoredSession) -> some View {
@@ -274,9 +261,11 @@ struct ChatSidebarView: View {
                 Button {
                     onBeginDraftInProject(project)
                 } label: {
-                    Label("chat.new_session", systemImage: "plus")
+                    // Match the "New Chat" action at the top of the sidebar so
+                    // the two entry points read as the same affordance.
+                    Label("chat.new_session", systemImage: "square.and.pencil")
                         .labelStyle(.iconOnly)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundColor(.primary)
                         .frame(width: 30, height: 30)
                         .background(newSessionButtonBackground)
@@ -313,11 +302,11 @@ struct ChatSidebarView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    if isComposingDraft && selectedProjectPath == project.path && selectedSessionID == nil {
-                        draftPlaceholderRow
-                    }
+                    // No draft placeholder row: an unsent draft inside a
+                    // project should not render a ghost session. It only
+                    // appears in the list once the first message is sent.
 
-                    if sessions.isEmpty && !(isComposingDraft && selectedProjectPath == project.path) {
+                    if sessions.isEmpty {
                         Text("chat.no_sessions")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
