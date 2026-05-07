@@ -33,6 +33,7 @@
 		549A7FF4C2E2CDBA0BC33359 /* StoreBackupManagerTests.swift.bak in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E7DA5CF6AC275031372DD /* StoreBackupManagerTests.swift.bak */; };
 		55FE5C7F09CD14FF93C2B6CF /* AuthUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7660C20FF64367728A0540F /* AuthUser.swift */; };
 		5978A585166F2F7FCA753FBE /* ContextUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64DC798388F10748F51C2C48 /* ContextUsageView.swift */; };
+		5F4A2EC143FDC8F8A6EFDD02 /* OTPInputProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626B740D538AC157B3800E61 /* OTPInputProcessorTests.swift */; };
 		60DB3B4886570C0EC3977B67 /* UserAlertCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7CA162EAF6068CC55484673 /* UserAlertCenter.swift */; };
 		625B85CC824A13B3D78D8FD2 /* StoreBackupManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB594959D58ACEE21783F5C /* StoreBackupManagerTests.swift */; };
 		6E9AAA67BB55EA65BC671D9B /* ScreenCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B288284061B4AD954D17FDCC /* ScreenCaptureService.swift */; };
@@ -58,6 +59,7 @@
 		A0B9D520AA7B1D740B34205B /* ModelCapabilityBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C538F5E13E1E219CEED7C12 /* ModelCapabilityBadges.swift */; };
 		A26A665BED442AEDE2A449BC /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6E7DCCFF9994694025CFF7 /* ContentView.swift */; };
 		A44049E0BE23B05E177D04C0 /* SchemaVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313DFF1E346196C53BF67D8 /* SchemaVersion.swift */; };
+		AD68DDC421476714E9AE8602 /* EmailOTPValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2ED1959311C2A4333A4861F /* EmailOTPValidationTests.swift */; };
 		B2E934E56EC6BCDC374A09B5 /* ChatModelSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208E66F92682AED75952BF5D /* ChatModelSwitcher.swift */; };
 		B30AA335FBF174A283E5747F /* KanbanPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29763011DDEF85183EC3062 /* KanbanPanelView.swift */; };
 		BF8292A58FE863EB7475606C /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A8786A07FC8532AD97F1B2 /* Item.swift */; };
@@ -134,7 +136,8 @@
 		583B5B0278B358AFEC033F74 /* AgentRuntimeBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRuntimeBootstrap.swift; sourceTree = "<group>"; };
 		5842AC1398CC11E089583BA3 /* SessionAgentPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAgentPool.swift; sourceTree = "<group>"; };
 		58F2C65119291BEDEA4E8564 /* Impulse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Impulse.entitlements; sourceTree = "<group>"; };
-		5C5E7DA5CF6AC275031372DD /* StoreBackupManagerTests.swift.bak */ = {isa = PBXFileReference; path = StoreBackupManagerTests.swift.bak; sourceTree = "<group>"; };
+		5C5E7DA5CF6AC275031372DD /* StoreBackupManagerTests.swift.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreBackupManagerTests.swift.bak; sourceTree = "<group>"; };
+		626B740D538AC157B3800E61 /* OTPInputProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPInputProcessorTests.swift; sourceTree = "<group>"; };
 		62E89B50E4670FD44E9C3F60 /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		641FD7736C28866239E8FD95 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		64DC798388F10748F51C2C48 /* ContextUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextUsageView.swift; sourceTree = "<group>"; };
@@ -179,6 +182,7 @@
 		DA14FE8BD470EEDFD5BADA31 /* EmailInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailInputField.swift; sourceTree = "<group>"; };
 		DC6C5E89A7032E5F5279F940 /* UserAlertCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAlertCenterTests.swift; sourceTree = "<group>"; };
 		DD100608B3FEA3586998F61C /* DiagnosticsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsSettingsView.swift; sourceTree = "<group>"; };
+		E2ED1959311C2A4333A4861F /* EmailOTPValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailOTPValidationTests.swift; sourceTree = "<group>"; };
 		E7342673108D223155240E33 /* SessionAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAgent.swift; sourceTree = "<group>"; };
 		E809CF2E4297D75E66EDF96A /* ScreenCapturePermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapturePermissionManager.swift; sourceTree = "<group>"; };
 		E8D20BF85185F315C708CC56 /* ModelProviderConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProviderConfigView.swift; sourceTree = "<group>"; };
@@ -247,6 +251,8 @@
 			isa = PBXGroup;
 			children = (
 				81CAE722F05A75BF3F571B06 /* AgentConfigStoreTests.swift */,
+				E2ED1959311C2A4333A4861F /* EmailOTPValidationTests.swift */,
+				626B740D538AC157B3800E61 /* OTPInputProcessorTests.swift */,
 				2902AE7A5C18CC0CB4FFDC75 /* SessionAgentPoolTests.swift */,
 				FDB594959D58ACEE21783F5C /* StoreBackupManagerTests.swift */,
 				5C5E7DA5CF6AC275031372DD /* StoreBackupManagerTests.swift.bak */,
@@ -734,15 +740,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-					81144E5F8BAB484AFEC3DA90 = {
-						ProvisioningStyle = Automatic;
-					};
-					B029E5C098AE6F9D7DAA7C5C = {
-						DevelopmentTeam = 6BWZP56JX9;
-						ProvisioningStyle = Automatic;
-					};
-				};
 			};
 			buildConfigurationList = D6AAAA4C6B9257102445D750 /* Build configuration list for PBXProject "Impulse" */;
 			developmentRegion = en;
@@ -802,6 +799,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				F59D9517D4F20DACE455CE05 /* AgentConfigStoreTests.swift in Sources */,
+				AD68DDC421476714E9AE8602 /* EmailOTPValidationTests.swift in Sources */,
+				5F4A2EC143FDC8F8A6EFDD02 /* OTPInputProcessorTests.swift in Sources */,
 				44EA094552C26229E403A550 /* SessionAgentPoolTests.swift in Sources */,
 				625B85CC824A13B3D78D8FD2 /* StoreBackupManagerTests.swift in Sources */,
 				9913E6EDC9A85A54AF56E9CE /* StoredEntitiesTests.swift in Sources */,
@@ -955,9 +954,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -980,6 +981,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1040,6 +1042,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 6BWZP56JX9;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1085,15 +1088,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Impulse/Resources/Impulse.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 6BWZP56JX9;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Impulse/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.Impulse;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 			};
 			name = Debug;
