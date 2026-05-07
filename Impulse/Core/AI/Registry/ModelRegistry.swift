@@ -4,16 +4,19 @@ import Combine
 // MARK: - Featured Providers (offline fallback)
 
 private let featuredProviders: [Provider] = [
-    Provider(id: "ollama", name: "Ollama", baseURL: "http://127.0.0.1:11434/v1", envKeys: [], docURL: "https://docs.ollama.com"),
-    Provider(id: "openai", name: "OpenAI", baseURL: "https://api.openai.com/v1", envKeys: ["OPENAI_API_KEY"], docURL: "https://platform.openai.com/docs/models"),
-    Provider(id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com/v1", envKeys: ["DEEPSEEK_API_KEY"], docURL: "https://api-docs.deepseek.com"),
-    Provider(id: "anthropic", name: "Anthropic", baseURL: "https://api.anthropic.com/v1", envKeys: ["ANTHROPIC_API_KEY"], docURL: "https://docs.anthropic.com"),
-    Provider(id: "zhipuai", name: "GLM / 智谱", baseURL: "https://open.bigmodel.cn/api/paas/v4", envKeys: ["ZAI_API_KEY"], docURL: "https://open.bigmodel.cn/dev/api"),
-    Provider(id: "kimi-coding", name: "Kimi", baseURL: "https://api.moonshot.cn/v1", envKeys: ["KIMI_API_KEY"], docURL: "https://platform.moonshot.cn/docs"),
-    Provider(id: "minimax", name: "MiniMax", baseURL: "https://api.minimax.chat/v1", envKeys: ["MINIMAX_API_KEY"], docURL: "https://platform.minimaxi.com/document"),
-    Provider(id: "groq", name: "Groq", baseURL: "https://api.groq.com/openai/v1", envKeys: ["GROQ_API_KEY"], docURL: "https://console.groq.com/docs"),
-    Provider(id: "mistral", name: "Mistral", baseURL: "https://api.mistral.ai/v1", envKeys: ["MISTRAL_API_KEY"], docURL: "https://docs.mistral.ai"),
-    Provider(id: "xai", name: "xAI", baseURL: "https://api.x.ai/v1", envKeys: ["XAI_API_KEY"], docURL: "https://docs.x.ai"),
+    Provider(id: "ollama", name: "Ollama", baseURL: "http://127.0.0.1:11434/v1", envKeys: [], docURL: "https://docs.ollama.com", apiKind: .openAICompletions),
+    Provider(id: "openai", name: "OpenAI", baseURL: "https://api.openai.com/v1", envKeys: ["OPENAI_API_KEY"], docURL: "https://platform.openai.com/docs/models", apiKind: .openAICompletions),
+    Provider(id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com/v1", envKeys: ["DEEPSEEK_API_KEY"], docURL: "https://api-docs.deepseek.com", apiKind: .openAICompletions),
+    // Anthropic uses its own Messages API — separate request shape, auth
+    // header, and streaming format. Routed via `AgentSDKFactory` to
+    // `AnthropicChatModel` instead of the OpenAI-compatible adapter.
+    Provider(id: "anthropic", name: "Anthropic", baseURL: "https://api.anthropic.com/v1", envKeys: ["ANTHROPIC_API_KEY"], docURL: "https://docs.anthropic.com", apiKind: .anthropicMessages),
+    Provider(id: "zhipuai", name: "GLM / 智谱", baseURL: "https://open.bigmodel.cn/api/paas/v4", envKeys: ["ZAI_API_KEY"], docURL: "https://open.bigmodel.cn/dev/api", apiKind: .openAICompletions),
+    Provider(id: "kimi-coding", name: "Kimi", baseURL: "https://api.moonshot.cn/v1", envKeys: ["KIMI_API_KEY"], docURL: "https://platform.moonshot.cn/docs", apiKind: .openAICompletions),
+    Provider(id: "minimax", name: "MiniMax", baseURL: "https://api.minimax.chat/v1", envKeys: ["MINIMAX_API_KEY"], docURL: "https://platform.minimaxi.com/document", apiKind: .openAICompletions),
+    Provider(id: "groq", name: "Groq", baseURL: "https://api.groq.com/openai/v1", envKeys: ["GROQ_API_KEY"], docURL: "https://console.groq.com/docs", apiKind: .openAICompletions),
+    Provider(id: "mistral", name: "Mistral", baseURL: "https://api.mistral.ai/v1", envKeys: ["MISTRAL_API_KEY"], docURL: "https://docs.mistral.ai", apiKind: .openAICompletions),
+    Provider(id: "xai", name: "xAI", baseURL: "https://api.x.ai/v1", envKeys: ["XAI_API_KEY"], docURL: "https://docs.x.ai", apiKind: .openAICompletions),
 ]
 
 private let featuredProviderIDs = Set(featuredProviders.map(\.id))
@@ -91,9 +94,10 @@ final class ModelRegistry: ObservableObject {
         saveApiKeys()
     }
 
-    func addCustomProvider(name: String, baseURL: String, apiKey: String, modelId: String = "") {
+    func addCustomProvider(name: String, baseURL: String, apiKey: String, modelId: String = "", apiKind: ApiKind? = nil) {
         let id = "custom-\(UUID().uuidString.prefix(8).lowercased())"
-        var provider = Provider(id: id, name: name, baseURL: baseURL, apiKey: apiKey, isCustom: true)
+        let resolvedKind = apiKind ?? ApiKind.sniff(baseURL: baseURL)
+        var provider = Provider(id: id, name: name, baseURL: baseURL, apiKey: apiKey, isCustom: true, apiKind: resolvedKind)
         let trimmedModel = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedModel.isEmpty {
             provider.models = [ModelInfo(id: trimmedModel, name: trimmedModel, isLive: true)]
@@ -194,7 +198,11 @@ final class ModelRegistry: ObservableObject {
                         envKeys: cached.envKeys,
                         docURL: result[i].docURL ?? cached.docURL,
                         models: result[i].models,
-                        isCustom: result[i].isCustom
+                        isCustom: result[i].isCustom,
+                        // Featured `apiKind` always wins over a cached one —
+                        // the source of truth for protocol selection lives
+                        // in this file, not in models.dev's metadata.
+                        apiKind: result[i].apiKind
                     )
                 }
             }
@@ -258,7 +266,13 @@ final class ModelRegistry: ObservableObject {
                 baseURL: apiURL,
                 envKeys: (providerObj["env"] as? [String]) ?? [],
                 docURL: providerObj["doc"] as? String,
-                models: models
+                models: models,
+                // models.dev does not advertise wire protocol explicitly,
+                // so sniff from the API URL (only `*.anthropic.com` flips
+                // to Anthropic Messages; everything else stays OpenAI
+                // Chat Completions, which is what the vast majority of
+                // hosted endpoints actually speak).
+                apiKind: ApiKind.sniff(baseURL: apiURL)
             )
 
             providerCache.append(provider)

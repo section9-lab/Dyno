@@ -56,11 +56,16 @@ struct AgentConfigStore {
             ?? ""
         let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
         let providerId = base.contains("11434") ? "ollama" : "custom"
+        // Environment-derived defaults assume an OpenAI-compatible endpoint
+        // (Ollama, vLLM, OpenAI itself …); `ApiKind.sniff` flips to Anthropic
+        // only when the host actually says so, which is the right default
+        // for someone exporting `OPENAI_BASE_URL=https://api.anthropic.com/v1`.
         return AgentServiceConfig(
             providerId: providerId,
             baseURL: base,
             apiKey: key,
-            modelId: model
+            modelId: model,
+            apiKind: ApiKind.sniff(baseURL: base)
         )
     }
 }

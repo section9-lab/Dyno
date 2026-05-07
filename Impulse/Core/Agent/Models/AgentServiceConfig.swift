@@ -5,6 +5,11 @@ struct AgentServiceConfig: Codable, Equatable {
     var baseURL: String
     var apiKey: String
     var modelId: String
+    /// Wire protocol the SDK should speak. Routed on by `AgentSDKFactory`
+    /// to choose between OpenAI Chat Completions vs Anthropic Messages.
+    /// Always populated when the config is built from a `Provider` —
+    /// callers should pass `provider.apiKind`.
+    var apiKind: ApiKind
 
     static var defaultAppSupportDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -27,41 +32,17 @@ struct AgentServiceConfig: Codable, Equatable {
             .path
     }
 
-    enum CodingKeys: String, CodingKey {
-        case providerId, baseURL, apiKey, modelId
-        case sandboxDirectory, workspace
-        case modelName, workdir, preset
-    }
-
     init(
         providerId: String,
         baseURL: String,
         apiKey: String,
-        modelId: String
+        modelId: String,
+        apiKind: ApiKind
     ) {
         self.providerId = providerId
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.modelId = modelId
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        providerId = (try? container.decode(String.self, forKey: .providerId))
-            ?? (try? container.decode(String.self, forKey: .preset))
-            ?? "ollama"
-        baseURL = try container.decode(String.self, forKey: .baseURL)
-        apiKey = try container.decode(String.self, forKey: .apiKey)
-        modelId = (try? container.decode(String.self, forKey: .modelId))
-            ?? (try? container.decode(String.self, forKey: .modelName))
-            ?? ""
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(providerId, forKey: .providerId)
-        try container.encode(baseURL, forKey: .baseURL)
-        try container.encode(apiKey, forKey: .apiKey)
-        try container.encode(modelId, forKey: .modelId)
+        self.apiKind = apiKind
     }
 }

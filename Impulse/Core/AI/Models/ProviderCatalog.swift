@@ -68,8 +68,13 @@ struct Provider: Identifiable, Codable, Equatable {
     let docURL: String?
     var models: [ModelInfo]
     var isCustom: Bool
+    /// Wire protocol used when talking to this provider. Required field;
+    /// every featured/cached/custom provider must declare one. When the
+    /// caller doesn't know (e.g. parsing models.dev or building a custom
+    /// provider from a base URL), use `ApiKind.sniff(baseURL:)` to pick.
+    var apiKind: ApiKind
 
-    init(id: String, name: String, baseURL: String, apiKey: String = "", envKeys: [String] = [], docURL: String? = nil, models: [ModelInfo] = [], isCustom: Bool = false) {
+    init(id: String, name: String, baseURL: String, apiKey: String = "", envKeys: [String] = [], docURL: String? = nil, models: [ModelInfo] = [], isCustom: Bool = false, apiKind: ApiKind) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
@@ -78,5 +83,6 @@ struct Provider: Identifiable, Codable, Equatable {
         self.docURL = docURL
         self.models = models
         self.isCustom = isCustom
+        self.apiKind = apiKind
     }
 }

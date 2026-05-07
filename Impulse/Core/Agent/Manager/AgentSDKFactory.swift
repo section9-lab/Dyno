@@ -42,12 +42,7 @@ enum AgentSDKFactory {
         ]
 
         return AgentSDK(
-            model: OpenAICompatibleChatModel(
-                baseURL: baseURL,
-                apiKey: config.apiKey.isEmpty ? nil : config.apiKey,
-                modelName: config.modelId,
-                timeout: 300
-            ),
+            model: makeChatModel(config: config, baseURL: baseURL),
             skills: [
                 BasicSkill(
                     name: "default",
@@ -65,6 +60,34 @@ enum AgentSDKFactory {
                 await ToolApprovalCenter.shared.request(request)
             }
         )
+    }
+
+    /// Builds the concrete `AgentModel` that owns the wire-format details
+    /// (request shape, auth header, streaming parser). Routing is driven
+    /// purely by `config.apiKind` — add a new case here when wiring up a
+    /// brand-new protocol (e.g. Gemini, Bedrock).
+    private static func makeChatModel(config: AgentServiceConfig, baseURL: URL) -> any AgentModel {
+        let apiKey = config.apiKey.isEmpty ? nil : config.apiKey
+        switch config.apiKind {
+        case .anthropicMessages:
+            // Anthropic's REST endpoint lives at `/v1/messages`; users
+            // typically configure the provider with `https://api.anthropic.com/v1`
+            // already, and `AnthropicChatModel` appends the `messages` segment
+            // itself, so we hand it the base unchanged.
+            return AnthropicChatModel(
+                baseURL: baseURL,
+                apiKey: apiKey,
+                modelName: config.modelId,
+                timeout: 300
+            )
+        case .openAICompletions:
+            return OpenAICompatibleChatModel(
+                baseURL: baseURL,
+                apiKey: apiKey,
+                modelName: config.modelId,
+                timeout: 300
+            )
+        }
     }
 
     private static let defaultSystemPrompt = """

@@ -36,6 +36,13 @@ struct ModelProviderConfigView: View {
         agent.storageDirectoryURL
     }
 
+    /// Read-only root for skills bundled inside `Impulse.app/Contents/Resources/skills`.
+    /// Surfaced in the file tree alongside the user's storage so people can
+    /// see what built-in skills the SDK has access to.
+    private var bundledSkillsURL: URL? {
+        Bundle.main.resourceURL?.appendingPathComponent("skills", isDirectory: true)
+    }
+
     private var canSave: Bool {
         draftBaseURL.isNotBlank && draftModelId.isNotBlank
     }
@@ -562,8 +569,41 @@ struct ModelProviderConfigView: View {
 
     private func agentChildren(of url: URL) -> [URL] {
         let rootPath = storageDirectoryURL.standardizedFileURL.path
+        let bundledSkillsPath = bundledSkillsURL?.standardizedFileURL.path
+        let userSkillsPath = storageDirectoryURL.agentSkillsDirectory().standardizedFileURL.path
         let targetPath = url.standardizedFileURL.path
-        guard targetPath == rootPath || targetPath.hasPrefix(rootPath + "/") else { return [] }
+
+        // The visible "skills" node merges two physical sources:
+        //   1. ~/Library/Application Support/Impulse/skills/  (user)
+        //   2. Impulse.app/Contents/Resources/skills/         (bundled, read-only)
+        // SDK loads both, so the tree should reflect the union. User entries
+        // win on name collision (sorted, then de-duped by lastPathComponent).
+        if targetPath == userSkillsPath, let bundledSkillsURL {
+            var combined: [String: URL] = [:]
+            for child in rawChildren(of: url) {
+                combined[child.lastPathComponent] = child
+            }
+            for child in rawChildren(of: bundledSkillsURL) where combined[child.lastPathComponent] == nil {
+                combined[child.lastPathComponent] = child
+            }
+            return combined.values.sorted { a, b in
+                let aDir = (try? a.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                let bDir = (try? b.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                if aDir != bDir { return aDir }
+                return a.lastPathComponent.localizedCaseInsensitiveCompare(b.lastPathComponent) == .orderedAscending
+            }
+        }
+
+        let underStorage = targetPath == rootPath || targetPath.hasPrefix(rootPath + "/")
+        let underBundled: Bool = {
+            guard let bundledSkillsPath else { return false }
+            return targetPath == bundledSkillsPath || targetPath.hasPrefix(bundledSkillsPath + "/")
+        }()
+        guard underStorage || underBundled else { return [] }
+        return rawChildren(of: url)
+    }
+
+    private func rawChildren(of url: URL) -> [URL] {
 
         guard let children = try? FileManager.default.contentsOfDirectory(
             at: url,
@@ -768,11 +808,17 @@ struct ModelProviderConfigView: View {
     }
 
     private func saveAndConnect() {
+        // Pull the wire protocol from the selected provider when we have one;
+        // for ad-hoc base URLs (custom providers being created on the fly)
+        // sniff from the URL so users typing `https://api.anthropic.com/v1`
+        // get routed correctly without needing a provider entry first.
+        let resolvedKind = currentProvider?.apiKind ?? ApiKind.sniff(baseURL: draftBaseURL)
         let newConfig = AgentServiceConfig(
             providerId: selectedProviderId,
             baseURL: draftBaseURL,
             apiKey: draftApiKey,
-            modelId: draftModelId
+            modelId: draftModelId,
+            apiKind: resolvedKind
         )
         Task {
             await agent.applyConfig(newConfig)
