@@ -290,14 +290,21 @@ final class ChatViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return }
 
         // Resolve target session: either the one the caller passed (a
-        // committed StoredSession) or commit the current draft.
+        // committed StoredSession) or commit the current draft. If the
+        // user is on the welcome / empty state with nothing selected,
+        // auto-create a project-less draft so the first send always works.
         let targetSession: StoredSession
         if let session {
             targetSession = session
-        } else if let committed = commitDraftIfNeeded(modelContext: modelContext, agent: agent) {
-            targetSession = committed
         } else {
-            return
+            if draft == nil {
+                draft = DraftSession(projectPath: selectedProjectPath)
+            }
+            if let committed = commitDraftIfNeeded(modelContext: modelContext, agent: agent) {
+                targetSession = committed
+            } else {
+                return
+            }
         }
 
         if trimmed.lowercased().hasPrefix("/compact") {
