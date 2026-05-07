@@ -203,6 +203,8 @@
 "auth.error.invalid_access_token" = "Tu inicio guardado caducó. Vuelve a iniciar sesión con Google.";
 "auth.error.invalid_authorization_url" = "No pudimos crear el enlace de inicio con Google. Revisa la URL del servidor de autenticación.";
 "auth.error.invalid_callback" = "Google no devolvió una respuesta de inicio válida. Inténtalo de nuevo.";
+"auth.error.invalid_email" = "Introduce una dirección de correo válida.";
+"auth.error.invalid_email_code" = "Ese código no es válido. Revisa tu bandeja de entrada y vuelve a intentarlo.";
 "auth.error.invalid_server_response" = "El servidor de autenticación devolvió una respuesta que Impulse no pudo leer. Inténtalo de nuevo.";
 "auth.error.invalid_state" = "Este intento de inicio caducó. Inicia sesión con Google otra vez.";
 "auth.error.keychain" = "Impulse no pudo guardar tu inicio de sesión en Keychain (%d). Revisa el acceso a Keychain e inténtalo de nuevo.";

@@ -203,6 +203,8 @@
 "auth.error.invalid_access_token" = "保存済みのサインインは期限切れです。もう一度 Google でサインインしてください。";
 "auth.error.invalid_authorization_url" = "Google サインイン用リンクを作成できません。認証サーバー URL を確認してください。";
 "auth.error.invalid_callback" = "Google から有効なサインイン応答が返りませんでした。もう一度お試しください。";
+"auth.error.invalid_email" = "有効なメールアドレスを入力してください。";
+"auth.error.invalid_email_code" = "コードが無効です。受信トレイを確認してもう一度お試しください。";
 "auth.error.invalid_server_response" = "認証サーバーから Impulse が読み取れない応答が返りました。もう一度お試しください。";
 "auth.error.invalid_state" = "このサインイン試行は期限切れです。Google サインインをやり直してください。";
 "auth.error.keychain" = "Impulse はサインイン情報をキーチェーンに保存できませんでした（%d）。キーチェーンアクセスを確認してから再試行してください。";

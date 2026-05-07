@@ -14,6 +14,9 @@ enum AuthError: LocalizedError {
     case keychainFailure(OSStatus)
     case randomGenerationFailed(OSStatus)
     case webAuthenticationFailed(String)
+    // Email + OTP flow.
+    case invalidEmail
+    case invalidEmailCode
 
     var errorDescription: String? {
         switch self {
@@ -39,6 +42,10 @@ enum AuthError: LocalizedError {
             return L10n.tr("auth.error.random", Int(status))
         case .webAuthenticationFailed(let message):
             return L10n.tr("auth.error.web_authentication_failed", message)
+        case .invalidEmail:
+            return L10n.tr("auth.error.invalid_email")
+        case .invalidEmailCode:
+            return L10n.tr("auth.error.invalid_email_code")
         }
     }
 }

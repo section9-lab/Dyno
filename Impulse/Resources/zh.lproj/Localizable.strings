@@ -219,6 +219,8 @@
 "auth.error.invalid_access_token" = "已保存的登录已过期，请重新使用 Google 登录。";
 "auth.error.invalid_authorization_url" = "无法创建 Google 登录链接，请检查认证服务地址。";
 "auth.error.invalid_callback" = "Google 未返回有效的登录结果，请重试。";
+"auth.error.invalid_email" = "请输入有效的邮箱地址。";
+"auth.error.invalid_email_code" = "验证码无效，请检查邮箱后重试。";
 "auth.error.invalid_server_response" = "认证服务返回了 Impulse 无法读取的响应，请重试。";
 "auth.error.invalid_state" = "本次登录已过期，请重新开始 Google 登录。";
 "auth.error.keychain" = "Impulse 无法将登录信息保存到钥匙串（%d），请检查钥匙串访问权限后重试。";

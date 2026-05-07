@@ -203,6 +203,8 @@
 "auth.error.invalid_access_token" = "Votre connexion enregistrée a expiré. Connectez-vous de nouveau avec Google.";
 "auth.error.invalid_authorization_url" = "Impossible de créer le lien de connexion Google. Vérifiez l'URL du serveur d'authentification.";
 "auth.error.invalid_callback" = "Google n'a pas renvoyé de réponse de connexion valide. Réessayez.";
+"auth.error.invalid_email" = "Saisissez une adresse e-mail valide.";
+"auth.error.invalid_email_code" = "Ce code n'est pas valide. Vérifiez votre boîte de réception et réessayez.";
 "auth.error.invalid_server_response" = "Le serveur d'authentification a renvoyé une réponse qu'Impulse ne peut pas lire. Réessayez.";
 "auth.error.invalid_state" = "Cette tentative de connexion a expiré. Relancez la connexion Google.";
 "auth.error.keychain" = "Impulse n'a pas pu enregistrer votre connexion dans le trousseau (%d). Vérifiez l'accès au trousseau puis réessayez.";

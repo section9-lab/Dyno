@@ -203,6 +203,8 @@
 "auth.error.invalid_access_token" = "Сохраненный вход истек. Войдите через Google еще раз.";
 "auth.error.invalid_authorization_url" = "Не удалось создать ссылку для входа через Google. Проверьте URL сервера аутентификации.";
 "auth.error.invalid_callback" = "Google не вернул действительный ответ для входа. Повторите попытку.";
+"auth.error.invalid_email" = "Введите корректный адрес электронной почты.";
+"auth.error.invalid_email_code" = "Код недействителен. Проверьте почту и попробуйте снова.";
 "auth.error.invalid_server_response" = "Сервер аутентификации вернул ответ, который Impulse не смог прочитать. Повторите попытку.";
 "auth.error.invalid_state" = "Эта попытка входа истекла. Начните вход через Google заново.";
 "auth.error.keychain" = "Impulse не смог сохранить вход в Keychain (%d). Проверьте доступ к Keychain и повторите попытку.";

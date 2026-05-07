@@ -341,6 +341,29 @@ struct ToolExecutionGroupView: View {
     }
 }
 
+/// Terminal cap for a tool-call timeline. Mirrors the original
+/// `doneFooter` look (small SF Symbol + bold label, indented to line
+/// up with the rail) but is a reusable component so it can be dropped
+/// in wherever a group of timeline rows ends.
+private struct DoneTimelineMarker: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(.primary.opacity(0.75))
+                .frame(width: 22, height: 22)
+
+            Text("chat.tool_group.done")
+                .chatFont(.body, weight: .semibold)
+                .foregroundColor(.primary.opacity(0.92))
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 56)
+        .padding(.top, 4)
+    }
+}
+
 private struct ToolTimelineRow: View {
     let toolName: String
     let status: AgentToolExecutionStatus

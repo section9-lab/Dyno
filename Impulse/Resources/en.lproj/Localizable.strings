@@ -219,6 +219,8 @@
 "auth.error.invalid_access_token" = "Your saved sign-in expired. Sign in with Google again.";
 "auth.error.invalid_authorization_url" = "We couldn't create the Google sign-in link. Check the authentication server URL.";
 "auth.error.invalid_callback" = "Google did not return a valid sign-in response. Try again.";
+"auth.error.invalid_email" = "Enter a valid email address.";
+"auth.error.invalid_email_code" = "That code is not valid. Check your inbox and try again.";
 "auth.error.invalid_server_response" = "The authentication server returned a response Impulse could not read. Try again.";
 "auth.error.invalid_state" = "This sign-in attempt expired. Start Google sign-in again.";
 "auth.error.keychain" = "Impulse couldn't save your sign-in in Keychain (%d). Check Keychain access and try again.";
