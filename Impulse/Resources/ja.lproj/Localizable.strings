@@ -238,6 +238,8 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "chat.thinking" = "思考中";
 "chat.tool_group.done" = "完了";
+"chat.message.copy" = "コピー";
+"chat.message.copied" = "コピーしました";
 "settings.storage_root" = "ストレージルート";
 "settings.active_project" = "現在のプロジェクト";
 "settings.model.base_url" = "Base URL";

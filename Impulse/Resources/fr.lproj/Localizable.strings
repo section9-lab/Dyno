@@ -238,6 +238,8 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "chat.thinking" = "Réflexion";
 "chat.tool_group.done" = "Terminé";
+"chat.message.copy" = "Copier";
+"chat.message.copied" = "Copié";
 "settings.storage_root" = "Racine du stockage";
 "settings.active_project" = "Projet actif";
 "settings.model.base_url" = "Base URL";

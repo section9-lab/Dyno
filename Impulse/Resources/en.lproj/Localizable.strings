@@ -254,6 +254,8 @@
 /* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
 "chat.thinking" = "Thinking";
 "chat.tool_group.done" = "Done";
+"chat.message.copy" = "Copy";
+"chat.message.copied" = "Copied";
 "settings.storage_root" = "Storage Root";
 "settings.active_project" = "Active Project";
 "settings.model.base_url" = "Base URL";

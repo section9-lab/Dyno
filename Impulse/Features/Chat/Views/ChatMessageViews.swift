@@ -67,9 +67,15 @@ struct MessageView: View {
                         .foregroundColor(.primary)
                         .clipShape(Capsule())
 
-                    Text(message.timestamp, format: .dateTime.hour().minute())
-                        .chatFont(.footnote)
-                        .foregroundColor(.secondary)
+                    // Mirror layout for right-aligned user bubble: timestamp on the
+                    // outer left, action icons sit closer to the bubble edge.
+                    HStack(spacing: 6) {
+                        Text(message.timestamp, format: .dateTime.hour().minute())
+                            .chatFont(.footnote)
+                            .foregroundColor(.secondary)
+
+                        CopyMessageButton(text: message.content)
+                    }
                 }
             }
             .padding(.horizontal, 56)
@@ -82,9 +88,17 @@ struct MessageView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(message.timestamp, format: .dateTime.hour().minute())
-                    .chatFont(.footnote)
-                    .foregroundColor(.secondary)
+                // Action icons first, timestamp follows — matches the reference
+                // ChatGPT/Claude pattern where the copy affordance sits closest
+                // to the message it acts on.
+                HStack(spacing: 4) {
+                    CopyMessageButton(text: message.content)
+
+                    Text(message.timestamp, format: .dateTime.hour().minute())
+                        .chatFont(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 4)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 56)
@@ -93,6 +107,64 @@ struct MessageView: View {
 
     private var userMessageBackground: Color {
         colorScheme == .dark ? Color.white.opacity(0.075) : Color.white.opacity(0.55)
+    }
+}
+
+/// Outlined icon button placed in the message action row, modelled after the
+/// ChatGPT/Claude pattern: a 26×26 hit area with a 12pt SF Symbol, a soft
+/// rounded hover background, and a brief ✓ confirmation when pressed.
+struct CopyMessageButton: View {
+    let text: String
+
+    @State private var didCopy: Bool = false
+    @State private var resetTask: Task<Void, Never>? = nil
+    @State private var isHovering: Bool = false
+
+    var body: some View {
+        Button(action: copy) {
+            Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(iconColor)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isHovering ? Color.secondary.opacity(0.12) : Color.clear)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(L10n.tr(didCopy ? "chat.message.copied" : "chat.message.copy"))
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .onDisappear {
+            resetTask?.cancel()
+        }
+        .animation(.easeInOut(duration: 0.18), value: didCopy)
+        .animation(.easeInOut(duration: 0.12), value: isHovering)
+    }
+
+    private var iconColor: Color {
+        if didCopy {
+            return .secondary
+        }
+        return isHovering ? .primary.opacity(0.85) : .secondary.opacity(0.7)
+    }
+
+    private func copy() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        didCopy = true
+
+        resetTask?.cancel()
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if !Task.isCancelled {
+                didCopy = false
+            }
+        }
     }
 }
 
@@ -207,11 +279,13 @@ struct ToolExecutionGroupView: View {
                     ForEach(Array(group.runs.enumerated()), id: \.element.id) { index, run in
                         PersistedToolExecutionMessageView(
                             run: run,
-                            isLast: index == group.runs.count - 1
+                            // Last row keeps its connector so the rail flows
+                            // into the Done marker that follows.
+                            isLast: false
                         )
                     }
 
-                    doneFooter
+                    DoneTimelineMarker()
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -247,25 +321,6 @@ struct ToolExecutionGroupView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var doneFooter: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.primary.opacity(0.75))
-            }
-            .frame(width: 22, height: 22)
-
-            Text("chat.tool_group.done")
-                .chatFont(.body, weight: .semibold)
-                .foregroundColor(.primary.opacity(0.92))
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 56)
-        .padding(.top, 4)
     }
 
     private var summaryText: String {
@@ -305,14 +360,15 @@ private struct ToolTimelineRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Left rail: icon + connector line
+            // Left rail: icon + connector line.
+            // Icon stays neutral and static even while running — the only
+            // motion cue lives on the title text below, so the timeline rail
+            // reads as a calm structural element.
             VStack(spacing: 0) {
                 ZStack {
                     Image(systemName: iconName)
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(iconColor)
-                        .opacity(shouldPulse && !pulseOn ? 0.35 : 1.0)
-                        .scaleEffect(shouldPulse && pulseOn ? 1.05 : 1.0)
                 }
                 .frame(width: 22, height: 22)
 
@@ -333,9 +389,13 @@ private struct ToolTimelineRow: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
+                        // Title text holds the only motion: a gentle opacity
+                        // pulse while the tool is running. Color stays
+                        // constant so it never shifts hue on status change.
                         Text(titleText)
                             .chatFont(.body)
-                            .foregroundColor(.primary.opacity(status == .running ? 0.7 : 0.92))
+                            .foregroundColor(.primary.opacity(0.92))
+                            .opacity(shouldPulse && pulseOn ? 0.45 : 1.0)
 
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .semibold))
@@ -397,9 +457,12 @@ private struct ToolTimelineRow: View {
     }
 
     private var iconColor: Color {
+        // Icon color is intentionally status-agnostic for the running state:
+        // we don't tint it the accent color while a tool is in flight, since
+        // a colored "badge" can read like an alert. Failure remains red so
+        // problems are still glanceable.
         switch status {
-        case .running: return .accentColor
-        case .success: return .primary.opacity(0.75)
+        case .running, .success: return .primary.opacity(0.75)
         case .failed: return .red
         }
     }
@@ -413,7 +476,11 @@ private struct ToolTimelineRow: View {
         case "edit":
             return "Edited \(filenameOrFallback)"
         case "bash":
-            return "Running command"
+            switch status {
+            case .running: return "Running command"
+            case .success: return "Ran command"
+            case .failed:  return "Command failed"
+            }
         default:
             return toolName.capitalized
         }
@@ -445,17 +512,18 @@ private struct ToolTimelineRow: View {
     }
 
     private var chipBackground: Color {
+        // Running state shares the neutral look with success — the title text
+        // pulse already conveys "in progress". Red is reserved for failure so
+        // it still pops as an actionable alert.
         switch status {
-        case .running: return Color.red.opacity(0.12)
-        case .success: return Color.secondary.opacity(0.12)
+        case .running, .success: return Color.secondary.opacity(0.12)
         case .failed: return Color.red.opacity(0.18)
         }
     }
 
     private var chipForeground: Color {
         switch status {
-        case .running: return Color.red.opacity(0.85)
-        case .success: return .secondary
+        case .running, .success: return .secondary
         case .failed: return .red
         }
     }

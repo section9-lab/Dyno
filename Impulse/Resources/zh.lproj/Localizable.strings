@@ -254,6 +254,8 @@
 /* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
 "chat.thinking" = "思考中";
 "chat.tool_group.done" = "完成";
+"chat.message.copy" = "复制";
+"chat.message.copied" = "已复制";
 "settings.storage_root" = "存储根目录";
 "settings.active_project" = "当前项目";
 "settings.model.base_url" = "Base URL";

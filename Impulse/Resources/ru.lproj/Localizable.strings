@@ -238,6 +238,8 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "chat.thinking" = "Размышление";
 "chat.tool_group.done" = "Готово";
+"chat.message.copy" = "Копировать";
+"chat.message.copied" = "Скопировано";
 "settings.storage_root" = "Корневой каталог";
 "settings.active_project" = "Активный проект";
 "settings.model.base_url" = "Base URL";
