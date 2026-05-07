@@ -406,7 +406,7 @@ struct ChatSidebarView: View {
                     NSCursor.pop()
                 }
             }
-            .popover(isPresented: $showUserPopover, arrowEdge: .bottom) {
+            .popover(isPresented: $showUserPopover, arrowEdge: .top) {
                 UserAccountPopover(
                     isPresented: $showUserPopover,
                     accountName: accountName,
