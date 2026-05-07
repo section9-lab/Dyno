@@ -28,9 +28,9 @@ xcodebuild -project Impulse.xcodeproj -scheme Impulse -configuration Debug -dest
 
 ## Dependencies
 
-- **SwiftCodingAgent**: Local path dependency at `../SwiftCodingAgent` (must exist at sibling level)
+- **SwiftHarnessAgent**: Local path dependency at `../SwiftHarnessAgent` (must exist at sibling level)
 - **MarkdownUI**: External package via Swift Package Manager
-- If build fails with "package not found", ensure `../SwiftCodingAgent` exists
+- If build fails with "package not found", ensure `../SwiftHarnessAgent` exists
 
 ## Code Structure
 

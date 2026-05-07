@@ -1,4 +1,4 @@
-import SwiftCodingAgent
+import SwiftHarnessAgent
 import AppKit
 import MarkdownUI
 import SwiftUI

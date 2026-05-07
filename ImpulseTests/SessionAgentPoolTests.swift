@@ -1,5 +1,5 @@
 import XCTest
-import SwiftCodingAgent
+import SwiftHarnessAgent
 @testable import Impulse
 
 @MainActor

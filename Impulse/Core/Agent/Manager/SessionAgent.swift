@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
-import SwiftCodingAgent
+import SwiftHarnessAgent
 
 /// Per-session agent state and SDK.
 /// Each chat session owns one of these so multiple sessions can run in parallel

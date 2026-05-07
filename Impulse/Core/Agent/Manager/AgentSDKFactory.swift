@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodingAgent
+import SwiftHarnessAgent
 
 /// Pure factory for `AgentSDK` instances. No state — every call builds a
 /// fresh SDK from the current config + project path + sandbox roots + skills.

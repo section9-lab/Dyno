@@ -31,7 +31,7 @@ No repo-level SwiftLint/SwiftFormat command is currently configured.
 ## High-level architecture
 
 - `Impulse/App` is the SwiftUI entry layer. `ImpulseApp` boots SwiftData and shared managers, and `ContentView` composes chat UI + settings sheet.
-- `Core/Agent` is the runtime bridge to `SwiftCodingAgent`:
+- `Core/Agent` is the runtime bridge to `SwiftHarnessAgent`:
   - `AgentManager` owns provider/model config, SDK creation, connection checks, tool execution tracking, and compaction flow.
   - Tool execution is sandboxed to allowed roots (project directory + user-authorized roots from `SandboxAccessManager`).
   - Agent data lives under the app data root (`skills/`, `memory/`); project session data lives under `projects/<project>/sessions/`.

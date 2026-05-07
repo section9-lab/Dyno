@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodingAgent
+import SwiftHarnessAgent
 
 /// Owns the in-memory pool of `SessionAgent` instances + LRU eviction +
 /// pending-config-rebuild book-keeping. Does not know how to *build* an

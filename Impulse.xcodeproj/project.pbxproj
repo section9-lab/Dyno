@@ -67,7 +67,7 @@
 		D5DEE946E03AC3012CFF5F36 /* SettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0844CA40D56F874715F3E816 /* SettingsCard.swift */; };
 		D748C0FE0AB7A58126C04DEB /* AgentConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17945D4E5E1CB32B193908A9 /* AgentConfigStore.swift */; };
 		D82DE53499D07BED90345EF6 /* ModelProviderConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D20BF85185F315C708CC56 /* ModelProviderConfigView.swift */; };
-		DBF506CF5288F662950F1795 /* SwiftCodingAgent in Frameworks */ = {isa = PBXBuildFile; productRef = EE576E14ED8C835AD3FC5CBC /* SwiftCodingAgent */; };
+		DBF506CF5288F662950F1795 /* SwiftHarnessAgent in Frameworks */ = {isa = PBXBuildFile; productRef = 3B73AEF17D90BA5AFD95E31C /* SwiftHarnessAgent */; };
 		DDE9DCEF8BCA57A6D4C7246A /* ProviderCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD748639B321EBBA22D27C94 /* ProviderCatalog.swift */; };
 		E0B0BEE1B52502145904BAA4 /* AgentSDKFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7410587310295A50FFC150 /* AgentSDKFactory.swift */; };
 		E0BF74DD6E11408E211A078D /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8204F7D3B23090EE996398D6 /* GeneralSettingsView.swift */; };
@@ -99,7 +99,6 @@
 		0BCFC7AD047F5D82FE009141 /* AgentResponseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentResponseView.swift; sourceTree = "<group>"; };
 		0C538F5E13E1E219CEED7C12 /* ModelCapabilityBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCapabilityBadges.swift; sourceTree = "<group>"; };
 		0ECDAD2E483F60E9F9174DAD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		11F977371C031EF11D297653 /* SwiftCodingAgent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftCodingAgent; path = ../SwiftCodingAgent; sourceTree = SOURCE_ROOT; };
 		1551F3E20889B3DBC5F6B768 /* OCRCaptureOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRCaptureOrchestrator.swift; sourceTree = "<group>"; };
 		17945D4E5E1CB32B193908A9 /* AgentConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigStore.swift; sourceTree = "<group>"; };
 		1B7410587310295A50FFC150 /* AgentSDKFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSDKFactory.swift; sourceTree = "<group>"; };
@@ -163,6 +162,7 @@
 		BBC8C4CA0F14FCCFBD16489C /* OllamaModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaModel.swift; sourceTree = "<group>"; };
 		C60D199978760A260416B1CA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		C668B8339D1D1642F93040A9 /* MessageComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposer.swift; sourceTree = "<group>"; };
+		C84378D640473E949AEE5090 /* SwiftHarnessAgent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftHarnessAgent; path = ../SwiftHarnessAgent; sourceTree = SOURCE_ROOT; };
 		C8D497B5A52DE48C771D8561 /* AgentToolExecution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentToolExecution.swift; sourceTree = "<group>"; };
 		C97700E655244693778F032B /* ToolApprovalCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolApprovalCenter.swift; sourceTree = "<group>"; };
 		CD6375D7FBA6DD076A6A3377 /* InputBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBar.swift; sourceTree = "<group>"; };
@@ -188,7 +188,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DBF506CF5288F662950F1795 /* SwiftCodingAgent in Frameworks */,
+				DBF506CF5288F662950F1795 /* SwiftHarnessAgent in Frameworks */,
 				FE7FA49541C915E2B9BB283B /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -469,7 +469,7 @@
 		925E464A2522F6273B8C0B71 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				11F977371C031EF11D297653 /* SwiftCodingAgent */,
+				C84378D640473E949AEE5090 /* SwiftHarnessAgent */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -688,7 +688,7 @@
 			);
 			name = Impulse;
 			packageProductDependencies = (
-				EE576E14ED8C835AD3FC5CBC /* SwiftCodingAgent */,
+				3B73AEF17D90BA5AFD95E31C /* SwiftHarnessAgent */,
 				68EF85DE09245D51EA357FF4 /* MarkdownUI */,
 			);
 			productName = Impulse;
@@ -728,7 +728,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8771656467389179A7BFC86A /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				3F4402A76C3073BA7D3C40D4 /* XCLocalSwiftPackageReference "../SwiftCodingAgent" */,
+				3FD92012DE38E565F9D7D34A /* XCLocalSwiftPackageReference "../SwiftHarnessAgent" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D40AEB032A75ADDE88D0DCD4 /* Products */;
@@ -1111,9 +1111,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		3F4402A76C3073BA7D3C40D4 /* XCLocalSwiftPackageReference "../SwiftCodingAgent" */ = {
+		3FD92012DE38E565F9D7D34A /* XCLocalSwiftPackageReference "../SwiftHarnessAgent" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../SwiftCodingAgent;
+			relativePath = ../SwiftHarnessAgent;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -1129,14 +1129,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		3B73AEF17D90BA5AFD95E31C /* SwiftHarnessAgent */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftHarnessAgent;
+		};
 		68EF85DE09245D51EA357FF4 /* MarkdownUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8771656467389179A7BFC86A /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
-		};
-		EE576E14ED8C835AD3FC5CBC /* SwiftCodingAgent */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftCodingAgent;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

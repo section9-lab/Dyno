@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
-import SwiftCodingAgent
+import SwiftHarnessAgent
 
 /// Facade over the agent runtime subsystems. Composes:
 ///   - `AgentConfigStore`     — UserDefaults persistence for `AgentServiceConfig`

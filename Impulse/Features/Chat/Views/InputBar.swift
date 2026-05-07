@@ -1,5 +1,5 @@
 import AppKit
-import SwiftCodingAgent
+import SwiftHarnessAgent
 import SwiftUI
 
 struct InputBar: View {

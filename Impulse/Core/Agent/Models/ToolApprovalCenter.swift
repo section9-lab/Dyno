@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodingAgent
+import SwiftHarnessAgent
 
 @MainActor
 final class ToolApprovalCenter: ObservableObject {

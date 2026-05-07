@@ -14,8 +14,8 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
 
 packages:
-  SwiftCodingAgent:
-    path: ../SwiftCodingAgent
+  SwiftHarnessAgent:
+    path: ../SwiftHarnessAgent
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: "2.4.0"
@@ -31,7 +31,7 @@ targets:
       - path: Impulse/Shared
       - path: Impulse/Resources
     dependencies:
-      - package: SwiftCodingAgent
+      - package: SwiftHarnessAgent
       - package: MarkdownUI
     settings:
       base:

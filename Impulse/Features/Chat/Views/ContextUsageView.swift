@@ -1,4 +1,4 @@
-import SwiftCodingAgent
+import SwiftHarnessAgent
 import SwiftUI
 
 /// Compact ring + popover that shows the focused session's context-window
