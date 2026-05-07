@@ -9,12 +9,14 @@
 
 "account.logout" = "退出登录";
 "account.alipay_user" = "支付宝账户";
+"account.email_user" = "邮箱账户";
 "account.google_user" = "Google 账户";
 "account.personal" = "个人账户";
 
 "onboarding.title" = "欢迎使用 Impulse";
 "onboarding.subtitle" = "登录后继续使用项目、会话和 Agent 工作区，保持专注的 macOS 工作流。";
 "onboarding.continue_alipay" = "支付宝登录";
+"onboarding.continue_email" = "邮箱登录";
 "onboarding.continue_google" = "Google 登录";
 "onboarding.privacy_link" = "隐私协议";
 "onboarding.privacy_prefix" = "我已阅读并同意";
@@ -266,3 +268,17 @@
 "settings.model.test.invalid_url" = "URL 无效";
 "settings.model.test.no_response" = "无响应";
 "settings.model.test.http_error" = "HTTP %d";
+
+"email.title" = "邮箱登录";
+"email.code_title" = "输入验证码";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "发送验证码";
+"email.code_sent_to" = "验证码已发送至 %@";
+"email.verify" = "验证并登录";
+"email.resend" = "重新发送";
+"email.resend_in" = "%d 秒后可重新发送";
+"email.error.invalid_email" = "邮箱格式不正确";
+"email.error.invalid_code" = "验证码错误，请重新输入";
+"email.error.rate_limited" = "操作过于频繁，请稍后再试";
+"email.error.code_expired" = "验证码已过期，请重新发送";
+"email.error.too_many_attempts" = "尝试次数过多，请重新发送验证码";

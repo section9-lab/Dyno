@@ -10,12 +10,32 @@ import SwiftData
 
 struct OnboardingLoginView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject var authSession: AuthSession
+
     @State private var hasAcceptedPrivacy = true
     @State private var isPrivacySheetPresented = false
-    var isAuthenticating: Bool
-    var errorMessage: String?
-    var onGoogleSignIn: () -> Void
-    var onAlipaySignIn: () -> Void
+    /// Tracks which sign-in button the user actually pressed so we can show
+    /// the spinner on the right row. `isAuthenticating` alone can't tell us
+    /// which provider is in flight.
+    @State private var pendingProvider: PendingProvider?
+    @State private var step: Step = .picker
+    @State private var emailDraft: String = ""
+    @State private var codeDraft: String = ""
+    @State private var resendCooldown: Int = 0
+    @State private var resendTimerTask: Task<Void, Never>?
+
+    private static let resendCooldownSeconds = 120
+
+    private enum PendingProvider {
+        case google
+        case email
+    }
+
+    private enum Step: Equatable {
+        case picker
+        case emailInput
+        case emailCode
+    }
 
     var body: some View {
         ZStack {
@@ -27,37 +47,28 @@ struct OnboardingLoginView: View {
             backgroundOverlay
 
             VStack(spacing: 34) {
-                VStack(spacing: 18) {
-                    appMark
-
-                    VStack(spacing: 10) {
-                        Text("onboarding.title")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundColor(.primary)
-                    }
+                VStack(spacing: 10) {
+                    Text(stepTitleKey)
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundColor(.primary)
                 }
 
                 VStack(spacing: 14) {
-                    VStack(spacing: 10) {
-                        authButton(
-                            title: "onboarding.continue_google",
-                            accessibilityIdentifier: "googleSignInButton",
-                            isLoading: isAuthenticating,
-                            action: onGoogleSignIn
-                        ) {
-                            googleMark
-                        }
-
-                        authButton(
-                            title: "onboarding.continue_alipay",
-                            accessibilityIdentifier: "alipaySignInButton",
-                            action: onAlipaySignIn
-                        ) {
-                            alipayMark
+                    Group {
+                        switch step {
+                        case .picker:
+                            pickerStep
+                                .transition(stepTransition(forward: false))
+                        case .emailInput:
+                            emailInputStep
+                                .transition(stepTransition(forward: true))
+                        case .emailCode:
+                            emailCodeStep
+                                .transition(stepTransition(forward: true))
                         }
                     }
 
-                    if let errorMessage {
+                    if let errorMessage = authSession.lastErrorMessage {
                         Text(errorMessage)
                             .font(.system(size: 12))
                             .foregroundColor(.red)
@@ -71,9 +82,244 @@ struct OnboardingLoginView: View {
             .padding(.horizontal, 28)
         }
         .frame(minWidth: 980, minHeight: 760)
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .background(LoginWindowConfigurator())
+        .onChange(of: authSession.isAuthenticating) { _, newValue in
+            if !newValue { pendingProvider = nil }
+        }
+        .onDisappear {
+            resendTimerTask?.cancel()
+        }
         .sheet(isPresented: $isPrivacySheetPresented) {
             PrivacyAgreementView()
+        }
+    }
+
+    private var stepTitleKey: LocalizedStringKey {
+        switch step {
+        case .picker:        return "onboarding.title"
+        case .emailInput:    return "email.title"
+        case .emailCode:     return "email.code_title"
+        }
+    }
+
+    @ViewBuilder
+    private var pickerStep: some View {
+        VStack(spacing: 10) {
+            authButton(
+                title: "onboarding.continue_google",
+                accessibilityIdentifier: "googleSignInButton",
+                isLoading: authSession.isAuthenticating && pendingProvider == .google,
+                action: {
+                    pendingProvider = .google
+                    Task { await authSession.signInWithGoogle() }
+                }
+            ) {
+                googleMark
+            }
+
+            authButton(
+                title: "onboarding.continue_email",
+                accessibilityIdentifier: "emailSignInButton",
+                isLoading: false,
+                action: {
+                    authSession.clearLastError()
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        step = .emailInput
+                    }
+                }
+            ) {
+                emailMark
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var emailInputStep: some View {
+        VStack(spacing: 14) {
+            stepHeader(backAction: {
+                authSession.clearLastError()
+                withAnimation(.easeInOut(duration: 0.22)) { step = .picker }
+            })
+
+            EmailInputField(text: $emailDraft, onSubmit: requestEmailCode)
+                .frame(width: 312)
+
+            primaryButton(
+                title: "email.send_code",
+                isLoading: authSession.isAuthenticating && pendingProvider == .email,
+                isEnabled: !emailDraft.trimmingCharacters(in: .whitespaces).isEmpty,
+                action: requestEmailCode
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var emailCodeStep: some View {
+        VStack(spacing: 14) {
+            stepHeader(backAction: {
+                authSession.cancelEmailLogin()
+                authSession.clearLastError()
+                resendTimerTask?.cancel()
+                resendCooldown = 0
+                codeDraft = ""
+                withAnimation(.easeInOut(duration: 0.22)) { step = .emailInput }
+            })
+
+            if let pendingEmail = authSession.pendingEmail {
+                Text(L10n.tr("email.code_sent_to", pendingEmail))
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 360)
+            }
+
+            OTPInputView(code: $codeDraft, length: 6) { _ in
+                verifyEmailCode()
+            }
+
+            primaryButton(
+                title: "email.verify",
+                isLoading: authSession.isAuthenticating && pendingProvider == .email,
+                isEnabled: codeDraft.count == 6,
+                action: verifyEmailCode
+            )
+
+            resendRow
+        }
+    }
+
+    @ViewBuilder
+    private var resendRow: some View {
+        HStack(spacing: 6) {
+            if resendCooldown > 0 {
+                Text(L10n.tr("email.resend_in", resendCooldown))
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            } else {
+                Button {
+                    resendEmailCode()
+                } label: {
+                    Text("email.resend")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.primary)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .disabled(authSession.isAuthenticating)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func stepHeader(backAction: @escaping () -> Void) -> some View {
+        HStack {
+            Button {
+                backAction()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .frame(width: 312)
+    }
+
+    @ViewBuilder
+    private func primaryButton(
+        title: LocalizedStringKey,
+        isLoading: Bool,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView().controlSize(.small)
+                }
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .frame(width: 312, height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isEnabled ? Color.accentColor : Color.gray.opacity(0.45))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled || isLoading || !hasAcceptedPrivacy)
+        .opacity(hasAcceptedPrivacy ? 1 : 0.55)
+    }
+
+    private func stepTransition(forward: Bool) -> AnyTransition {
+        let edge: Edge = forward ? .trailing : .leading
+        return .asymmetric(
+            insertion: .move(edge: edge).combined(with: .opacity),
+            removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)
+        )
+    }
+
+    private func requestEmailCode() {
+        let trimmed = emailDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        pendingProvider = .email
+        Task {
+            do {
+                try await authSession.requestEmailCode(trimmed)
+                codeDraft = ""
+                startResendCooldown()
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    step = .emailCode
+                }
+            } catch {
+                // Error message already surfaced via authSession.lastErrorMessage
+            }
+        }
+    }
+
+    private func resendEmailCode() {
+        Task {
+            do {
+                try await authSession.resendEmailCode()
+                codeDraft = ""
+                startResendCooldown()
+            } catch {
+                // Error surfaced via lastErrorMessage
+            }
+        }
+    }
+
+    private func verifyEmailCode() {
+        guard codeDraft.count == 6 else { return }
+        pendingProvider = .email
+        Task {
+            do {
+                try await authSession.verifyEmailCode(codeDraft)
+                // Successful login flips authSession.isSignedIn → window swap
+            } catch {
+                codeDraft = ""
+            }
+        }
+    }
+
+    private func startResendCooldown() {
+        resendTimerTask?.cancel()
+        resendCooldown = Self.resendCooldownSeconds
+        resendTimerTask = Task {
+            while resendCooldown > 0 {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    if resendCooldown > 0 { resendCooldown -= 1 }
+                }
+            }
         }
     }
 
@@ -137,6 +383,10 @@ struct OnboardingLoginView: View {
             }
             .toggleStyle(.checkbox)
             .labelsHidden()
+            // Override the system accent so the checkbox tick reads as a
+            // neutral confirmation, not a primary call-to-action — the real
+            // CTAs are the two sign-in buttons above.
+            .tint(.secondary)
 
             Text("onboarding.privacy_prefix")
                 .font(.system(size: 12))
@@ -163,52 +413,49 @@ struct OnboardingLoginView: View {
         )
     }
 
-    private var appMark: some View {
+    private var emailMark: some View {
+        // Neutral envelope glyph in a soft chip — visually parallel to the
+        // Google G mark above so the row alignment stays even.
         ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(markFill)
-                .frame(width: 76, height: 76)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(markBorderColor, lineWidth: 1)
-                )
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+                .frame(width: 22, height: 22)
 
-            Image(systemName: "bolt.horizontal.fill")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundColor(.primary.opacity(0.82))
-        }
-    }
-
-    private var alipayMark: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(red: 0.0, green: 0.52, blue: 0.92))
-                .frame(width: 24, height: 24)
-
-            Text("支")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
+            Image(systemName: "envelope.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.primary.opacity(0.78))
         }
     }
 
     private var googleMark: some View {
+        // Google's G mark: white disc with a multi-color G glyph. Reference:
+        // developers.google.com/identity/branding-guidelines. We don't ship
+        // the official asset so this is an approximation — white disc plus
+        // a "G" letter rendered with the four brand colors via an angular
+        // gradient. If/when an official PNG is bundled, swap to Image("google_g").
         ZStack {
             Circle()
                 .fill(Color.white)
-                .frame(width: 24, height: 24)
+                .frame(width: 22, height: 22)
 
             Text("G")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(
+                    AngularGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.26, green: 0.52, blue: 0.96), // blue
+                            Color(red: 0.20, green: 0.66, blue: 0.33), // green
+                            Color(red: 0.99, green: 0.74, blue: 0.02), // yellow
+                            Color(red: 0.96, green: 0.26, blue: 0.21), // red
+                            Color(red: 0.26, green: 0.52, blue: 0.96)
+                        ]),
+                        center: .center,
+                        startAngle: .degrees(-90),
+                        endAngle: .degrees(270)
+                    )
+                )
         }
-    }
-
-    private var markFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.68)
-    }
-
-    private var markBorderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        .frame(width: 22, height: 22)
     }
 
     private var buttonTint: Color {
@@ -251,6 +498,11 @@ private struct LoginWindowConfigurator: NSViewRepresentable {
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
+        // Without fullSizeContentView the titlebar area paints opaque white
+        // and the onboarding background image stops below it. Match the
+        // main window configurator so the image fills edge-to-edge.
+        window.titlebarSeparatorStyle = .none
+        window.styleMask.insert(.fullSizeContentView)
     }
 }
 
@@ -325,7 +577,7 @@ private struct PrivacyAgreementView: View {
         This agreement explains how Impulse handles information when you use the macOS app. It is written for a local-first AI workspace that helps with coding, debugging, note-taking, document handling, screenshots, voice input, and multi-step agent workflows.
 
         1. Account sign-in
-        Impulse uses a secure authentication service to complete Google sign-in. Google may share basic account information such as an account identifier, display name, avatar, and email address, depending on the consent screen. Alipay and other sign-in options may be added later.
+        Impulse uses a secure authentication service to complete sign-in. Google may share basic account information such as an account identifier, display name, avatar, and email address, depending on the consent screen. If you sign in with email, Impulse only stores the email address you provide and a verification code that expires within minutes.
 
         2. Local workspace data
         Impulse stores projects, sessions, chat messages, compaction summaries, tool execution records, settings, authorized folders, and agent workspace data on this Mac. App state is stored under Impulse's application support directories unless you explicitly select project folders or authorize additional directories.
@@ -396,16 +648,7 @@ struct ImpulseApp: App {
                     ContentView()
                         .background(MainWindowConfigurator())
                 } else {
-                    OnboardingLoginView(
-                        isAuthenticating: authSession.isAuthenticating,
-                        errorMessage: authSession.lastErrorMessage
-                    ) {
-                        Task {
-                            await authSession.signInWithGoogle()
-                        }
-                    } onAlipaySignIn: {
-                        authSession.signInWithAlipayPlaceholder()
-                    }
+                    OnboardingLoginView(authSession: authSession)
                 }
             }
                 .environmentObject(authSession)

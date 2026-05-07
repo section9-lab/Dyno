@@ -8,11 +8,13 @@
 "common.save" = "保存";
 "account.logout" = "ログアウト";
 "account.alipay_user" = "Alipay アカウント";
+"account.email_user" = "メールアカウント";
 "account.google_user" = "Google アカウント";
 "account.personal" = "個人アカウント";
 "onboarding.title" = "Impulse へようこそ";
 "onboarding.subtitle" = "サインインすると、プロジェクト、セッション、エージェントのワークスペースを macOS で使い続けられます。";
 "onboarding.continue_alipay" = "Alipay で続ける";
+"onboarding.continue_email" = "メールで続ける";
 "onboarding.continue_google" = "Google で続ける";
 "onboarding.privacy_link" = "プライバシー同意書";
 "onboarding.privacy_prefix" = "読んで同意します:";
@@ -250,3 +252,17 @@
 "settings.model.test.invalid_url" = "URL が無効";
 "settings.model.test.no_response" = "応答なし";
 "settings.model.test.http_error" = "HTTP %d";
+
+"email.title" = "メールでサインイン";
+"email.code_title" = "確認コードを入力";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "確認コードを送信";
+"email.code_sent_to" = "確認コードを %@ に送信しました";
+"email.verify" = "確認してログイン";
+"email.resend" = "再送信";
+"email.resend_in" = "%d 秒後に再送信できます";
+"email.error.invalid_email" = "メールアドレスの形式が正しくありません";
+"email.error.invalid_code" = "確認コードが違います。再度入力してください";
+"email.error.rate_limited" = "操作が頻繁すぎます。しばらくしてから再試行してください";
+"email.error.code_expired" = "確認コードの有効期限が切れました。再送信してください";
+"email.error.too_many_attempts" = "試行回数が多すぎます。確認コードを再送信してください";

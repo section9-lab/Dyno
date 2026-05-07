@@ -8,11 +8,13 @@
 "common.save" = "Guardar";
 "account.logout" = "Salir";
 "account.alipay_user" = "Cuenta de Alipay";
+"account.email_user" = "Cuenta de email";
 "account.google_user" = "Cuenta de Google";
 "account.personal" = "Cuenta personal";
 "onboarding.title" = "Bienvenido a Impulse";
 "onboarding.subtitle" = "Inicia sesión para mantener listos tus proyectos, sesiones y espacio de trabajo del agente en macOS.";
 "onboarding.continue_alipay" = "Continuar con Alipay";
+"onboarding.continue_email" = "Continuar con email";
 "onboarding.continue_google" = "Continuar con Google";
 "onboarding.privacy_link" = "acuerdo de privacidad";
 "onboarding.privacy_prefix" = "He leído y acepto el";
@@ -250,3 +252,17 @@
 "settings.model.test.invalid_url" = "URL no válida";
 "settings.model.test.no_response" = "Sin respuesta";
 "settings.model.test.http_error" = "HTTP %d";
+
+"email.title" = "Iniciar con email";
+"email.code_title" = "Introduce el código";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "Enviar código";
+"email.code_sent_to" = "Código enviado a %@";
+"email.verify" = "Verificar y continuar";
+"email.resend" = "Reenviar código";
+"email.resend_in" = "Reenviar en %ds";
+"email.error.invalid_email" = "Email inválido";
+"email.error.invalid_code" = "Código incorrecto, inténtalo de nuevo";
+"email.error.rate_limited" = "Demasiados intentos, espera un momento";
+"email.error.code_expired" = "El código ha caducado. Solicita uno nuevo";
+"email.error.too_many_attempts" = "Demasiados intentos. Solicita un código nuevo";

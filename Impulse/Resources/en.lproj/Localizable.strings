@@ -9,12 +9,14 @@
 
 "account.logout" = "Sign Out";
 "account.alipay_user" = "Alipay Account";
+"account.email_user" = "Email Account";
 "account.google_user" = "Google Account";
 "account.personal" = "Personal Account";
 
 "onboarding.title" = "Welcome to Impulse";
 "onboarding.subtitle" = "Sign in to keep your projects, sessions, and agent workspace ready for focused macOS work.";
 "onboarding.continue_alipay" = "Continue with Alipay";
+"onboarding.continue_email" = "Continue with Email";
 "onboarding.continue_google" = "Continue with Google";
 "onboarding.privacy_link" = "Privacy Agreement";
 "onboarding.privacy_prefix" = "I have read and agree to the";
@@ -266,3 +268,17 @@
 "settings.model.test.invalid_url" = "Invalid URL";
 "settings.model.test.no_response" = "No response";
 "settings.model.test.http_error" = "HTTP %d";
+
+"email.title" = "Sign in with email";
+"email.code_title" = "Enter the code";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "Send verification code";
+"email.code_sent_to" = "Code sent to %@";
+"email.verify" = "Verify and continue";
+"email.resend" = "Resend code";
+"email.resend_in" = "Resend available in %ds";
+"email.error.invalid_email" = "Invalid email address";
+"email.error.invalid_code" = "Wrong code, please try again";
+"email.error.rate_limited" = "Please wait a moment before requesting another code";
+"email.error.code_expired" = "The code expired. Please request a new one";
+"email.error.too_many_attempts" = "Too many attempts. Please request a new code";

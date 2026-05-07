@@ -66,14 +66,25 @@ final class AuthSession: ObservableObject {
 
     enum Provider: String, Codable {
         case google
-        case alipay
+        case email
+
+        /// The `provider` query parameter the openauth issuer dispatches on.
+        /// We keep `Provider` Swift-side names readable while preserving the
+        /// exact string the issuer expects (the issuer registered the
+        /// CodeProvider under the key "code").
+        var issuerKey: String {
+            switch self {
+            case .google: return "google"
+            case .email: return "code"
+            }
+        }
 
         var accountTitleKey: LocalizedStringKey {
             switch self {
             case .google:
                 return "account.google_user"
-            case .alipay:
-                return "account.alipay_user"
+            case .email:
+                return "account.email_user"
             }
         }
     }
@@ -96,8 +107,18 @@ final class AuthSession: ObservableObject {
     @Published private(set) var isAuthenticating = false
     @Published private(set) var lastErrorMessage: String?
 
+    /// Email of the address we just sent a code to. Drives the "code sent
+    /// to <email>" hint in the verify step and is the source of truth for
+    /// resends so the user can't change it mid-flow.
+    @Published private(set) var pendingEmail: String?
+
     private let keychainStore = AuthKeychainStore()
     private let webAuthenticator = OAuthWebAuthenticator()
+
+    /// Owns the PKCE state for one email-OTP attempt. Recreated on cancel
+    /// or when a fresh request comes in. Nil whenever the user isn't mid-
+    /// flow.
+    private var pendingEmailClient: EmailOTPClient?
 
     private init() {
         self.user = Self.loadPersistedUser()
@@ -157,8 +178,75 @@ final class AuthSession: ObservableObject {
         }
     }
 
-    func signInWithAlipayPlaceholder() {
-        lastErrorMessage = L10n.tr("auth.error.alipay_unavailable")
+    /// Email OTP login is split into two steps so the UI can show progress
+    /// between "send code" and "verify code" and so we don't drag a long-
+    /// lived task through both. Each call recreates the underlying client.
+    func requestEmailCode(_ email: String) async throws {
+        guard !isAuthenticating else { return }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        lastErrorMessage = nil
+
+        let client = EmailOTPClient()
+        do {
+            try await client.requestCode(email: email)
+            pendingEmailClient = client
+            pendingEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func resendEmailCode() async throws {
+        guard let client = pendingEmailClient, let email = pendingEmail else {
+            throw AuthError.invalidCallback
+        }
+        guard !isAuthenticating else { return }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        lastErrorMessage = nil
+        do {
+            try await client.resendCode(email: email)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func verifyEmailCode(_ code: String) async throws {
+        guard let client = pendingEmailClient else {
+            throw AuthError.invalidCallback
+        }
+        guard !isAuthenticating else { return }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        lastErrorMessage = nil
+        do {
+            let tokens = try await client.verifyCode(code)
+            let openauth = OpenAuthClient()
+            try keychainStore.save(tokens)
+            applyAuthenticatedUser(try openauth.user(from: tokens.accessToken))
+            cancelEmailLogin()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    func cancelEmailLogin() {
+        pendingEmailClient = nil
+        pendingEmail = nil
+    }
+
+    /// Clear the surface-area error so a fresh step starts with a clean
+    /// slate (e.g. switching from picker → email input shouldn't carry over
+    /// a previous Google failure message).
+    func clearLastError() {
+        lastErrorMessage = nil
     }
 
     func signOut() {

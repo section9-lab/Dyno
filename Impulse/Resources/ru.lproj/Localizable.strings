@@ -8,11 +8,13 @@
 "common.save" = "Сохранить";
 "account.logout" = "Выйти";
 "account.alipay_user" = "Аккаунт Alipay";
+"account.email_user" = "Email аккаунт";
 "account.google_user" = "Аккаунт Google";
 "account.personal" = "Личный аккаунт";
 "onboarding.title" = "Добро пожаловать в Impulse";
 "onboarding.subtitle" = "Войдите, чтобы проекты, сессии и рабочая область агента были готовы для работы в macOS.";
 "onboarding.continue_alipay" = "Продолжить с Alipay";
+"onboarding.continue_email" = "Продолжить по email";
 "onboarding.continue_google" = "Продолжить с Google";
 "onboarding.privacy_link" = "соглашением о конфиденциальности";
 "onboarding.privacy_prefix" = "Я прочитал(а) и согласен(на) с";
@@ -250,3 +252,17 @@
 "settings.model.test.invalid_url" = "Неверный URL";
 "settings.model.test.no_response" = "Нет ответа";
 "settings.model.test.http_error" = "HTTP %d";
+
+"email.title" = "Вход по email";
+"email.code_title" = "Введите код";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "Отправить код";
+"email.code_sent_to" = "Код отправлен на %@";
+"email.verify" = "Подтвердить и войти";
+"email.resend" = "Отправить ещё раз";
+"email.resend_in" = "Повтор через %d с";
+"email.error.invalid_email" = "Неверный email";
+"email.error.invalid_code" = "Неверный код, попробуйте снова";
+"email.error.rate_limited" = "Слишком частые запросы, подождите";
+"email.error.code_expired" = "Срок кода истёк. Запросите новый";
+"email.error.too_many_attempts" = "Слишком много попыток. Запросите новый код";
