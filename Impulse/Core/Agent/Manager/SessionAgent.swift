@@ -25,15 +25,49 @@ final class SessionAgent: ObservableObject, Identifiable {
     /// without it polluting the final answer.
     @Published var liveReasoningText: String = ""
 
+    /// Live mirror of `todoStore`'s phases. Updated on every store mutation
+    /// via the long-running `phasesObservation` task.
+    @Published var todoPhases: [TodoPhase] = []
+
+    /// Per-session todo list. Persisted via `StoredTodoSnapshot` (see
+    /// `ChatViewModel.persistRunResults` and the load path in
+    /// `AgentManager.sessionAgent(for:projectPath:)`).
+    let todoStore: TodoStore
+
+    /// Per-session subagent coordinator. Owns the explore subagent and
+    /// inherits this session's working directory + execution policy. The
+    /// coordinator is rebuilt only when the agent is rebuilt wholesale
+    /// (project change / new chat); plain config refresh keeps it.
+    let taskCoordinator: TaskCoordinator
+
     private var sdk: AgentSDK
     /// Tracks the in-flight chat/compact Task so callers can cancel it
     /// (e.g. when the session is deleted or the app is shutting down).
     private var currentTask: Task<Void, Never>?
+    /// Long-running observation of `todoStore.phasesStream()`. Owned here so
+    /// it lives as long as the SessionAgent does and is cancelled in
+    /// `cancel()`.
+    private var phasesObservation: Task<Void, Never>?
+    /// Set to `true` after the persisted todo snapshot has been loaded
+    /// into `todoStore`. Idempotent guard so callers can drive seeding
+    /// from multiple lifecycle hooks (selectSession, sendMessage, view
+    /// onAppear) without trampling live in-memory state.
+    private(set) var hasSeededTodos: Bool = false
 
-    init(id: String, projectPath: String, sdk: AgentSDK) {
+    init(
+        id: String,
+        projectPath: String,
+        sdk: AgentSDK,
+        todoStore: TodoStore,
+        taskCoordinator: TaskCoordinator
+    ) {
         self.id = id
         self.projectPath = projectPath
         self.sdk = sdk
+        self.todoStore = todoStore
+        self.taskCoordinator = taskCoordinator
+
+        startTodoObservation()
     }
 
     func replaceSDK(_ newSDK: AgentSDK) {
@@ -49,10 +83,23 @@ final class SessionAgent: ObservableObject, Identifiable {
     }
 
     /// Cancels any in-flight chat/compact task. Safe to call when idle.
+    /// Also cancels the todo-phases observation task; call this exactly
+    /// once when the SessionAgent is being discarded.
     func cancel() {
         currentTask?.cancel()
         currentTask = nil
+        phasesObservation?.cancel()
+        phasesObservation = nil
         isResponding = false
+    }
+
+    /// Replace the persisted todo phases on disk into the live store.
+    /// Called when a session is selected and we want to seed the indicator
+    /// with the snapshot from SwiftData. Mirrors `op: "init"` semantically
+    /// but doesn't go through the tool — the agent never sees this.
+    func loadTodoSnapshot(_ phases: [TodoPhase]) async {
+        await todoStore.replaceExternal(phases)
+        hasSeededTodos = true
     }
 
     func sendChat(prompt: String, contextPrelude: String? = nil) async throws -> String {
@@ -222,14 +269,39 @@ final class SessionAgent: ObservableObject, Identifiable {
         contextUsage = await sdk.contextUsage()
     }
 
+    // MARK: - Todo phases observation
+
+    /// Subscribe to the store's snapshot stream and mirror it into the
+    /// `@Published var todoPhases` so SwiftUI views can render it.
+    /// Idempotent — replaces any prior observation task.
+    private func startTodoObservation() {
+        phasesObservation?.cancel()
+        let store = todoStore
+        phasesObservation = Task { [weak self] in
+            for await snapshot in await store.phasesStream() {
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.todoPhases = snapshot
+                }
+            }
+        }
+    }
+
     // MARK: - Tool execution extraction (private)
+
+    /// Tools whose calls the live timeline should surface. `read/write/edit/bash`
+    /// have always been here; `task` is added so subagent fan-outs render as
+    /// first-class rows. `todo_write` and `ask` are intentionally excluded —
+    /// they have dedicated UIs (the toolbar progress indicator and the ask
+    /// banner) and would be duplicate noise in the timeline.
+    private static let trackedTools: Set<String> = ["read", "write", "edit", "bash", "task"]
 
     private func signature(for executions: [AgentToolExecution]) -> String {
         executions.map { "\($0.id)|\($0.status.rawValue)|\($0.summary)" }.joined(separator: "||")
     }
 
     private func extractToolExecutions(from messages: [AgentMessage]) -> [AgentToolExecution] {
-        let trackedTools: Set<String> = ["read", "write", "edit", "bash"]
+        let trackedTools = Self.trackedTools
 
         struct PendingCall {
             let name: String
@@ -316,6 +388,13 @@ final class SessionAgent: ObservableObject, Identifiable {
         case "bash":
             let command = (obj["command"] as? String) ?? ""
             return command.isEmpty ? "bash" : command
+        case "task":
+            // Format: "<agentID> × <count>" so the timeline row can extract
+            // both pieces. We also pretty-print per-task descriptions into
+            // the output panel later.
+            let agentID = (obj["agent"] as? String) ?? "subagent"
+            let tasks = (obj["tasks"] as? [[String: Any]]) ?? []
+            return "\(agentID) × \(tasks.count)"
         default:
             return toolName
         }

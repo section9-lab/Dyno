@@ -282,3 +282,20 @@
 "email.error.rate_limited" = "Please wait a moment before requesting another code";
 "email.error.code_expired" = "The code expired. Please request a new one";
 "email.error.too_many_attempts" = "Too many attempts. Please request a new code";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "Todos: %1$d/%2$d";
+"todo.indicator.help_with_active" = "Todos: %1$d/%2$d — %3$@";
+"ask.banner.title" = "Agent question";
+"ask.banner.recommended" = "Recommended";
+"ask.banner.other" = "Other (type your own)";
+"ask.banner.other_placeholder" = "Type your answer";
+"ask.banner.submit" = "Submit";
+"ask.banner.cancel" = "Cancel";
+"ask.banner.required_hint" = "Pick one option per question to submit.";
+"tool.task.running_n" = "Running %1$d subagents (%2$@)";
+"tool.task.ran_n" = "Ran %1$d subagents (%2$@)";
+"tool.task.failed" = "Subagent batch failed (%@)";
+"tool.task.chip" = "Subagent";
+"tool.task.success_count" = "%d succeeded";
+"tool.task.failure_count" = "%d failed";

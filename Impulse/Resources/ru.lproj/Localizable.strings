@@ -266,3 +266,20 @@
 "email.error.rate_limited" = "Слишком частые запросы, подождите";
 "email.error.code_expired" = "Срок кода истёк. Запросите новый";
 "email.error.too_many_attempts" = "Слишком много попыток. Запросите новый код";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "Задачи: %1$d/%2$d";
+"todo.indicator.help_with_active" = "Задачи: %1$d/%2$d — %3$@";
+"ask.banner.title" = "Вопрос агента";
+"ask.banner.recommended" = "Рекомендовано";
+"ask.banner.other" = "Другое (введите свой вариант)";
+"ask.banner.other_placeholder" = "Введите ответ";
+"ask.banner.submit" = "Отправить";
+"ask.banner.cancel" = "Отменить";
+"ask.banner.required_hint" = "Выберите по одному варианту на каждый вопрос, чтобы отправить.";
+"tool.task.running_n" = "Запущено %1$d субагентов (%2$@)";
+"tool.task.ran_n" = "Завершено %1$d субагентов (%2$@)";
+"tool.task.failed" = "Партия субагентов не удалась (%@)";
+"tool.task.chip" = "Субагент";
+"tool.task.success_count" = "Успешно: %d";
+"tool.task.failure_count" = "Ошибки: %d";

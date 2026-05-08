@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var vm = ChatViewModel()
     @StateObject private var agent = AgentManager.shared
     @StateObject private var approvals = ToolApprovalCenter.shared
+    @StateObject private var askCenter = AskCenter.shared
     @EnvironmentObject private var authSession: AuthSession
 
     /// Project the kanban scopes to. `nil` means "all projects" — the
@@ -81,11 +82,19 @@ struct ContentView: View {
     }
 
     private func ensureFocusedSessionAgent() {
-        guard let sessionID = vm.selectedSessionID,
-              let projectPath = vm.selectedProjectPath
-        else { return }
-        _ = agent.sessionAgent(for: sessionID, projectPath: projectPath)
+        guard let sessionID = vm.selectedSessionID else { return }
+        let projectPath = vm.selectedProjectPath ?? ""
+        let sessionAgent = agent.sessionAgent(for: sessionID, projectPath: projectPath)
         agent.focusedSessionID = sessionID
+
+        // Seed the live TodoStore from the persisted snapshot the first
+        // time we touch this SessionAgent. Idempotent — `seedTodoSnapshotIfNeeded`
+        // checks `hasSeededTodos` and bails on a re-call.
+        if let session = allSessions.first(where: { $0.id == sessionID }) {
+            Task { [vm] in
+                await vm.seedTodoSnapshotIfNeeded(sessionAgent: sessionAgent, session: session)
+            }
+        }
     }
 
     var body: some View {
@@ -189,6 +198,13 @@ struct ContentView: View {
 
     private var chatColumn: some View {
         VStack(spacing: 0) {
+            // Inline banner that appears above the chat when the agent
+            // invokes the `ask` tool. Auto-collapses when no prompt is
+            // pending. The InputBar is also disabled in that state so the
+            // user can't race the submission.
+            AskPromptBanner(center: askCenter)
+                .animation(.easeInOut(duration: 0.18), value: askCenter.pendingPrompt?.id)
+
             chatScrollArea
 
             InputBar(
@@ -202,6 +218,8 @@ struct ContentView: View {
                 agent: agent,
                 onOpenSettings: { vm.showConfigSheet = true }
             )
+            .disabled(askCenter.pendingPrompt != nil)
+            .opacity(askCenter.pendingPrompt != nil ? 0.5 : 1)
         }
     }
 
@@ -317,6 +335,11 @@ struct ContentView: View {
                 vm.toggleSidebar()
             } label: {
                 Image(systemName: vm.isSidebarCollapsed ? "sidebar.left" : "sidebar.leading")
+            }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            if let focusedSessionAgent {
+                TodoProgressIndicator(sessionAgent: focusedSessionAgent)
             }
         }
     }

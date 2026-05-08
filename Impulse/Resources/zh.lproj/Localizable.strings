@@ -282,3 +282,20 @@
 "email.error.rate_limited" = "操作过于频繁，请稍后再试";
 "email.error.code_expired" = "验证码已过期，请重新发送";
 "email.error.too_many_attempts" = "尝试次数过多，请重新发送验证码";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "待办：%1$d/%2$d";
+"todo.indicator.help_with_active" = "待办：%1$d/%2$d — %3$@";
+"ask.banner.title" = "代理提问";
+"ask.banner.recommended" = "推荐";
+"ask.banner.other" = "其他（自行输入）";
+"ask.banner.other_placeholder" = "输入你的答案";
+"ask.banner.submit" = "提交";
+"ask.banner.cancel" = "取消";
+"ask.banner.required_hint" = "每个问题需选择一个选项后才能提交。";
+"tool.task.running_n" = "正在运行 %1$d 个子代理（%2$@）";
+"tool.task.ran_n" = "已运行 %1$d 个子代理（%2$@）";
+"tool.task.failed" = "子代理批次失败（%@）";
+"tool.task.chip" = "子代理";
+"tool.task.success_count" = "成功 %d";
+"tool.task.failure_count" = "失败 %d";

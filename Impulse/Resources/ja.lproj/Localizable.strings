@@ -266,3 +266,20 @@
 "email.error.rate_limited" = "操作が頻繁すぎます。しばらくしてから再試行してください";
 "email.error.code_expired" = "確認コードの有効期限が切れました。再送信してください";
 "email.error.too_many_attempts" = "試行回数が多すぎます。確認コードを再送信してください";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "ToDo: %1$d/%2$d";
+"todo.indicator.help_with_active" = "ToDo: %1$d/%2$d — %3$@";
+"ask.banner.title" = "エージェントからの質問";
+"ask.banner.recommended" = "推奨";
+"ask.banner.other" = "その他（自由入力）";
+"ask.banner.other_placeholder" = "回答を入力してください";
+"ask.banner.submit" = "送信";
+"ask.banner.cancel" = "キャンセル";
+"ask.banner.required_hint" = "各質問に1つずつ選択肢を選んで送信してください。";
+"tool.task.running_n" = "%1$d 個のサブエージェントを実行中（%2$@）";
+"tool.task.ran_n" = "%1$d 個のサブエージェントを実行しました（%2$@）";
+"tool.task.failed" = "サブエージェントが失敗しました（%@）";
+"tool.task.chip" = "サブエージェント";
+"tool.task.success_count" = "%d 件成功";
+"tool.task.failure_count" = "%d 件失敗";

@@ -77,19 +77,16 @@ final class AgentManager: ObservableObject {
 
         // Two-phase init: pool needs `self.config` to call the SDK factory.
         // Capture the manager weakly through the closure to avoid retain cycle.
-        var poolFactoryRef: ((String) -> AgentSDK)?
-        self.pool = SessionAgentPool { projectPath in
-            poolFactoryRef!(projectPath)
-        }
-        poolFactoryRef = { [unowned self] projectPath in
-            AgentSDKFactory.make(
-                config: self.config,
-                activeProjectPath: projectPath,
-                storageDirectoryURL: Self.storageDirectoryURL,
-                defaultExecutionWorkspaceURL: Self.defaultExecutionWorkspaceURL,
-                sandboxRoots: SandboxAccessManager.shared.authorizedRoots
-            )
-        }
+        var managerRef: AgentManager?
+        self.pool = SessionAgentPool(
+            createSessionAgent: { sessionID, projectPath in
+                managerRef!.makeSessionAgent(sessionID: sessionID, projectPath: projectPath)
+            },
+            rebuildSDK: { sessionAgent in
+                managerRef!.makeSDK(for: sessionAgent)
+            }
+        )
+        managerRef = self
 
         registry.setApiKey(initialConfig.apiKey, for: initialConfig.providerId)
         bootstrap.bootstrap()
@@ -102,6 +99,67 @@ final class AgentManager: ObservableObject {
             await registry.refresh()
             await self.refreshServiceStatus()
         }
+    }
+
+    // MARK: - Session-agent construction (private)
+
+    /// Build a fresh `SessionAgent` for `(sessionID, projectPath)`. Each
+    /// session gets its own `TodoStore` (todo state is per-session) and its
+    /// own `TaskCoordinator` (sandbox boundary follows the session's
+    /// project + the current authorized roots).
+    private func makeSessionAgent(sessionID: String, projectPath: String) -> SessionAgent {
+        let scope = AgentSDKFactory.resolveExecutionScope(
+            activeProjectPath: projectPath,
+            defaultExecutionWorkspaceURL: Self.defaultExecutionWorkspaceURL,
+            sandboxRoots: SandboxAccessManager.shared.authorizedRoots
+        )
+        let todoStore = TodoStore()
+        let taskCoordinator = TaskSubagentCatalog.makeCoordinator(
+            config: config,
+            workingDirectory: scope.workingDirectory,
+            executionPolicy: scope.fileToolPolicy
+        )
+        let productivity = AgentSDKFactory.ProductivityDependencies(
+            todoStore: todoStore,
+            askHandler: AskCenter.shared.makeHandler(),
+            taskCoordinator: taskCoordinator
+        )
+        let sdk = AgentSDKFactory.make(
+            config: config,
+            activeProjectPath: projectPath,
+            storageDirectoryURL: Self.storageDirectoryURL,
+            defaultExecutionWorkspaceURL: Self.defaultExecutionWorkspaceURL,
+            sandboxRoots: SandboxAccessManager.shared.authorizedRoots,
+            productivity: productivity
+        )
+        return SessionAgent(
+            id: sessionID,
+            projectPath: projectPath,
+            sdk: sdk,
+            todoStore: todoStore,
+            taskCoordinator: taskCoordinator
+        )
+    }
+
+    /// Rebuild the SDK for an existing `SessionAgent` (config refresh /
+    /// sandbox roots changed). Reuses the agent's *existing* productivity
+    /// state — its `TodoStore` keeps its tasks, and the same
+    /// `TaskCoordinator` instance is passed back in so subagents see the
+    /// new working directory.
+    private func makeSDK(for sessionAgent: SessionAgent) -> AgentSDK {
+        let productivity = AgentSDKFactory.ProductivityDependencies(
+            todoStore: sessionAgent.todoStore,
+            askHandler: AskCenter.shared.makeHandler(),
+            taskCoordinator: sessionAgent.taskCoordinator
+        )
+        return AgentSDKFactory.make(
+            config: config,
+            activeProjectPath: sessionAgent.projectPath,
+            storageDirectoryURL: Self.storageDirectoryURL,
+            defaultExecutionWorkspaceURL: Self.defaultExecutionWorkspaceURL,
+            sandboxRoots: SandboxAccessManager.shared.authorizedRoots,
+            productivity: productivity
+        )
     }
 
     // MARK: - Config

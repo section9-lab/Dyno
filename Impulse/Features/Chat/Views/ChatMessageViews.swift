@@ -475,6 +475,7 @@ private struct ToolTimelineRow: View {
         case "write": return "square.and.pencil"
         case "edit": return "pencil.line"
         case "bash": return "terminal"
+        case "task": return "square.stack.3d.up"
         default: return "wrench.and.screwdriver"
         }
     }
@@ -504,9 +505,35 @@ private struct ToolTimelineRow: View {
             case .success: return "Ran command"
             case .failed:  return "Command failed"
             }
+        case "task":
+            // Summary is "<agentID> × <count>" (set in
+            // SessionAgent.buildToolSummary). Parse it back into the two
+            // pieces so the title reads naturally.
+            let (count, agentID) = parseTaskSummary()
+            switch status {
+            case .running:
+                return L10n.tr("tool.task.running_n", count, agentID)
+            case .success:
+                return L10n.tr("tool.task.ran_n", count, agentID)
+            case .failed:
+                return L10n.tr("tool.task.failed", agentID)
+            }
         default:
             return toolName.capitalized
         }
+    }
+
+    /// Parses `summary` strings of the form "<agentID> × <count>" into
+    /// (count, agentID). Falls back to (0, "subagent") on a malformed
+    /// summary so the row still renders something sensible.
+    private func parseTaskSummary() -> (count: Int, agentID: String) {
+        let parts = summary.components(separatedBy: " × ")
+        guard parts.count == 2,
+              let count = Int(parts[1].trimmingCharacters(in: .whitespaces))
+        else {
+            return (0, "subagent")
+        }
+        return (count, parts[0].trimmingCharacters(in: .whitespaces))
     }
 
     private var filenameOrFallback: String {
@@ -527,6 +554,8 @@ private struct ToolTimelineRow: View {
         switch toolName {
         case "bash":
             return status == .running ? "Script" : "Script"
+        case "task":
+            return L10n.tr("tool.task.chip")
         case "read", "write", "edit":
             return nil
         default:
@@ -568,7 +597,11 @@ private struct ToolDetailPanel: View {
             // Output
             if status != .running {
                 Divider().opacity(0.4)
-                outputSection
+                if toolName == "task" {
+                    taskOutputSection
+                } else {
+                    outputSection
+                }
             } else {
                 Text(L10n.tr("tool.no_output"))
                     .chatFont(.footnote)
@@ -582,6 +615,40 @@ private struct ToolDetailPanel: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
         )
+    }
+
+    /// Rendering for `task` tool output. The SDK joins per-task summaries
+    /// as `## Task <id> (<agent>) — success/failed\nsteps: N\n...` blocks;
+    /// we split and render them as individual cards so successes vs.
+    /// failures are easy to scan.
+    @ViewBuilder
+    private var taskOutputSection: some View {
+        let blocks = TaskOutputParser.parse(output)
+        if blocks.isEmpty {
+            outputSection
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                let succeeded = blocks.filter { $0.success }.count
+                let failed = blocks.count - succeeded
+                HStack(spacing: 8) {
+                    if succeeded > 0 {
+                        Label(L10n.tr("tool.task.success_count", succeeded), systemImage: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .chatFont(.footnote, weight: .medium)
+                    }
+                    if failed > 0 {
+                        Label(L10n.tr("tool.task.failure_count", failed), systemImage: "xmark.octagon.fill")
+                            .foregroundColor(.red)
+                            .chatFont(.footnote, weight: .medium)
+                    }
+                    Spacer()
+                }
+
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    TaskOutputCard(block: block)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -649,5 +716,148 @@ private struct ToolDetailPanel: View {
 
     private var outputLabel: String {
         toolName == "bash" ? "Result" : "Output"
+    }
+}
+
+// MARK: - Task subagent output rendering
+
+/// One per-task block parsed from the joined output of a `task` tool call.
+/// The SDK formats each subagent result as:
+///
+///     ## Task <id> (<agentID>) — success|failed
+///     steps: N
+///     [error: ...]
+///
+///     <output>
+///
+/// We split that back into structured pieces so the detail panel can show
+/// each subagent's result as its own card, with success/failure tinting.
+struct TaskOutputBlock {
+    let id: String
+    let agentID: String
+    let success: Bool
+    let steps: Int
+    let error: String?
+    let output: String
+}
+
+enum TaskOutputParser {
+    static func parse(_ raw: String) -> [TaskOutputBlock] {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.hasPrefix("## Task ") else { return [] }
+
+        // Split on lines that begin with "## Task ". Keep the prefix on the
+        // resulting block so we can re-parse the header line.
+        var blocks: [TaskOutputBlock] = []
+        var currentLines: [String] = []
+        for line in trimmed.components(separatedBy: "\n") {
+            if line.hasPrefix("## Task ") {
+                if !currentLines.isEmpty {
+                    if let block = parseBlock(currentLines) {
+                        blocks.append(block)
+                    }
+                    currentLines.removeAll(keepingCapacity: true)
+                }
+            }
+            currentLines.append(line)
+        }
+        if !currentLines.isEmpty, let block = parseBlock(currentLines) {
+            blocks.append(block)
+        }
+        return blocks
+    }
+
+    private static func parseBlock(_ lines: [String]) -> TaskOutputBlock? {
+        guard let header = lines.first, header.hasPrefix("## Task ") else { return nil }
+        // Header: "## Task <id> (<agent>) — success|failed"
+        let stripped = String(header.dropFirst("## Task ".count))
+        // Split on " — "
+        let dashSep = " — "
+        guard let dashRange = stripped.range(of: dashSep) else { return nil }
+        let idAgent = stripped[..<dashRange.lowerBound].trimmingCharacters(in: .whitespaces)
+        let statusPart = stripped[dashRange.upperBound...].trimmingCharacters(in: .whitespaces)
+        let success = (statusPart == "success")
+
+        // idAgent: "<id> (<agent>)"
+        let id: String
+        let agentID: String
+        if let parenStart = idAgent.firstIndex(of: "("),
+           let parenEnd = idAgent.firstIndex(of: ")"),
+           parenStart < parenEnd {
+            id = idAgent[..<parenStart].trimmingCharacters(in: .whitespaces)
+            let inside = idAgent.index(after: parenStart)..<parenEnd
+            agentID = String(idAgent[inside]).trimmingCharacters(in: .whitespaces)
+        } else {
+            id = idAgent
+            agentID = ""
+        }
+
+        var steps = 0
+        var error: String?
+        var bodyStart = 1
+        for (idx, line) in lines.enumerated().dropFirst() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("steps: ") {
+                steps = Int(trimmed.dropFirst("steps: ".count)) ?? 0
+                bodyStart = idx + 1
+            } else if trimmed.hasPrefix("error: ") {
+                error = String(trimmed.dropFirst("error: ".count))
+                bodyStart = idx + 1
+            } else if trimmed.isEmpty {
+                bodyStart = idx + 1
+            } else {
+                break
+            }
+        }
+        let body = lines.dropFirst(bodyStart).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return TaskOutputBlock(id: id, agentID: agentID, success: success, steps: steps, error: error, output: body)
+    }
+}
+
+struct TaskOutputCard: View {
+    let block: TaskOutputBlock
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: block.success ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .foregroundColor(block.success ? .green : .red)
+                    .font(.system(size: 12))
+                Text(block.id)
+                    .chatFont(.footnote, weight: .semibold)
+                    .foregroundColor(.primary.opacity(0.9))
+                if !block.agentID.isEmpty {
+                    Text(block.agentID)
+                        .chatFont(.caption, design: .monospaced)
+                        .foregroundColor(.secondary)
+                }
+                Spacer(minLength: 0)
+                Text("steps: \(block.steps)")
+                    .chatFont(.caption, design: .monospaced)
+                    .foregroundColor(.secondary)
+            }
+
+            if let error = block.error, !error.isEmpty {
+                Text(error)
+                    .chatFont(.caption)
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+
+            if !block.output.isEmpty {
+                Text(block.output)
+                    .chatFont(.caption)
+                    .foregroundColor(.primary.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.06))
+        )
     }
 }

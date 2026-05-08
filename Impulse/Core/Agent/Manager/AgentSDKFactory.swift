@@ -2,20 +2,37 @@ import Foundation
 import SwiftHarnessAgent
 
 /// Pure factory for `AgentSDK` instances. No state — every call builds a
-/// fresh SDK from the current config + project path + sandbox roots + skills.
+/// fresh SDK from the current config + project path + sandbox roots + skills
+/// + per-session productivity dependencies.
 ///
 /// Pulling this out of `AgentManager` makes it possible to unit-test the
 /// SDK wiring (allowed roots, tool execution policy, system prompt) without
 /// spinning up the whole singleton.
 enum AgentSDKFactory {
-    static func make(
-        config: AgentServiceConfig,
+    /// Bundle of dependencies the productivity tools need. These live one
+    /// instance per `SessionAgent` so each session has its own todo list,
+    /// ask channel, and subagent coordinator.
+    struct ProductivityDependencies {
+        let todoStore: TodoStore
+        let askHandler: AskHandler
+        let taskCoordinator: TaskCoordinator
+    }
+
+    /// Working directory + execution policy resolved from the session's
+    /// project path + sandbox roots. The caller may want them to build a
+    /// `TaskCoordinator` whose subagents operate inside the same boundary.
+    struct ResolvedExecutionScope {
+        let workingDirectory: URL
+        let allowedRoots: [URL]
+        let fileToolPolicy: ToolExecutionPolicy
+        let bashToolPolicy: ToolExecutionPolicy
+    }
+
+    static func resolveExecutionScope(
         activeProjectPath: String?,
-        storageDirectoryURL: URL,
         defaultExecutionWorkspaceURL: URL,
         sandboxRoots: [URL]
-    ) -> AgentSDK {
-        let baseURL = URL(string: config.baseURL) ?? URL(string: "http://127.0.0.1:11434/v1")!
+    ) -> ResolvedExecutionScope {
         let resolvedProjectPath = activeProjectPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let workingDirectoryURL = resolvedProjectPath.isEmpty
             ? defaultExecutionWorkspaceURL
@@ -26,19 +43,40 @@ enum AgentSDKFactory {
             allowedRoots.append(root)
         }
 
+        return ResolvedExecutionScope(
+            workingDirectory: workingDirectoryURL,
+            allowedRoots: allowedRoots,
+            fileToolPolicy: ToolExecutionPolicy(allowedRoots: allowedRoots, bash: .disabled),
+            bashToolPolicy: ToolExecutionPolicy(allowedRoots: allowedRoots, bash: .unrestricted)
+        )
+    }
+
+    static func make(
+        config: AgentServiceConfig,
+        activeProjectPath: String?,
+        storageDirectoryURL: URL,
+        defaultExecutionWorkspaceURL: URL,
+        sandboxRoots: [URL],
+        productivity: ProductivityDependencies
+    ) -> AgentSDK {
+        let baseURL = URL(string: config.baseURL) ?? URL(string: "http://127.0.0.1:11434/v1")!
+        let scope = resolveExecutionScope(
+            activeProjectPath: activeProjectPath,
+            defaultExecutionWorkspaceURL: defaultExecutionWorkspaceURL,
+            sandboxRoots: sandboxRoots
+        )
+
         var skillsDirs: [URL] = []
         if let bundledSkills = Bundle.main.resourceURL?.appendingPathComponent("skills", isDirectory: true) {
             skillsDirs.append(bundledSkills)
         }
         skillsDirs.append(storageDirectoryURL.agentSkillsDirectory())
 
-        let fileToolPolicy = ToolExecutionPolicy(allowedRoots: allowedRoots, bash: .disabled)
-        let bashToolPolicy = ToolExecutionPolicy(allowedRoots: allowedRoots, bash: .unrestricted)
         let toolExecutionContexts: [String: ToolExecutionContext] = [
-            "read": ToolExecutionContext(workingDirectory: workingDirectoryURL, executionPolicy: fileToolPolicy),
-            "write": ToolExecutionContext(workingDirectory: workingDirectoryURL, executionPolicy: fileToolPolicy),
-            "edit": ToolExecutionContext(workingDirectory: workingDirectoryURL, executionPolicy: fileToolPolicy),
-            "bash": ToolExecutionContext(workingDirectory: workingDirectoryURL, executionPolicy: bashToolPolicy)
+            "read": ToolExecutionContext(workingDirectory: scope.workingDirectory, executionPolicy: scope.fileToolPolicy),
+            "write": ToolExecutionContext(workingDirectory: scope.workingDirectory, executionPolicy: scope.fileToolPolicy),
+            "edit": ToolExecutionContext(workingDirectory: scope.workingDirectory, executionPolicy: scope.fileToolPolicy),
+            "bash": ToolExecutionContext(workingDirectory: scope.workingDirectory, executionPolicy: scope.bashToolPolicy)
         ]
 
         return AgentSDK(
@@ -50,15 +88,18 @@ enum AgentSDKFactory {
                 )
             ],
             tools: [],
-            workingDirectory: workingDirectoryURL,
-            allowedRoots: allowedRoots,
-            executionPolicy: ToolExecutionPolicy(allowedRoots: allowedRoots, bash: .disabled),
+            workingDirectory: scope.workingDirectory,
+            allowedRoots: scope.allowedRoots,
+            executionPolicy: ToolExecutionPolicy(allowedRoots: scope.allowedRoots, bash: .disabled),
             toolExecutionContexts: toolExecutionContexts,
             maxSteps: nil,
             skillsDirectories: skillsDirs,
             approvalHandler: { request in
                 await ToolApprovalCenter.shared.request(request)
-            }
+            },
+            todoStore: productivity.todoStore,
+            askHandler: productivity.askHandler,
+            taskCoordinator: productivity.taskCoordinator
         )
     }
 
@@ -66,7 +107,10 @@ enum AgentSDKFactory {
     /// (request shape, auth header, streaming parser). Routing is driven
     /// purely by `config.apiKind` — add a new case here when wiring up a
     /// brand-new protocol (e.g. Gemini, Bedrock).
-    private static func makeChatModel(config: AgentServiceConfig, baseURL: URL) -> any AgentModel {
+    ///
+    /// `internal` so `TaskSubagentCatalog` can reuse the same model
+    /// configuration when spawning subagents.
+    static func makeChatModel(config: AgentServiceConfig, baseURL: URL) -> any AgentModel {
         let apiKey = config.apiKey.isEmpty ? nil : config.apiKey
         switch config.apiKind {
         case .anthropicMessages:
@@ -98,6 +142,9 @@ You have access to these tools:
 - write: Create or overwrite files
 - edit: Make precise edits to existing files
 - bash: Run shell commands
+- todo_write: Track multi-step work as a phased task list. Use it whenever a job has 3+ distinct steps. Mark a task `done` immediately after finishing.
+- ask: Ask the user a clarifying question only when multiple approaches have materially different tradeoffs the user must decide. Default to action when defaults exist.
+- task: Spawn one or more `explore` subagents in parallel to fan out read-only investigations. Each task must be self-contained.
 
 Work directly in the user's project when one is selected. Read files to understand context before making changes. Use bash to run tests, linters, and other development tools.
 

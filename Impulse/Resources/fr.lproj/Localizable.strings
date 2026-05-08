@@ -266,3 +266,20 @@
 "email.error.rate_limited" = "Trop de tentatives, patientez un instant";
 "email.error.code_expired" = "Le code a expiré. Demandez-en un nouveau";
 "email.error.too_many_attempts" = "Trop d'essais. Demandez un nouveau code";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "Tâches : %1$d/%2$d";
+"todo.indicator.help_with_active" = "Tâches : %1$d/%2$d — %3$@";
+"ask.banner.title" = "Question de l'agent";
+"ask.banner.recommended" = "Recommandé";
+"ask.banner.other" = "Autre (saisie libre)";
+"ask.banner.other_placeholder" = "Saisissez votre réponse";
+"ask.banner.submit" = "Envoyer";
+"ask.banner.cancel" = "Annuler";
+"ask.banner.required_hint" = "Choisissez une option par question avant d'envoyer.";
+"tool.task.running_n" = "Exécution de %1$d sous-agents (%2$@)";
+"tool.task.ran_n" = "%1$d sous-agents exécutés (%2$@)";
+"tool.task.failed" = "Lot de sous-agents en échec (%@)";
+"tool.task.chip" = "Sous-agent";
+"tool.task.success_count" = "%d réussi(s)";
+"tool.task.failure_count" = "%d échoué(s)";

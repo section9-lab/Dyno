@@ -23,6 +23,9 @@ import Foundation
 ///        + StoredCompactionSummary with cascade relationships.
 ///   v3 — Added StoredProject + StoredKanbanTask. ProjectSnapshot/Kanban
 ///        JSON persistence removed; everything now lives in SwiftData.
+///   v4 — Added StoredTodoSnapshot for per-session todo state from
+///        SwiftHarnessAgent's `todo_write` productivity tool. Inverse
+///        relationship added on StoredSession.
 enum SchemaVersion {
-    static let current: Int = 3
+    static let current: Int = 4
 }

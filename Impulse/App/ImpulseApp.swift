@@ -625,6 +625,7 @@ struct ImpulseApp: App {
             StoredToolRun.self,
             StoredCompactionSummary.self,
             StoredKanbanTask.self,
+            StoredTodoSnapshot.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

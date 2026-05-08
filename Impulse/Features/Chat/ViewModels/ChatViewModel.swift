@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Foundation
 import SwiftData
+import SwiftHarnessAgent
 import SwiftUI
 
 /// Top-level destination for the main content column. The sidebar's first
@@ -432,6 +433,83 @@ final class ChatViewModel: ObservableObject {
             let s = StoredCompactionSummary(timestamp: Date(), content: summary, session: session)
             modelContext.insert(s)
         }
+
+        // Snapshot the live todo list. We hop onto the actor synchronously
+        // (no awaiting required from a Task spawned here, since the upsert
+        // is fire-and-forget — SwiftData's modelContext is main-actor-bound
+        // and we're already on it).
+        Task { [weak self] in
+            await self?.persistTodoSnapshot(
+                sessionAgent: sessionAgent,
+                session: session,
+                modelContext: modelContext
+            )
+        }
+    }
+
+    /// Read the snapshot of the SessionAgent's todo store and upsert it
+    /// into `StoredTodoSnapshot`. Skipped when there are no phases AND no
+    /// previously-persisted snapshot — avoids inserting empty rows for
+    /// sessions that never used the todo tool.
+    func persistTodoSnapshot(
+        sessionAgent: SessionAgent,
+        session: StoredSession,
+        modelContext: ModelContext
+    ) async {
+        let phases = await sessionAgent.todoStore.snapshot()
+        let payload: String
+        if phases.isEmpty {
+            // Drop empty payloads only when the model never used todos at
+            // all — we still want to overwrite a previously-non-empty
+            // snapshot if the user (or the model via op:rm) cleared it.
+            if session.todoSnapshot == nil { return }
+            payload = "[]"
+        } else {
+            do {
+                let data = try JSONEncoder().encode(phases)
+                payload = String(data: data, encoding: .utf8) ?? "[]"
+            } catch {
+                return
+            }
+        }
+        let now = Date()
+        if let existing = session.todoSnapshot {
+            existing.payloadJSON = payload
+            existing.updatedAt = now
+        } else {
+            let snapshot = StoredTodoSnapshot(
+                id: session.id,
+                updatedAt: now,
+                payloadJSON: payload,
+                session: session
+            )
+            modelContext.insert(snapshot)
+        }
+    }
+
+    /// Seed the live `TodoStore` from the persisted snapshot when a
+    /// SessionAgent is freshly cached. No-op if the agent has already been
+    /// seeded (e.g. the user is just reselecting the same session) or the
+    /// session has no snapshot.
+    func seedTodoSnapshotIfNeeded(
+        sessionAgent: SessionAgent,
+        session: StoredSession
+    ) async {
+        guard !sessionAgent.hasSeededTodos else { return }
+        guard let snapshot = session.todoSnapshot else {
+            // Mark seeded anyway so we don't re-check on every selection;
+            // a fresh snapshot will be written on the next persist.
+            await sessionAgent.loadTodoSnapshot([])
+            return
+        }
+        let phases: [TodoPhase]
+        if let data = snapshot.payloadJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([TodoPhase].self, from: data) {
+            phases = decoded
+        } else {
+            phases = []
+        }
+        await sessionAgent.loadTodoSnapshot(phases)
     }
 
     private func compactInstructions(from input: String) -> String? {

@@ -52,6 +52,9 @@ final class StoredSession {
     @Relationship(deleteRule: .cascade, inverse: \StoredCompactionSummary.session)
     var compactionSummaries: [StoredCompactionSummary] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \StoredTodoSnapshot.session)
+    var todoSnapshot: StoredTodoSnapshot?
+
     init(id: String, projectPath: String, title: String, startedAt: Date) {
         self.id = id
         self.projectPath = projectPath
@@ -127,6 +130,28 @@ final class StoredCompactionSummary {
     init(timestamp: Date, content: String, session: StoredSession? = nil) {
         self.timestamp = timestamp
         self.content = content
+        self.session = session
+    }
+}
+
+/// Per-session todo snapshot. Mirrors `[TodoPhase]` from SwiftHarnessAgent
+/// as a JSON-encoded payload so the SwiftData schema doesn't need to know
+/// about the package's internal structures. One snapshot per session
+/// (1:1 via the inverse on `StoredSession.todoSnapshot`).
+@Model
+final class StoredTodoSnapshot {
+    @Attribute(.unique) var id: String        // session id
+    var updatedAt: Date
+    /// JSON-encoded `[TodoPhase]` (see `TodoPhase` in SwiftHarnessAgent).
+    /// Stored as a string rather than `Data` so SwiftData migrations stay
+    /// boring and we can debug-read the value with the file inspector.
+    var payloadJSON: String
+    var session: StoredSession?
+
+    init(id: String, updatedAt: Date, payloadJSON: String, session: StoredSession? = nil) {
+        self.id = id
+        self.updatedAt = updatedAt
+        self.payloadJSON = payloadJSON
         self.session = session
     }
 }

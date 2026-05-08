@@ -2,9 +2,9 @@ import Foundation
 import SwiftHarnessAgent
 
 /// Owns the in-memory pool of `SessionAgent` instances + LRU eviction +
-/// pending-config-rebuild book-keeping. Does not know how to *build* an
-/// `AgentSDK` — that's `AgentSDKFactory`'s job; the pool just calls a
-/// supplied closure.
+/// pending-config-rebuild book-keeping. Does not know how to *build* a
+/// `SessionAgent` or rebuild its SDK — that's `AgentManager`'s job; the pool
+/// just calls the supplied closures.
 ///
 /// Threading: must be touched on the main actor (the agents themselves are
 /// `@MainActor`), so the pool is too.
@@ -26,12 +26,23 @@ final class SessionAgentPool: ObservableObject {
     /// current run (config changed mid-flight).
     private var pendingConfigRebuild: Set<String> = []
 
-    /// Closure that produces a fresh `AgentSDK` for `(sessionID, projectPath)`.
-    /// Wired by the owner (`AgentManager`) so the pool stays factory-agnostic.
-    private let makeSDK: (_ projectPath: String) -> AgentSDK
+    /// Creates a fresh `SessionAgent` for `(sessionID, projectPath)`. The
+    /// owner (`AgentManager`) is responsible for wiring per-session
+    /// productivity dependencies (TodoStore, ask handler, task coordinator)
+    /// inside this closure.
+    private let createSessionAgent: (_ sessionID: String, _ projectPath: String) -> SessionAgent
 
-    init(makeSDK: @escaping (_ projectPath: String) -> AgentSDK) {
-        self.makeSDK = makeSDK
+    /// Rebuilds an SDK for an *existing* SessionAgent, preserving its
+    /// per-session productivity state (the same `TodoStore` keeps its tasks
+    /// across config refreshes).
+    private let rebuildSDK: (_ sessionAgent: SessionAgent) -> AgentSDK
+
+    init(
+        createSessionAgent: @escaping (_ sessionID: String, _ projectPath: String) -> SessionAgent,
+        rebuildSDK: @escaping (_ sessionAgent: SessionAgent) -> AgentSDK
+    ) {
+        self.createSessionAgent = createSessionAgent
+        self.rebuildSDK = rebuildSDK
     }
 
     // MARK: - Lookup / lifecycle
@@ -42,8 +53,7 @@ final class SessionAgentPool: ObservableObject {
         if let existing = sessionAgents[sessionID] {
             return existing
         }
-        let sdk = makeSDK(projectPath)
-        let agent = SessionAgent(id: sessionID, projectPath: projectPath, sdk: sdk)
+        let agent = createSessionAgent(sessionID, projectPath)
         sessionAgents[sessionID] = agent
         evictLRUIfNeeded()
         return agent
@@ -64,13 +74,14 @@ final class SessionAgentPool: ObservableObject {
     }
 
     /// Reset a single session's SDK (start a fresh chat under the same id).
+    /// Replaces the existing SessionAgent wholesale — the productivity
+    /// state (todo list, etc.) does NOT carry over because the user is
+    /// explicitly starting fresh.
     func resetSessionAgent(for sessionID: String, projectPath: String) {
-        let sdk = makeSDK(projectPath)
         if let existing = sessionAgents[sessionID] {
-            existing.replaceSDK(sdk)
-        } else {
-            sessionAgents[sessionID] = SessionAgent(id: sessionID, projectPath: projectPath, sdk: sdk)
+            existing.cancel()
         }
+        sessionAgents[sessionID] = createSessionAgent(sessionID, projectPath)
         touchLRU(sessionID)
         evictLRUIfNeeded()
     }
@@ -83,12 +94,14 @@ final class SessionAgentPool: ObservableObject {
 
     /// Rebuild every *idle* SessionAgent's SDK. In-flight sessions are queued
     /// — they pick up the new config the moment they next become idle.
+    /// Per-session state (todo list, ask center, task coordinator) is
+    /// preserved because the SessionAgent instance itself stays alive.
     func refreshAllSDKs() {
         for (_, agent) in sessionAgents {
             if agent.isResponding {
                 pendingConfigRebuild.insert(agent.id)
             } else {
-                agent.replaceSDK(makeSDK(agent.projectPath))
+                agent.replaceSDK(rebuildSDK(agent))
                 pendingConfigRebuild.remove(agent.id)
             }
         }
@@ -99,7 +112,7 @@ final class SessionAgentPool: ObservableObject {
         guard pendingConfigRebuild.remove(sessionID) != nil,
               let agent = sessionAgents[sessionID]
         else { return }
-        agent.replaceSDK(makeSDK(agent.projectPath))
+        agent.replaceSDK(rebuildSDK(agent))
     }
 
     // MARK: - LRU
