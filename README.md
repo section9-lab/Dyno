@@ -1,79 +1,124 @@
 <div align="center">
-<img src="Impulse/Resources/AppIcon.icon/impulse.png" alt="Impulse icon" width="120" height="120">
-<h1 align="center">Impulse</h1>
+<img src="Impulse/Resources/AppIcon.icon/impulse.png" alt="Impulse" width="120" height="120">
+
+<h1>Impulse</h1>
+
+<p><b>A native macOS assistant that sees your screen, hears your voice, and remembers your projects — running locally with the model you choose.</b></p>
+
+[![License](https://img.shields.io/github/license/section9-lab/Impulse?style=flat-square&color=000)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/section9-lab/Impulse?style=flat-square&color=000)](https://github.com/section9-lab/Impulse/releases/latest)
+[![macOS](https://img.shields.io/badge/macOS-14.0%2B-000?style=flat-square)](https://www.apple.com/macos/)
+[![Stars](https://img.shields.io/github/stars/section9-lab/Impulse?style=flat-square&color=000)](https://github.com/section9-lab/Impulse/stargazers)
+
+</div>
+
+<!--
+  TODO: replace with a 20–30s demo GIF showing
+  hotkey wake → voice prompt → screen-aware reply → kanban update.
+  Drop the file at public/demo.gif and uncomment the block below.
+
+  <p align="center">
+    <img src="public/demo.gif" alt="Impulse demo" width="80%">
+  </p>
+-->
+
 <p align="center">
-A native personal assistant for coding and desk work on macOS.
-</p>
-<p align="center">
-Speak, type, or show what's on your screen. Impulse helps you turn ideas, questions, errors, and documents into action.
+  <img src="public/ScreenShot_1.png" alt="Chat workspace" width="90%">
 </p>
 
-[![GitHub Star](https://img.shields.io/github/stars/section9-lab/Impulse?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Impulse/stargazers)
-[![GitHub license](https://img.shields.io/github/license/section9-lab/Impulse?style=rounded&color=white&labelColor=000000)](LICENSE)
-[![Release Version](https://img.shields.io/github/v/release/section9-lab/Impulse?style=rounded&color=white&labelColor=000000)](https://github.com/section9-lab/Impulse/releases/latest)
-![GitHub Repo size](https://img.shields.io/github/repo-size/section9-lab/Impulse?style=rounded&color=white&labelColor=000000&label=dmg%20size)
-</div>
+<p align="center">
+  <img src="public/ScreenShot_2.png" alt="Project board" width="90%">
+</p>
 
 ## Why Impulse
 
-Impulse is designed for people who work across code, documents, browser tabs, screenshots, terminals, and ideas all day long.
+A desktop assistant should *do* things, not just *answer* things. Most AI desktop apps are chat windows with a fancier wrapper. Impulse is built around how you actually work on macOS — across screens, voices, projects, and tools.
 
-Instead of forcing everything into a text box, Impulse lets you work the way you already do on macOS: type when you want precision, speak when your hands are busy, and pull in what is already on screen when context matters more than re-explaining it.
+|  | Impulse | ChatGPT Desktop | Raycast AI | Ollama wrappers |
+|---|---|---|---|---|
+| Native macOS app | Yes | Yes | Yes | Varies |
+| Sees your screen (OCR + capture) | Yes | Partial | No | No |
+| Voice input out of the box | Yes | Yes | No | No |
+| Project memory across sessions | Yes | No | No | No |
+| Bring your own model (local or cloud) | Yes | No | Partial | Local only |
+| Open source, Apache-2.0 | Yes | No | No | Mixed |
 
-It is built to feel like a capable desktop tool, not just another chat window.
+## Features
 
-## Product Features
+### Talk or type, your call
+Hold to speak, or type when you want precision. Speech is on-device via the Speech framework — no audio leaves your Mac.
 
-### Talk, type, and work naturally
-Use natural language the way you actually think. Start with a quick prompt, hold to speak, or switch between text and voice as the task changes.
+### Screen-aware context
+Bring whatever's on your screen into the conversation: error dialogs, web pages, design mocks, terminal output. OCR runs locally with the Vision framework.
 
-### Screen-aware assistance
-Bring your current screen into the conversation with screenshot analysis and OCR. Error messages, UI states, web pages, notes, and visual context can all become part of the task instantly.
+### Project memory
+Conversations are scoped to projects and persisted as JSONL on disk. Restart the app, switch sessions, come back tomorrow — context survives. A built-in kanban keeps tasks attached to the right project.
 
-### Built for coding and desk work
-Impulse is not limited to one kind of workflow. It can help you reason through code, explain existing logic, analyze documents, summarize information, and move through day-to-day work with less friction.
+### Bring your own model
+Configure any OpenAI-compatible endpoint, or point Impulse at a local Ollama / LM Studio instance. Switch models per-session without restarting.
 
-### Powerful, not lightweight
-Impulse is made for real tasks, not just quick replies. It is designed to handle multi-step work, richer context, and workflows that move from understanding to execution.
+### Privacy by design
+Files stay scoped to folders you grant via security-scoped bookmarks. Tool calls — file reads, edits, terminal actions — surface in the UI before they happen. No telemetry.
 
-### See what the assistant is doing
-When tools are used, the process stays visible. File access, edits, writes, and terminal actions are surfaced clearly, so the assistant feels inspectable instead of opaque.
+### In progress (next release)
+- **Schedule helper** — pull today's calendar, surface conflicts, remind you ahead of meetings
+- **Inbox helper** — summarize mail and messages, extract todos
+- **Action helper** — one-line triggers like "remind me at 4pm" or "prep for the standup"
 
-### Safety with clear boundaries
-Impulse uses sandboxed access controls so powerful capabilities stay inside explicit boundaries. It is designed to be useful without feeling reckless.
+## Quick Start
 
-## Preview
+```bash
+# 1. Download the latest .dmg
+open https://github.com/section9-lab/Impulse/releases/latest
 
-<p align="center">
-  <img src="public/ScreenShot_2026-04-24_203439_220.png" alt="Impulse project and session sidebar" width="48%">
-  <img src="public/ScreenShot_2026-04-24_203446_411.png" alt="Impulse chat workspace" width="48%">
-</p>
+# 2. Drag Impulse.app into /Applications, then launch it
+
+# 3. Open Settings → Model Provider, paste an OpenAI-compatible
+#    endpoint + key, or point at http://localhost:11434 for Ollama
+```
+
+That's it. Grant Screen Recording and Microphone permissions when macOS prompts you.
+
+> Building from source? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## System Requirements
 
 - macOS 14.0 or later
+- Apple Silicon or Intel
+- An OpenAI-compatible endpoint, or a local model runner (Ollama, LM Studio)
 
-## Installation
+## How it works
 
-### Download the app
+- **SwiftUI + SwiftData** for the native UI and per-project state
+- **Vision framework** for on-device OCR; **Speech framework** for dictation
+- **Security-scoped bookmarks** for sandboxed file access without giving up `NSOpenPanel` ergonomics
+- **JSONL session log** per project — conversations are diffable, greppable, and survive app restarts
+- **Pluggable provider layer** — any OpenAI-compatible HTTP endpoint, or a local Ollama / LM Studio
+- **Tool calls are visible** — file reads, edits, and shell actions surface in the chat before they run
 
-Download the latest release from GitHub:
+## Roadmap
 
-- [Latest Release](https://github.com/section9-lab/Impulse/releases/latest)
+- [x] Native macOS UI with chat + sidebar + project board
+- [x] Voice input, screen capture, OCR
+- [x] JSONL session persistence per project
+- [x] Multi-provider support (OpenAI-compatible, Ollama)
+- [ ] Schedule / Inbox / Action helpers *(in progress)*
+- [ ] Global hotkey wake
+- [ ] Cross-app actions (Calendar, Reminders, Mail, Notes, Browser)
+- [ ] Per-user memory and preferences
 
-### Build from source
+## Privacy
 
-1. Clone this repository
-2. Open `Impulse.xcodeproj` in Xcode
-3. Configure your model provider in Settings
-4. Build and run
+- All speech recognition and OCR runs **on-device**
+- Conversations are stored as plain JSONL under `~/Library/Application Support/Impulse/`
+- File access is gated by macOS security-scoped bookmarks — Impulse only sees folders you grant
+- Choose your own model provider; nothing is hardcoded to a vendor
+- No analytics, no telemetry, no account required
 
-## Privacy and Safety
+## Star History
 
-- Access stays scoped to what you allow
-- Sandbox boundaries help keep the assistant operating within explicit limits
-- Model provider configuration is flexible, so you can choose the setup that fits your workflow
+[![Star History Chart](https://api.star-history.com/svg?repos=section9-lab/Impulse&type=Date)](https://star-history.com/#section9-lab/Impulse&Date)
 
 ## License
 
-Apache License 2.0
+[Apache License 2.0](LICENSE)
