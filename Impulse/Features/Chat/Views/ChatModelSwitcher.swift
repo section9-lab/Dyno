@@ -53,7 +53,7 @@ struct ChatModelSwitcher: View {
             )
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $isPopoverShown, arrowEdge: .bottom) {
+        .popover(isPresented: $isPopoverShown, arrowEdge: .top) {
             popoverContent
         }
     }
@@ -99,6 +99,15 @@ struct ChatModelSwitcher: View {
             .buttonStyle(.plain)
         }
         .frame(width: 320)
+        .background(
+            RoundedRectangle(cornerRadius: popoverCornerRadius, style: .continuous)
+                .fill(popoverBackgroundColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: popoverCornerRadius, style: .continuous)
+                .stroke(popoverBorderColor, lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: popoverCornerRadius, style: .continuous))
     }
 
     private func modelRow(provider: Provider, model: ModelInfo) -> some View {
@@ -122,12 +131,6 @@ struct ChatModelSwitcher: View {
                 Spacer(minLength: 8)
 
                 ModelCapabilityBadges(model: model)
-
-                if isCurrent {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.accentColor)
-                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
@@ -154,5 +157,18 @@ struct ChatModelSwitcher: View {
 
     private var chipBackground: Color {
         colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.74)
+    }
+
+    // Mirror InputBar's card so the popover reads as part of the input bar.
+    private let popoverCornerRadius: CGFloat = 14
+
+    private var popoverBackgroundColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.145, green: 0.153, blue: 0.165)
+            : Color.white
+    }
+
+    private var popoverBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.08)
     }
 }

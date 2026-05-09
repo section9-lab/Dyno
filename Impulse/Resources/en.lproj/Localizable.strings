@@ -273,6 +273,7 @@
 "settings.model.test.invalid_url" = "Invalid URL";
 "settings.model.test.no_response" = "No response";
 "settings.model.test.http_error" = "HTTP %d";
+"settings.model.test.success" = "Available (%@)";
 
 "email.title" = "Sign in with email";
 "email.code_title" = "Enter the code";

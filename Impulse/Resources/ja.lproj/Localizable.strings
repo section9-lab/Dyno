@@ -257,6 +257,7 @@
 "settings.model.test.invalid_url" = "URL が無効";
 "settings.model.test.no_response" = "応答なし";
 "settings.model.test.http_error" = "HTTP %d";
+"settings.model.test.success" = "利用可能 (%@)";
 
 "email.title" = "メールでサインイン";
 "email.code_title" = "確認コードを入力";

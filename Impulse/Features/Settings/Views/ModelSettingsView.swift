@@ -11,6 +11,7 @@ struct ModelSettingsView: View {
     @State private var testResult: ModelTestResult? = nil
     @State private var favoriteRowStates: [String: FavoriteRowState] = [:]
     @State private var showProviderSheet = false
+    @State private var showEditFavoriteSheet = false
 
     private enum ModelTestResult {
         case success(latency: String)
@@ -75,6 +76,9 @@ struct ModelSettingsView: View {
         }
         .sheet(isPresented: $showProviderSheet) {
             providerSheet
+        }
+        .sheet(isPresented: $showEditFavoriteSheet) {
+            editFavoriteSheet
         }
     }
 
@@ -257,15 +261,25 @@ struct ModelSettingsView: View {
         )
     }
 
-    /// Open the provider sheet for this favorite so the user can change
-    /// connection params or pick a different model. We pre-select the
-    /// favorite's provider+model so the options popover lands on the right
-    /// row when the sheet renders.
+    /// Open a dedicated edit sheet for a connected (favorited) model. We
+    /// reuse `providerOptionsPanel` content directly — the user just wants
+    /// to tweak base URL / API key / pick a different model for THIS row,
+    /// not navigate the full provider catalog. Routing here through the
+    /// provider grid sheet would put the "Add Custom Provider" tile in
+    /// the way, which is exactly the surface they asked us to keep
+    /// separate from row-level edits.
     private func editFavorite(provider: Provider, model: ModelInfo) {
         selectProvider(provider)
         viewModel.draftModelId = model.id
         providerOptionsProviderId = provider.id
-        showProviderSheet = true
+        showEditFavoriteSheet = true
+    }
+
+    @ViewBuilder
+    private var editFavoriteSheet: some View {
+        if let providerId = providerOptionsProviderId {
+            providerOptionsPanel(providerId: providerId)
+        }
     }
 
     private func testFavorite(provider: Provider, model: ModelInfo) {
@@ -564,7 +578,7 @@ struct ModelSettingsView: View {
                     Spacer()
 
                     Button {
-                        providerOptionsProviderId = nil
+                        dismissProviderOptions()
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 11, weight: .semibold))
@@ -582,7 +596,7 @@ struct ModelSettingsView: View {
                 modelPickerSection(provider: provider)
             }
             .padding(16)
-            .frame(width: 610, alignment: .leading)
+            .frame(width: 500, alignment: .leading)
         }
     }
     
@@ -592,25 +606,47 @@ struct ModelSettingsView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
-            VStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
                 labeledTextField("settings.model.base_url", text: $viewModel.draftBaseURL)
 
-                HStack(spacing: 10) {
-                    Group {
-                        if viewModel.showAPIKey {
-                            TextField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.draftApiKey)
-                        } else {
-                            SecureField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.draftApiKey)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.tr("settings.model.api_key_optional"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 10) {
+                        Group {
+                            if viewModel.showAPIKey {
+                                TextField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.draftApiKey)
+                            } else {
+                                SecureField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.draftApiKey)
+                            }
                         }
-                    }
-                    .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.roundedBorder)
 
-                    Button {
-                        viewModel.showAPIKey.toggle()
-                    } label: {
-                        Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
+                        Button {
+                            viewModel.showAPIKey.toggle()
+                        } label: {
+                            Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.borderless)
                     }
-                    .buttonStyle(.borderless)
+                }
+                .frame(maxWidth: fieldWidth, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.tr("settings.model.api_protocol"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text(provider.apiKind.displayName)
+                        .font(.system(size: 12))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.secondary.opacity(0.08))
+                        )
                 }
                 .frame(maxWidth: fieldWidth, alignment: .leading)
             }
@@ -624,7 +660,15 @@ struct ModelSettingsView: View {
                 .foregroundColor(.secondary)
 
             Group {
+                // 128K context-window floor only applies to the curated
+                // catalog providers — Ollama and user-added custom providers
+                // bypass it because their models often have no published
+                // context metadata, and the user is the source of truth for
+                // what they want to use locally.
+                let bypassContextFilter = provider.isCustom || provider.id == "ollama"
                 let models = provider.models
+                    .filter(\.isChatCompatible)
+                    .filter { bypassContextFilter || ($0.contextWindow ?? 0) > 128_000 }
                 let liveModels = models.filter(\.isLive)
 
                 if liveModels.isEmpty {
@@ -632,25 +676,25 @@ struct ModelSettingsView: View {
                 } else {
                     modelSection(title: L10n.tr("settings.model.live_models_count", liveModels.count), models: liveModels, live: true)
                         .frame(maxWidth: modelListWidth, alignment: .leading)
-                        .frame(maxHeight: 240)
+                        .frame(maxHeight: 360)
                 }
             }
 
             // Test model row
             HStack(spacing: 10) {
-                Button("测试模型") {
+                Button(L10n.tr("settings.model.test_model")) {
                     testModel()
                 }
                 .disabled(isTesting || viewModel.draftModelId.isEmpty || viewModel.draftBaseURL.isEmpty)
 
                 if isTesting {
                     ProgressView().controlSize(.small)
-                    Text("测试中…").font(.system(size: 12)).foregroundColor(.secondary)
+                    Text(L10n.tr("settings.model.testing")).font(.system(size: 12)).foregroundColor(.secondary)
                 } else if let result = testResult {
                     switch result {
                     case .success(let latency):
                         Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                        Text("可用 (\(latency))").font(.system(size: 12)).foregroundColor(.green)
+                        Text(L10n.tr("settings.model.test.success", latency)).font(.system(size: 12)).foregroundColor(.green)
                     case .failure(let msg):
                         Image(systemName: "xmark.circle.fill").foregroundColor(.red)
                         Text(msg).font(.system(size: 12)).foregroundColor(.red).lineLimit(1)
@@ -660,7 +704,7 @@ struct ModelSettingsView: View {
                 Spacer()
 
                 Button(L10n.tr("common.cancel")) {
-                    providerOptionsProviderId = nil
+                    dismissProviderOptions()
                 }
                 .buttonStyle(.bordered)
 
@@ -681,63 +725,72 @@ struct ModelSettingsView: View {
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 4)
                 .padding(.top, 6)
-            
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(models) { model in
-                        let favorited = agent.registry.isFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
-                        Button {
-                            toggleFavorite(model: model)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Button {
-                                    agent.registry.toggleFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
-                                } label: {
-                                    Image(systemName: favorited ? "checkmark.square.fill" : "square")
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundColor(favorited ? .accentColor : .secondary)
-                                }
-                                .buttonStyle(.plain)
 
-                                if live {
-                                    Circle().fill(.green).frame(width: 6, height: 6)
-                                } else {
-                                    Circle().fill(.gray.opacity(0.3)).frame(width: 6, height: 6)
-                                }
-
-                                Text(model.name)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(live ? .primary : .secondary)
-                                    .lineLimit(1)
-
-                                Spacer()
-
-                                ModelCapabilityBadges(model: model)
-
-                                if let ctx = model.contextWindow {
-                                    Text("\(ctx / 1000)K")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                if model.id == viewModel.draftModelId {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.accentColor)
-                                }
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(model.id == viewModel.draftModelId ? Color.accentColor.opacity(0.1) : Color.clear)
-                            )
+            // Use a plain VStack when the list is short so the popover sizes
+            // to content instead of holding empty space (a ScrollView always
+            // claims its parent's full height, even with one row).
+            if models.count > 8 {
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(models) { model in
+                            modelRow(model, live: live)
                         }
-                        .buttonStyle(.plain)
+                    }
+                }
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(models) { model in
+                        modelRow(model, live: live)
                     }
                 }
             }
         }
+    }
+
+    private func modelRow(_ model: ModelInfo, live: Bool) -> some View {
+        let favorited = agent.registry.isFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
+        return Button {
+            toggleFavorite(model: model)
+        } label: {
+            HStack(spacing: 8) {
+                Button {
+                    agent.registry.toggleFavorite(providerId: viewModel.selectedProviderId, modelId: model.id)
+                } label: {
+                    Image(systemName: favorited ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(favorited ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+
+                if live {
+                    Circle().fill(.green).frame(width: 6, height: 6)
+                } else {
+                    Circle().fill(.gray.opacity(0.3)).frame(width: 6, height: 6)
+                }
+
+                Text(model.name)
+                    .font(.system(size: 13))
+                    .foregroundColor(live ? .primary : .secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                ModelCapabilityBadges(model: model)
+
+                if let ctx = model.contextWindow {
+                    Text("\(ctx / 1000)K")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(model.id == viewModel.draftModelId ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
     
     private var addCustomProviderSheet: some View {
@@ -835,8 +888,8 @@ struct ModelSettingsView: View {
         viewModel.draftBaseURL = provider.baseURL
         viewModel.draftApiKey = provider.apiKey
         
-        let firstLive = provider.models.first(where: \.isLive)
-        let firstModel = firstLive ?? provider.models.first
+        let firstLive = provider.models.first { $0.isLive && $0.isChatCompatible }
+        let firstModel = firstLive ?? provider.models.first(where: \.isChatCompatible)
         viewModel.draftModelId = firstModel?.id ?? ""
         
         discoverModels()
@@ -875,8 +928,13 @@ struct ModelSettingsView: View {
         newConfig.modelId = viewModel.draftModelId
         Task {
             await agent.applyConfig(newConfig)
-            providerOptionsProviderId = nil
+            dismissProviderOptions()
         }
+    }
+
+    private func dismissProviderOptions() {
+        providerOptionsProviderId = nil
+        showEditFavoriteSheet = false
     }
 
     private func testModel() {
@@ -938,7 +996,7 @@ struct ModelSettingsView: View {
             
             if viewModel.draftModelId.isEmpty,
                let provider = agent.registry.provider(for: viewModel.selectedProviderId),
-               let first = provider.models.first(where: \.isLive) {
+               let first = provider.models.first(where: { $0.isLive && $0.isChatCompatible }) {
                 viewModel.draftModelId = first.id
             }
         }

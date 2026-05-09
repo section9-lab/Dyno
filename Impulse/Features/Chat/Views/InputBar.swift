@@ -28,9 +28,9 @@ struct InputBar: View {
 
     private let minimumInputHeight: CGFloat = 38
     private let maximumInputHeight: CGFloat = 114
-    private let controlButtonSize: CGFloat = 28
-    private let inputCornerRadius: CGFloat = 26
-    private let trayCornerRadius: CGFloat = 26
+    private let controlButtonSize: CGFloat = 32
+    private let inputCornerRadius: CGFloat = 22
+    private let trayCornerRadius: CGFloat = 22
 
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isResponding
@@ -114,9 +114,9 @@ struct InputBar: View {
                     .disabled(!canSend)
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 14)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
             .background(
                 UnevenRoundedRectangle(
                     topLeadingRadius: inputCornerRadius,
@@ -264,30 +264,32 @@ struct InputBar: View {
     private var inputBackgroundColor: Color {
         colorScheme == .dark
             ? Color(red: 0.145, green: 0.153, blue: 0.165)
-            : Color(red: 0.89, green: 0.89, blue: 0.90)
+            : Color.white
     }
 
     private var trayBackgroundColor: Color {
         colorScheme == .dark
             ? Color(red: 0.125, green: 0.132, blue: 0.143)
-            : Color(red: 0.86, green: 0.86, blue: 0.87)
+            : Color(red: 0.96, green: 0.96, blue: 0.97)
     }
 
     private var controlButtonBackground: Color {
-        colorScheme == .dark ? Color.white.opacity(0.075) : Color.white.opacity(0.74)
+        colorScheme == .dark ? Color.white.opacity(0.075) : Color(red: 0.94, green: 0.94, blue: 0.95)
     }
 
     private var pressedControlButtonBackground: Color {
-        colorScheme == .dark ? Color.white.opacity(0.12) : Color.white.opacity(0.92)
+        colorScheme == .dark ? Color.white.opacity(0.12) : Color(red: 0.88, green: 0.88, blue: 0.90)
     }
 
     private var controlIconColor: Color {
-        colorScheme == .dark ? Color(red: 0.66, green: 0.68, blue: 0.70) : .gray
+        colorScheme == .dark ? Color(red: 0.66, green: 0.68, blue: 0.70) : Color.gray.opacity(0.85)
     }
 
     private var sendButtonBackground: Color {
         if canSend {
-            return colorScheme == .dark ? Color(red: 0.55, green: 0.66, blue: 0.70) : .black
+            return colorScheme == .dark
+                ? Color(red: 0.42, green: 0.36, blue: 0.78)
+                : Color(red: 0.34, green: 0.27, blue: 0.78)
         }
         return colorScheme == .dark ? Color.white.opacity(0.08) : Color.gray.opacity(0.25)
     }
@@ -297,7 +299,7 @@ struct InputBar: View {
     }
 
     private var inputBorderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.04)
+        colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.08)
     }
 
     private var trayForegroundColor: Color {

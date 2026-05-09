@@ -45,6 +45,29 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
         case inputModalities
     }
 
+    /// True iff the model can be reached through one of the four
+    /// chat-completion-style protocols this app supports — `@ai-sdk/openai`,
+    /// `@ai-sdk/openai-compatible`, `@ai-sdk/anthropic`, `@ai-sdk/google`.
+    /// `/v1/models` listings (and models.dev) include embeddings, TTS,
+    /// transcription, image generation, moderation, and rerankers that
+    /// share the same listing endpoint but cannot be hit through Chat
+    /// Completions / Messages / generateContent. Filtering by id pattern
+    /// is brittle but covers the major providers' naming conventions and
+    /// stays correct as new chat models ship.
+    var isChatCompatible: Bool {
+        let lower = id.lowercased()
+        let blocklist = [
+            "embedding", "embed-",
+            "tts", "whisper", "transcrib", "speech",
+            "moderation", "guard",
+            "rerank",
+            "dall-e", "dalle", "gpt-image",
+            "imagen", "veo",
+            "stable-diffusion",
+        ]
+        return !blocklist.contains(where: lower.contains)
+    }
+
     /// Custom decoder so cached blobs from before `inputModalities` was
     /// added still load — the rest of the fields are required.
     init(from decoder: Decoder) throws {

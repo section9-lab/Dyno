@@ -257,6 +257,7 @@
 "settings.model.test.invalid_url" = "URL no válida";
 "settings.model.test.no_response" = "Sin respuesta";
 "settings.model.test.http_error" = "HTTP %d";
+"settings.model.test.success" = "Disponible (%@)";
 
 "email.title" = "Iniciar con email";
 "email.code_title" = "Introduce el código";

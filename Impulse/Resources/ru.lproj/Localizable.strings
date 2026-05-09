@@ -257,6 +257,7 @@
 "settings.model.test.invalid_url" = "Неверный URL";
 "settings.model.test.no_response" = "Нет ответа";
 "settings.model.test.http_error" = "HTTP %d";
+"settings.model.test.success" = "Доступно (%@)";
 
 "email.title" = "Вход по email";
 "email.code_title" = "Введите код";
