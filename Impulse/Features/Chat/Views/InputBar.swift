@@ -100,23 +100,37 @@ struct InputBar: View {
 
                     micButton
 
-                    Button(action: onSend) {
+                    Button {
+                        if isResponding {
+                            sessionAgent?.cancel()
+                        } else {
+                            onSend()
+                        }
+                    } label: {
                         Circle()
                             .fill(sendButtonBackground)
                             .frame(width: controlButtonSize, height: controlButtonSize)
                             .overlay(
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(sendIconColor)
+                                Group {
+                                    if isResponding {
+                                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                            .fill(sendIconColor)
+                                            .frame(width: 10, height: 10)
+                                    } else {
+                                        Image(systemName: "arrow.up")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(sendIconColor)
+                                    }
+                                }
                             )
                     }
                     .buttonStyle(.plain)
-                    .disabled(!canSend)
+                    .disabled(!isResponding && !canSend)
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 12)
             .padding(.top, 12)
-            .padding(.bottom, 10)
+            .padding(.bottom, 12)
             .background(
                 UnevenRoundedRectangle(
                     topLeadingRadius: inputCornerRadius,
@@ -269,8 +283,8 @@ struct InputBar: View {
 
     private var trayBackgroundColor: Color {
         colorScheme == .dark
-            ? Color(red: 0.125, green: 0.132, blue: 0.143)
-            : Color(red: 0.96, green: 0.96, blue: 0.97)
+            ? Color(red: 0.105, green: 0.112, blue: 0.122)
+            : Color(red: 0.91, green: 0.91, blue: 0.93)
     }
 
     private var controlButtonBackground: Color {
@@ -286,7 +300,10 @@ struct InputBar: View {
     }
 
     private var sendButtonBackground: Color {
-        if canSend {
+        // Stop button (while responding) and active send share the purple
+        // accent so the running state reads as "this is the button you'd
+        // tap to interrupt" rather than a disabled echo of the send chip.
+        if isResponding || canSend {
             return colorScheme == .dark
                 ? Color(red: 0.42, green: 0.36, blue: 0.78)
                 : Color(red: 0.34, green: 0.27, blue: 0.78)
@@ -295,7 +312,7 @@ struct InputBar: View {
     }
 
     private var sendIconColor: Color {
-        canSend || colorScheme == .light ? .white : Color.white.opacity(0.42)
+        isResponding || canSend || colorScheme == .light ? .white : Color.white.opacity(0.42)
     }
 
     private var inputBorderColor: Color {

@@ -38,7 +38,10 @@ struct ContextUsageIndicator: View {
         let pct = sessionAgent.contextUsage.percent
         if pct >= 0.9 { return .red }
         if pct >= 0.75 { return .orange }
-        return .secondary
+        // `.secondary` reads almost invisible against the light tray
+        // background; use a fixed mid-tone grey so the ring stays legible
+        // before usage warnings kick in.
+        return Color.primary.opacity(0.45)
     }
 
     private var contextHelpText: String {

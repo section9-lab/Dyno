@@ -540,7 +540,7 @@ struct ModelSettingsView: View {
                 .fill(selected ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .onTapGesture {
-            selectProvider(provider)
+            selectProvider(provider, autoPickModel: false)
             providerOptionsProviderId = provider.id
         }
         .popover(
@@ -883,15 +883,25 @@ struct ModelSettingsView: View {
         viewModel.draftModelId = agent.config.modelId
     }
     
-    private func selectProvider(_ provider: Provider) {
+    /// Pre-loads `draftBaseURL` / `draftApiKey` from the persisted provider
+    /// so the user doesn't have to re-type them. `autoPickModel` controls
+    /// whether to seed `draftModelId` with the provider's first chat model
+    /// — true for the favorite-edit and post-add flows, false when the
+    /// user clicks a template in the provider grid (we don't want the
+    /// "add a new model from this template" view to look pre-selected).
+    private func selectProvider(_ provider: Provider, autoPickModel: Bool = true) {
         viewModel.selectedProviderId = provider.id
         viewModel.draftBaseURL = provider.baseURL
         viewModel.draftApiKey = provider.apiKey
-        
-        let firstLive = provider.models.first { $0.isLive && $0.isChatCompatible }
-        let firstModel = firstLive ?? provider.models.first(where: \.isChatCompatible)
-        viewModel.draftModelId = firstModel?.id ?? ""
-        
+
+        if autoPickModel {
+            let firstLive = provider.models.first { $0.isLive && $0.isChatCompatible }
+            let firstModel = firstLive ?? provider.models.first(where: \.isChatCompatible)
+            viewModel.draftModelId = firstModel?.id ?? ""
+        } else {
+            viewModel.draftModelId = ""
+        }
+
         discoverModels()
     }
 
