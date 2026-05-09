@@ -10,7 +10,7 @@ import Foundation
 /// pi-mono's `Api` field on `Model`, which decouples the two cleanly.
 ///
 /// Add a new case here when wiring up a brand-new wire format
-/// (Gemini, Bedrock, Vertex, …). Routing in `AgentSDKFactory` and the
+/// (Bedrock, Vertex, …). Routing in `AgentSDKFactory` and the
 /// connectivity probe in the settings view both switch on this.
 enum ApiKind: String, Codable, Hashable, CaseIterable {
     /// OpenAI Chat Completions (`POST /chat/completions`, `Authorization: Bearer …`).
@@ -25,11 +25,17 @@ enum ApiKind: String, Codable, Hashable, CaseIterable {
     /// counts too.
     case anthropicMessages
 
+    /// Google Generative Language API (`POST /v1beta/models/{model}:generateContent`,
+    /// `x-goog-api-key` header). Routed to `GoogleGenerativeAIClient`. Vertex AI
+    /// is intentionally out of scope — its auth and URL shape differ.
+    case googleGenerativeLanguage
+
     /// User-facing label for settings UI / debugging.
     var displayName: String {
         switch self {
         case .openAICompletions: return "OpenAI Chat Completions"
         case .anthropicMessages: return "Anthropic Messages"
+        case .googleGenerativeLanguage: return "Gemini Generative Language"
         }
     }
 }
@@ -47,6 +53,9 @@ extension ApiKind {
         }
         if host == "api.anthropic.com" || host.hasSuffix(".anthropic.com") {
             return .anthropicMessages
+        }
+        if host == "generativelanguage.googleapis.com" || host.hasSuffix(".generativelanguage.googleapis.com") {
+            return .googleGenerativeLanguage
         }
         return .openAICompletions
     }

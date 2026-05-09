@@ -153,7 +153,7 @@ struct ModelSettingsView: View {
 
     private var favoritesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("已连接模型")
+            Text("settings.model.connected_models")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
@@ -182,11 +182,11 @@ struct ModelSettingsView: View {
 
         return HStack(spacing: 10) {
             ZStack {
-                Circle()
-                    .fill(isActive ? Color.accentColor.opacity(0.16) : Color.black.opacity(0.05))
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(isActive ? .accentColor : .secondary)
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.accentColor)
+                }
             }
             .frame(width: 26, height: 26)
 
@@ -216,27 +216,37 @@ struct ModelSettingsView: View {
                 }
             }
 
-            Button("测试") {
+            Button {
                 testFavorite(provider: provider, model: model)
+            } label: {
+                Image(systemName: "bolt.horizontal")
+                    .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
             .disabled(rowState?.isTesting == true)
+            .help("common.test")
+
+            Button {
+                editFavorite(provider: provider, model: model)
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
+            .help("common.edit")
 
             Button(role: .destructive) {
                 agent.registry.removeFavorite(providerId: provider.id, modelId: model.id)
                 favoriteRowStates.removeValue(forKey: testKey)
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(.borderless)
             .foregroundColor(.secondary)
-
-            if isActive {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.accentColor)
-            }
+            .help("common.delete")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -245,6 +255,17 @@ struct ModelSettingsView: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
         )
+    }
+
+    /// Open the provider sheet for this favorite so the user can change
+    /// connection params or pick a different model. We pre-select the
+    /// favorite's provider+model so the options popover lands on the right
+    /// row when the sheet renders.
+    private func editFavorite(provider: Provider, model: ModelInfo) {
+        selectProvider(provider)
+        viewModel.draftModelId = model.id
+        providerOptionsProviderId = provider.id
+        showProviderSheet = true
     }
 
     private func testFavorite(provider: Provider, model: ModelInfo) {

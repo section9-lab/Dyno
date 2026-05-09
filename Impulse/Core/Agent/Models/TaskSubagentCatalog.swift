@@ -46,8 +46,8 @@ enum TaskSubagentCatalog {
 
         return TaskCoordinator(
             definitions: builtins,
-            modelFactory: { _ in
-                AgentSDKFactory.makeChatModel(config: config, baseURL: baseURL)
+            clientFactory: { _ in
+                (AgentSDKFactory.makeLLMClient(config: config, baseURL: baseURL), config.modelId)
             },
             workingDirectory: workingDirectory,
             executionPolicy: executionPolicy,

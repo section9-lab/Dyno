@@ -253,7 +253,15 @@ final class AgentManager: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 6
         if !config.apiKey.isEmpty {
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+            switch config.apiKind {
+            case .openAICompletions:
+                request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+            case .anthropicMessages:
+                request.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
+                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            case .googleGenerativeLanguage:
+                request.setValue(config.apiKey, forHTTPHeaderField: "x-goog-api-key")
+            }
         }
 
         do {

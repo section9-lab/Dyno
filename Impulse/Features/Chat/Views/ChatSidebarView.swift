@@ -27,7 +27,7 @@ struct ChatSidebarView: View {
     var onSettings: () -> Void
     var onHelp: () -> Void
     var accountName: String
-    var accountSubtitle: LocalizedStringKey
+    var accountSubtitle: String
     var accountInitial: String
     var accountAvatarURL: URL?
     var onLogout: () -> Void

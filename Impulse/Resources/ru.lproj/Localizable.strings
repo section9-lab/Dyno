@@ -2,7 +2,9 @@
 "common.cancel" = "Отмена";
 "common.close" = "Закрыть";
 "common.delete" = "Удалить";
+"common.edit" = "Изменить";
 "common.help" = "Справка";
+"common.test" = "Проверить";
 "common.not_selected" = "Не выбрано";
 "common.rename" = "Переименовать";
 "common.save" = "Сохранить";
@@ -42,6 +44,7 @@
 "settings.general.voice_shortcut.description" = "Удерживайте клавишу, чтобы говорить, и отпустите для отправки.";
 "settings.model.title" = "Настройки модели";
 "settings.model.connection" = "Подключение модели";
+"settings.model.connected_models" = "Подключённые модели";
 "settings.model.favorites_hint" = "Установите флажок рядом с моделью ниже, чтобы добавить её сюда.";
 "settings.model.no_favorites" = "Модели ещё не выбраны";
 "settings.model.manage_favorites" = "Управление моделями в настройках…";

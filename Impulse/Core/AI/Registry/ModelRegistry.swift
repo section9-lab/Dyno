@@ -9,8 +9,13 @@ private let featuredProviders: [Provider] = [
     Provider(id: "deepseek", name: "DeepSeek", baseURL: "https://api.deepseek.com/v1", envKeys: ["DEEPSEEK_API_KEY"], docURL: "https://api-docs.deepseek.com", apiKind: .openAICompletions),
     // Anthropic uses its own Messages API — separate request shape, auth
     // header, and streaming format. Routed via `AgentSDKFactory` to
-    // `AnthropicChatModel` instead of the OpenAI-compatible adapter.
+    // `AnthropicMessagesClient` instead of the OpenAI-compatible adapter.
     Provider(id: "anthropic", name: "Anthropic", baseURL: "https://api.anthropic.com/v1", envKeys: ["ANTHROPIC_API_KEY"], docURL: "https://docs.anthropic.com", apiKind: .anthropicMessages),
+    // Google's Generative Language API uses its own request shape and
+    // `x-goog-api-key` header. Routed via `AgentSDKFactory` to
+    // `GoogleGenerativeAIClient`. Vertex AI is intentionally not listed —
+    // it speaks the same JSON but uses different auth and URL paths.
+    Provider(id: "google", name: "Google Gemini", baseURL: "https://generativelanguage.googleapis.com/v1beta", envKeys: ["GEMINI_API_KEY", "GOOGLE_API_KEY"], docURL: "https://ai.google.dev/gemini-api/docs", apiKind: .googleGenerativeLanguage),
     Provider(id: "zhipuai", name: "GLM / 智谱", baseURL: "https://open.bigmodel.cn/api/paas/v4", envKeys: ["ZAI_API_KEY"], docURL: "https://open.bigmodel.cn/dev/api", apiKind: .openAICompletions),
     Provider(id: "kimi-coding", name: "Kimi", baseURL: "https://api.moonshot.cn/v1", envKeys: ["KIMI_API_KEY"], docURL: "https://platform.moonshot.cn/docs", apiKind: .openAICompletions),
     Provider(id: "minimax", name: "MiniMax", baseURL: "https://api.minimax.chat/v1", envKeys: ["MINIMAX_API_KEY"], docURL: "https://platform.minimaxi.com/document", apiKind: .openAICompletions),
@@ -61,7 +66,7 @@ final class ModelRegistry: ObservableObject {
 
         guard let baseURL = URL(string: provider.baseURL), !provider.baseURL.isEmpty else { return }
 
-        let discovered = await fetchLiveModels(baseURL: baseURL, apiKey: provider.apiKey)
+        let discovered = await fetchLiveModels(baseURL: baseURL, apiKey: provider.apiKey, apiKind: provider.apiKind)
         guard !discovered.isEmpty else { return }
 
         // Merge: mark catalog models as live if discovered, add new discovered models
@@ -330,13 +335,26 @@ final class ModelRegistry: ObservableObject {
 
     // MARK: - Live Discovery
 
-    private func fetchLiveModels(baseURL: URL, apiKey: String) async -> [ModelInfo] {
+    private func fetchLiveModels(baseURL: URL, apiKey: String, apiKind: ApiKind) async -> [ModelInfo] {
         let modelsURL = baseURL.appendingPathComponent("models")
         var request = URLRequest(url: modelsURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 8
         if !apiKey.isEmpty {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            switch apiKind {
+            case .openAICompletions:
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            case .anthropicMessages:
+                // Anthropic's /v1/models takes the same `x-api-key` +
+                // `anthropic-version` headers as the Messages endpoint.
+                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            case .googleGenerativeLanguage:
+                // Gemini uses `x-goog-api-key`. The `?key=` query form works
+                // too but mixing it with header auth occasionally trips
+                // proxies, so we stick to the header consistently.
+                request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+            }
         }
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),
@@ -354,11 +372,19 @@ final class ModelRegistry: ObservableObject {
             }
         }
 
-        // Ollama format: { "models": [{ "name": "..." }] }
+        // Ollama / Gemini format: { "models": [{ "name": "..." }] }.
+        // Gemini returns `models/<id>` which we strip down to the bare id
+        // so it lines up with what users supply in `LLMRequest.model`.
         if let modelsArray = root["models"] as? [[String: Any]] {
             return modelsArray.compactMap { item in
-                guard let name = item["name"] as? String else { return nil }
-                return ModelInfo(id: name, name: name, toolCall: true, isLive: true)
+                guard let rawName = item["name"] as? String else { return nil }
+                let id: String
+                if rawName.hasPrefix("models/") {
+                    id = String(rawName.dropFirst("models/".count))
+                } else {
+                    id = rawName
+                }
+                return ModelInfo(id: id, name: id, toolCall: true, isLive: true)
             }
         }
 

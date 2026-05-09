@@ -2,7 +2,9 @@
 "common.cancel" = "取消";
 "common.close" = "关闭";
 "common.delete" = "删除";
+"common.edit" = "编辑";
 "common.help" = "帮助";
+"common.test" = "测试";
 "common.not_selected" = "未选择";
 "common.rename" = "重命名";
 "common.save" = "保存";
@@ -48,6 +50,7 @@
 "settings.general.voice_shortcut.description" = "按住快捷键说话，松开发送。";
 "settings.model.title" = "模型设置";
 "settings.model.connection" = "模型连接";
+"settings.model.connected_models" = "已连接模型";
 "settings.model.favorites_hint" = "勾选下方模型左侧的复选框以添加到这里。";
 "settings.model.no_favorites" = "尚未勾选任何模型";
 "settings.model.manage_favorites" = "在设置中管理模型…";

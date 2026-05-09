@@ -24,6 +24,11 @@ struct ModelProviderConfigView: View {
     @State private var customName = ""
     @State private var customBaseURL = ""
     @State private var customApiKey = ""
+    /// `nil` means "auto" (let `ApiKind.sniff` decide from the URL). Users
+    /// can explicitly pin the wire protocol when sniff guesses wrong —
+    /// e.g. an Anthropic-compatible proxy hosted on a non-anthropic.com
+    /// domain, where the URL would otherwise default to OpenAI completions.
+    @State private var customApiKindOverride: ApiKind? = nil
     @State private var selectedTextPreview: SandboxTextPreview?
     @State private var expandedFolders: Set<String> = []
     @State private var agentEntries: [SandboxTreeRowEntry] = []
@@ -191,6 +196,26 @@ struct ModelProviderConfigView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // Surface the wire protocol so users can spot mis-routing
+            // before sending a request. A custom provider added against
+            // an Anthropic-compatible proxy will sniff to OpenAI Chat
+            // Completions by default, which is the most common cause of
+            // 403s when chatting with `opus`/`sonnet` model names.
+            if let provider = currentProvider {
+                HStack(spacing: 6) {
+                    Text("接口协议：\(provider.apiKind.displayName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if provider.isCustom {
+                        Text("（如需更改请删除后重新添加）")
+                            .font(.caption)
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -697,19 +722,29 @@ struct ModelProviderConfigView: View {
                 labeledTextField("名称", text: $customName)
                 labeledTextField("Base URL", text: $customBaseURL)
                 labeledTextField("API Key（可选）", text: $customApiKey)
+                customApiKindPicker
             }
 
             HStack {
-                Button("取消") { showCustomSheet = false }
+                Button("取消") {
+                    customApiKindOverride = nil
+                    showCustomSheet = false
+                }
                 Spacer()
                 Button("添加") {
                     let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let url = customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty, !url.isEmpty else { return }
-                    agent.registry.addCustomProvider(name: name, baseURL: url, apiKey: customApiKey)
+                    agent.registry.addCustomProvider(
+                        name: name,
+                        baseURL: url,
+                        apiKey: customApiKey,
+                        apiKind: customApiKindOverride
+                    )
                     customName = ""
                     customBaseURL = ""
                     customApiKey = ""
+                    customApiKindOverride = nil
                     showCustomSheet = false
                 }
                 .disabled(!customName.isNotBlank || !customBaseURL.isNotBlank)
@@ -717,6 +752,28 @@ struct ModelProviderConfigView: View {
         }
         .padding(20)
         .frame(width: 400)
+    }
+
+    /// Lets the user pin the wire protocol when sniff would guess wrong.
+    /// "自动" runs `ApiKind.sniff` on the typed URL — correct for the
+    /// official OpenAI / Anthropic / Gemini hostnames but defaults to
+    /// OpenAI Chat Completions for everything else, which is exactly the
+    /// trap that produced 403s on Anthropic-compatible proxies.
+    private var customApiKindPicker: some View {
+        let sniffed = ApiKind.sniff(baseURL: customBaseURL)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("接口协议")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+            Picker("接口协议", selection: $customApiKindOverride) {
+                Text("自动（按 URL 推断：\(sniffed.displayName)）").tag(ApiKind?.none)
+                ForEach(ApiKind.allCases, id: \.self) { kind in
+                    Text(kind.displayName).tag(ApiKind?.some(kind))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+        }
     }
 
     // MARK: - Actions
@@ -765,31 +822,13 @@ struct ModelProviderConfigView: View {
         isTesting = true
         testResult = nil
 
+        let resolvedKind = currentProvider?.apiKind ?? ApiKind.sniff(baseURL: draftBaseURL)
+        let base = draftBaseURL.hasSuffix("/") ? String(draftBaseURL.dropLast()) : draftBaseURL
+
         Task {
             let start = Date()
             do {
-                let base = draftBaseURL.hasSuffix("/") ? String(draftBaseURL.dropLast()) : draftBaseURL
-                guard let url = URL(string: "\(base)/chat/completions") else {
-                    testResult = .failure(message: "URL 无效")
-                    isTesting = false
-                    return
-                }
-
-                var request = URLRequest(url: url, timeoutInterval: 15)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                if !draftApiKey.isEmpty {
-                    request.setValue("Bearer \(draftApiKey)", forHTTPHeaderField: "Authorization")
-                }
-
-                let body: [String: Any] = [
-                    "model": draftModelId,
-                    "messages": [["role": "user", "content": "hi"]],
-                    "max_tokens": 1,
-                    "stream": false
-                ]
-                request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
+                let request = try makeProbeRequest(base: base, apiKind: resolvedKind)
                 let (_, response) = try await URLSession.shared.data(for: request)
                 let elapsed = String(format: "%.0fms", Date().timeIntervalSince(start) * 1000)
 
@@ -804,6 +843,71 @@ struct ModelProviderConfigView: View {
                 testResult = .failure(message: error.localizedDescription)
             }
             isTesting = false
+        }
+    }
+
+    /// Build a 1-token probe request shaped for the wire protocol the
+    /// provider speaks. We hit the actual generation endpoint (not just
+    /// `/models`) so the round-trip exercises tokens, auth, model name,
+    /// and rate-limit headers — i.e. what fails first under bad config.
+    private func makeProbeRequest(base: String, apiKind: ApiKind) throws -> URLRequest {
+        struct InvalidURL: LocalizedError { var errorDescription: String? { "URL 无效" } }
+
+        switch apiKind {
+        case .openAICompletions:
+            guard let url = URL(string: "\(base)/chat/completions") else { throw InvalidURL() }
+            var request = URLRequest(url: url, timeoutInterval: 15)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if !draftApiKey.isEmpty {
+                request.setValue("Bearer \(draftApiKey)", forHTTPHeaderField: "Authorization")
+            }
+            let body: [String: Any] = [
+                "model": draftModelId,
+                "messages": [["role": "user", "content": "hi"]],
+                "max_tokens": 1,
+                "stream": false
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            return request
+
+        case .anthropicMessages:
+            guard let url = URL(string: "\(base)/messages") else { throw InvalidURL() }
+            var request = URLRequest(url: url, timeoutInterval: 15)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            if !draftApiKey.isEmpty {
+                request.setValue(draftApiKey, forHTTPHeaderField: "x-api-key")
+            }
+            let body: [String: Any] = [
+                "model": draftModelId,
+                "messages": [["role": "user", "content": "hi"]],
+                "max_tokens": 1,
+                "stream": false
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            return request
+
+        case .googleGenerativeLanguage:
+            // Gemini path: /v1beta/models/{model}:generateContent. The base
+            // URL already ends in `/v1beta` for the catalog entry.
+            guard let url = URL(string: "\(base)/models/\(draftModelId):generateContent") else { throw InvalidURL() }
+            var request = URLRequest(url: url, timeoutInterval: 15)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if !draftApiKey.isEmpty {
+                request.setValue(draftApiKey, forHTTPHeaderField: "x-goog-api-key")
+            }
+            let body: [String: Any] = [
+                "contents": [[
+                    "role": "user",
+                    "parts": [["text": "hi"]]
+                ]],
+                "generationConfig": ["maxOutputTokens": 1]
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            return request
         }
     }
 

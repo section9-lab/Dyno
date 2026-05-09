@@ -2,7 +2,9 @@
 "common.cancel" = "キャンセル";
 "common.close" = "閉じる";
 "common.delete" = "削除";
+"common.edit" = "編集";
 "common.help" = "ヘルプ";
+"common.test" = "テスト";
 "common.not_selected" = "未選択";
 "common.rename" = "名前を変更";
 "common.save" = "保存";
@@ -42,6 +44,7 @@
 "settings.general.voice_shortcut.description" = "ショートカットを押したまま話し、離すと送信します。";
 "settings.model.title" = "モデル設定";
 "settings.model.connection" = "モデル接続";
+"settings.model.connected_models" = "接続済みモデル";
 "settings.model.favorites_hint" = "下のモデルのチェックボックスをオンにして追加します。";
 "settings.model.no_favorites" = "選択されたモデルはありません";
 "settings.model.manage_favorites" = "設定でモデルを管理…";

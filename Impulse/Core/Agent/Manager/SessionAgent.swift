@@ -215,7 +215,7 @@ final class SessionAgent: ObservableObject, Identifiable {
             }
 
             let result = finalResult
-            let runMessages: [AgentMessage]
+            let runMessages: [LLMMessage]
             if let result {
                 runMessages = Array(result.messages.dropFirst(historyCountBefore))
                 latestCompactionSummary = result.compactionSummary?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -300,7 +300,7 @@ final class SessionAgent: ObservableObject, Identifiable {
         executions.map { "\($0.id)|\($0.status.rawValue)|\($0.summary)" }.joined(separator: "||")
     }
 
-    private func extractToolExecutions(from messages: [AgentMessage]) -> [AgentToolExecution] {
+    private func extractToolExecutions(from messages: [LLMMessage]) -> [AgentToolExecution] {
         let trackedTools = Self.trackedTools
 
         struct PendingCall {
@@ -314,7 +314,7 @@ final class SessionAgent: ObservableObject, Identifiable {
         var orderCounter = 0
 
         for message in messages where message.role == .assistant {
-            for call in message.toolCalls {
+            for call in message.toolUses {
                 guard trackedTools.contains(call.name) else { continue }
                 pendingByCallID[call.id] = PendingCall(name: call.name, argsJSON: call.argumentsJSON, order: orderCounter)
                 pendingOrder.append(call.id)
@@ -333,8 +333,8 @@ final class SessionAgent: ObservableObject, Identifiable {
                 let output = result.content
                 let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
                 let failed = result.isError || trimmed.hasPrefix("ERROR:")
-                let stableID = result.toolCallID.isEmpty ? "\(result.toolName)-\(index)-\(resultIndex)" : result.toolCallID
-                let pending = pendingByCallID[result.toolCallID]
+                let stableID = result.toolUseID.isEmpty ? "\(result.toolName)-\(index)-\(resultIndex)" : result.toolUseID
+                let pending = pendingByCallID[result.toolUseID]
                 let argsJSON = pending?.argsJSON
                 let summary = buildToolSummary(toolName: result.toolName, argumentsJSON: argsJSON)
                 let displayOutput = failed ? mapToUserFriendlySandboxMessage(trimmed) + "\n\n" + L10n.tr("agent.raw_error") + ":\n\(trimmed)" : output
@@ -351,7 +351,7 @@ final class SessionAgent: ObservableObject, Identifiable {
                     )
                 ))
 
-                pendingByCallID.removeValue(forKey: result.toolCallID)
+                pendingByCallID.removeValue(forKey: result.toolUseID)
             }
         }
 

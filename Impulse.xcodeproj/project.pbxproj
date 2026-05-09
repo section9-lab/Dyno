@@ -69,7 +69,6 @@
 		C6D7EE4AD73F9C1CF82F5B53 /* AskPromptBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B14141E59B03992AD3654B /* AskPromptBanner.swift */; };
 		CA2DA867EFAED50FAF2C1BDA /* ApiKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22F9AA2FAEA3714F4224EC6 /* ApiKind.swift */; };
 		CCA56E09AD7170C198A66F45 /* SandboxSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7554DA561703704C0C56176E /* SandboxSettingsView.swift */; };
-		D0D28C43869DEE2884B06304 /* OllamaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC8C4CA0F14FCCFBD16489C /* OllamaModel.swift */; };
 		D12B1E18BB0DA23B08013748 /* StoredKanbanTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96A51C2385BD35C6348A40A1 /* StoredKanbanTask.swift */; };
 		D15DE17EFEC6B5E9F47EFAF2 /* AgentToolExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D497B5A52DE48C771D8561 /* AgentToolExecution.swift */; };
 		D453F4BDED3F37247BD61316 /* AuthKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F3CE2D05258B9C725B3A0B /* AuthKeychainStore.swift */; };
@@ -176,7 +175,6 @@
 		B313DFF1E346196C53BF67D8 /* SchemaVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaVersion.swift; sourceTree = "<group>"; };
 		B4E88BDD6FB7ABFE433D8A19 /* ImpulseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ImpulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B634BD2B1F5522A71D8E81FF /* OCRManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRManager.swift; sourceTree = "<group>"; };
-		BBC8C4CA0F14FCCFBD16489C /* OllamaModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaModel.swift; sourceTree = "<group>"; };
 		C60D199978760A260416B1CA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		C668B8339D1D1642F93040A9 /* MessageComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposer.swift; sourceTree = "<group>"; };
 		C7EC87034A8D30651F3CBAF4 /* OTPInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPInputView.swift; sourceTree = "<group>"; };
@@ -338,7 +336,6 @@
 			children = (
 				F22F9AA2FAEA3714F4224EC6 /* ApiKind.swift */,
 				23238D7BFE01E475E54F86F3 /* FavoriteModelRef.swift */,
-				BBC8C4CA0F14FCCFBD16489C /* OllamaModel.swift */,
 				CD748639B321EBBA22D27C94 /* ProviderCatalog.swift */,
 			);
 			path = Models;
@@ -871,7 +868,6 @@
 				0EC3EF736BAE2062A2FFD9CB /* OCRCaptureOrchestrator.swift in Sources */,
 				EC0EF218A734E6597DEB5A6C /* OCRManager.swift in Sources */,
 				22DB0E0F8449935156D540DD /* OTPInputView.swift in Sources */,
-				D0D28C43869DEE2884B06304 /* OllamaModel.swift in Sources */,
 				7E43862854B90BA60080F02B /* OpenAuthClient.swift in Sources */,
 				DDE9DCEF8BCA57A6D4C7246A /* ProviderCatalog.swift in Sources */,
 				3626F0C00C9BFD1B27A20106 /* SandboxAccessManager.swift in Sources */,

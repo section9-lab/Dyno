@@ -80,7 +80,8 @@ enum AgentSDKFactory {
         ]
 
         return AgentSDK(
-            model: makeChatModel(config: config, baseURL: baseURL),
+            client: makeLLMClient(config: config, baseURL: baseURL),
+            modelName: config.modelId,
             skills: [
                 BasicSkill(
                     name: "default",
@@ -97,38 +98,47 @@ enum AgentSDKFactory {
             approvalHandler: { request in
                 await ToolApprovalCenter.shared.request(request)
             },
+            parallelToolCalls: true,
             todoStore: productivity.todoStore,
             askHandler: productivity.askHandler,
             taskCoordinator: productivity.taskCoordinator
         )
     }
 
-    /// Builds the concrete `AgentModel` that owns the wire-format details
+    /// Builds the concrete `LLMClient` that owns the wire-format details
     /// (request shape, auth header, streaming parser). Routing is driven
     /// purely by `config.apiKind` — add a new case here when wiring up a
-    /// brand-new protocol (e.g. Gemini, Bedrock).
+    /// brand-new protocol (e.g. Bedrock, Vertex).
     ///
-    /// `internal` so `TaskSubagentCatalog` can reuse the same model
+    /// `internal` so `TaskSubagentCatalog` can reuse the same client
     /// configuration when spawning subagents.
-    static func makeChatModel(config: AgentServiceConfig, baseURL: URL) -> any AgentModel {
+    static func makeLLMClient(config: AgentServiceConfig, baseURL: URL) -> any LLMClient {
         let apiKey = config.apiKey.isEmpty ? nil : config.apiKey
         switch config.apiKind {
         case .anthropicMessages:
             // Anthropic's REST endpoint lives at `/v1/messages`; users
             // typically configure the provider with `https://api.anthropic.com/v1`
-            // already, and `AnthropicChatModel` appends the `messages` segment
+            // already, and `AnthropicMessagesClient` appends the `messages` segment
             // itself, so we hand it the base unchanged.
-            return AnthropicChatModel(
+            return AnthropicMessagesClient(
                 baseURL: baseURL,
                 apiKey: apiKey,
-                modelName: config.modelId,
                 timeout: 300
             )
         case .openAICompletions:
-            return OpenAICompatibleChatModel(
+            return OpenAIChatCompletionsClient(
                 baseURL: baseURL,
                 apiKey: apiKey,
-                modelName: config.modelId,
+                timeout: 300
+            )
+        case .googleGenerativeLanguage:
+            // Gemini's endpoint is `/v1beta/models/{model}:generateContent`;
+            // `GoogleGenerativeAIClient` builds that path itself, so we hand
+            // it the base (typically `https://generativelanguage.googleapis.com/v1beta`)
+            // unchanged. Auth is via `x-goog-api-key`, not Bearer.
+            return GoogleGenerativeAIClient(
+                baseURL: baseURL,
+                apiKey: apiKey,
                 timeout: 300
             )
         }

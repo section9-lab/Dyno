@@ -3,7 +3,7 @@ import SwiftUI
 struct UserAccountPopover: View {
     @Binding var isPresented: Bool
     let accountName: String
-    let accountSubtitle: LocalizedStringKey
+    let accountSubtitle: String
     let accountInitial: String
     var accountAvatarURL: URL? = nil
     var onSettings: () -> Void
@@ -25,7 +25,7 @@ struct UserAccountPopover: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.primary)
                             .lineLimit(1)
-                        Text(accountSubtitle)
+                        Text(L10n.tr(accountSubtitle))
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
@@ -112,7 +112,7 @@ struct UserAccountPopover: View {
 
 private struct MenuItem: View {
     let icon: String
-    let title: LocalizedStringKey
+    let title: String
     var hasChevron: Bool = false
     var isDestructive: Bool = false
     var action: (() -> Void)?
@@ -129,7 +129,7 @@ private struct MenuItem: View {
                     .frame(width: 20)
                     .foregroundColor(isDestructive ? .red : .primary)
 
-                Text(title)
+                Text(L10n.tr(title))
                     .font(.system(size: 14))
                     .foregroundColor(isDestructive ? .red : .primary)
 

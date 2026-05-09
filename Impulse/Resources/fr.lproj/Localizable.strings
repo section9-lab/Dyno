@@ -2,7 +2,9 @@
 "common.cancel" = "Annuler";
 "common.close" = "Fermer";
 "common.delete" = "Supprimer";
+"common.edit" = "Modifier";
 "common.help" = "Aide";
+"common.test" = "Tester";
 "common.not_selected" = "Non sélectionné";
 "common.rename" = "Renommer";
 "common.save" = "Enregistrer";
@@ -42,6 +44,7 @@
 "settings.general.voice_shortcut.description" = "Maintenez le raccourci pour parler, puis relâchez pour envoyer.";
 "settings.model.title" = "Réglages du modèle";
 "settings.model.connection" = "Connexion au modèle";
+"settings.model.connected_models" = "Modèles connectés";
 "settings.model.favorites_hint" = "Cochez la case d'un modèle ci-dessous pour l'ajouter ici.";
 "settings.model.no_favorites" = "Aucun modèle sélectionné";
 "settings.model.manage_favorites" = "Gérer les modèles dans Réglages…";

@@ -79,7 +79,7 @@ final class AuthSession: ObservableObject {
             }
         }
 
-        var accountTitleKey: LocalizedStringKey {
+        var accountTitleKey: String {
             switch self {
             case .google:
                 return "account.google_user"
