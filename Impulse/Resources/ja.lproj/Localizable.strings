@@ -55,6 +55,8 @@
 "settings.model.delete_custom_provider" = "現在のカスタムプロバイダーを削除";
 "settings.model.loading_more_providers" = "さらにプロバイダーを読み込み中";
 "settings.model.connection_parameters" = "接続パラメーター";
+"settings.model.api_protocol" = "API プロトコル";
+"settings.model.api_protocol_auto" = "自動（URL から推定：%@）";
 "settings.model.api_key_placeholder" = "API Key（Ollama は任意）";
 "settings.model.env_vars" = "環境変数: %@";
 "settings.model.discover_models" = "接続を確認してモデルを検出";

@@ -13,6 +13,11 @@ class ModelSettingsViewModel: ObservableObject {
     @Published var customBaseURL: String
     @Published var customApiKey: String
     @Published var customModelId: String
+    /// `nil` means "auto" — `ApiKind.sniff` decides from the URL at save
+    /// time. Users can pin a specific protocol when sniff would guess
+    /// wrong (e.g. an Anthropic-compatible proxy hosted on a non-Anthropic
+    /// domain that would otherwise default to OpenAI completions).
+    @Published var customApiKindOverride: ApiKind?
     @Published var visibleProviderCount: Int
 
     init(
@@ -27,6 +32,7 @@ class ModelSettingsViewModel: ObservableObject {
         customBaseURL: String = "",
         customApiKey: String = "",
         customModelId: String = "",
+        customApiKindOverride: ApiKind? = nil,
         visibleProviderCount: Int = 5
     ) {
         self.selectedProviderId = selectedProviderId
@@ -40,6 +46,7 @@ class ModelSettingsViewModel: ObservableObject {
         self.customBaseURL = customBaseURL
         self.customApiKey = customApiKey
         self.customModelId = customModelId
+        self.customApiKindOverride = customApiKindOverride
         self.visibleProviderCount = visibleProviderCount
     }
 

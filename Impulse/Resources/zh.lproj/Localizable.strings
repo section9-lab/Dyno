@@ -61,6 +61,8 @@
 "settings.model.delete_custom_provider" = "删除当前自定义提供商";
 "settings.model.loading_more_providers" = "正在加载更多提供商";
 "settings.model.connection_parameters" = "连接参数";
+"settings.model.api_protocol" = "接口协议";
+"settings.model.api_protocol_auto" = "自动（按 URL 推断：%@）";
 "settings.model.api_key_placeholder" = "API Key（Ollama 可为空）";
 "settings.model.env_vars" = "环境变量：%@";
 "settings.model.discover_models" = "检测连接并发现模型";

@@ -96,7 +96,7 @@ struct ModelSettingsView: View {
                     Text("Add Model Provider")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.primary)
-                    Text("settings.model.provider")
+                    Text(L10n.tr("settings.model.provider"))
                         .font(.system(size: 11.5))
                         .foregroundColor(.secondary)
                 }
@@ -126,7 +126,7 @@ struct ModelSettingsView: View {
     private var providerSheet: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("settings.model.provider")
+                Text(L10n.tr("settings.model.provider"))
                     .font(.system(size: 14, weight: .semibold))
                 Spacer()
                 Button {
@@ -143,7 +143,7 @@ struct ModelSettingsView: View {
 
             HStack {
                 Spacer()
-                Button("common.close") { showProviderSheet = false }
+                Button(L10n.tr("common.close")) { showProviderSheet = false }
                     .buttonStyle(.borderedProminent)
             }
         }
@@ -153,7 +153,7 @@ struct ModelSettingsView: View {
 
     private var favoritesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("settings.model.connected_models")
+            Text(L10n.tr("settings.model.connected_models"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
@@ -327,7 +327,7 @@ struct ModelSettingsView: View {
 
     private var providerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("settings.model.provider")
+            Text(L10n.tr("settings.model.provider"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
@@ -356,7 +356,7 @@ struct ModelSettingsView: View {
                 }
                 .padding(6)
             }
-            .frame(width: providerListWidth, height: 238, alignment: .leading)
+            .frame(width: providerListWidth, height: 460, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor).opacity(0.62))
@@ -380,10 +380,10 @@ struct ModelSettingsView: View {
                         .foregroundColor(.accentColor)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("settings.model.add_custom_provider")
+                        Text(L10n.tr("settings.model.add_custom_provider"))
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.primary)
-                        Text("settings.model.custom_provider")
+                        Text(L10n.tr("settings.model.custom_provider"))
                             .font(.system(size: 11.5))
                             .foregroundColor(.secondary)
                     }
@@ -406,7 +406,7 @@ struct ModelSettingsView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .semibold))
-                    Text("settings.model.add_custom_provider")
+                    Text(L10n.tr("settings.model.add_custom_provider"))
                         .font(.system(size: 12.5, weight: .medium))
                     Spacer()
                 }
@@ -431,7 +431,7 @@ struct ModelSettingsView: View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
-            Text("settings.model.loading_more_providers")
+            Text(L10n.tr("settings.model.loading_more_providers"))
                 .font(.system(size: 11.5))
                 .foregroundColor(.secondary)
             Spacer()
@@ -476,7 +476,7 @@ struct ModelSettingsView: View {
                         .lineLimit(1)
 
                     if provider.isCustom {
-                        Text("settings.model.custom_provider")
+                        Text(L10n.tr("settings.model.custom_provider"))
                             .font(.system(size: 9.5, weight: .medium))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 5)
@@ -588,12 +588,12 @@ struct ModelSettingsView: View {
     
     private func connectionFieldsSection(provider: Provider) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("settings.model.connection_parameters")
+            Text(L10n.tr("settings.model.connection_parameters"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
             VStack(spacing: 10) {
-                labeledTextField("Base URL", text: $viewModel.draftBaseURL)
+                labeledTextField("settings.model.base_url", text: $viewModel.draftBaseURL)
 
                 HStack(spacing: 10) {
                     Group {
@@ -619,7 +619,7 @@ struct ModelSettingsView: View {
     
     private func modelPickerSection(provider: Provider) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("settings.model.select_model")
+            Text(L10n.tr("settings.model.select_model"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
 
@@ -659,12 +659,12 @@ struct ModelSettingsView: View {
 
                 Spacer()
 
-                Button("common.cancel") {
+                Button(L10n.tr("common.cancel")) {
                     providerOptionsProviderId = nil
                 }
                 .buttonStyle(.bordered)
 
-                Button("common.save") {
+                Button(L10n.tr("common.save")) {
                     saveSelectedModel()
                 }
                 .buttonStyle(.borderedProminent)
@@ -742,24 +742,34 @@ struct ModelSettingsView: View {
     
     private var addCustomProviderSheet: some View {
         VStack(spacing: 16) {
-            Text("settings.model.add_custom_provider")
+            Text(L10n.tr("settings.model.add_custom_provider"))
                 .font(.headline)
-            
+
             VStack(alignment: .leading, spacing: 8) {
                 labeledTextField("settings.model.name", text: $viewModel.customName)
-                labeledTextField("Base URL", text: $viewModel.customBaseURL)
+                labeledTextField("settings.model.base_url", text: $viewModel.customBaseURL)
                 labeledTextField("settings.model.api_key_optional", text: $viewModel.customApiKey)
                 labeledTextField("settings.model.model_optional", text: $viewModel.customModelId)
+                customApiKindPicker
             }
 
             HStack {
-                Button("common.cancel") { viewModel.showCustomSheet = false }
+                Button(L10n.tr("common.cancel")) {
+                    viewModel.customApiKindOverride = nil
+                    viewModel.showCustomSheet = false
+                }
                 Spacer()
-                Button("common.add") {
+                Button(L10n.tr("common.add")) {
                     let name = viewModel.customName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let url = viewModel.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty, !url.isEmpty else { return }
-                    agent.registry.addCustomProvider(name: name, baseURL: url, apiKey: viewModel.customApiKey, modelId: viewModel.customModelId)
+                    agent.registry.addCustomProvider(
+                        name: name,
+                        baseURL: url,
+                        apiKey: viewModel.customApiKey,
+                        modelId: viewModel.customModelId,
+                        apiKind: viewModel.customApiKindOverride
+                    )
                     if let provider = agent.registry.providers.last(where: { $0.isCustom && $0.name == name && $0.baseURL == url }) {
                         selectProvider(provider)
                     }
@@ -767,6 +777,7 @@ struct ModelSettingsView: View {
                     viewModel.customBaseURL = ""
                     viewModel.customApiKey = ""
                     viewModel.customModelId = ""
+                    viewModel.customApiKindOverride = nil
                     viewModel.showCustomSheet = false
                 }
                 .disabled(!viewModel.customName.isNotBlank || !viewModel.customBaseURL.isNotBlank)
@@ -775,9 +786,33 @@ struct ModelSettingsView: View {
         .padding(20)
         .frame(width: 400)
     }
+
+    /// Lets the user pin the wire protocol when sniff would guess wrong.
+    /// "Auto" runs `ApiKind.sniff` on the typed URL — correct for the
+    /// official OpenAI / Anthropic / Gemini hostnames but defaults to
+    /// OpenAI Chat Completions for everything else, which is the trap
+    /// behind 403s on Anthropic-compatible proxies.
+    private var customApiKindPicker: some View {
+        let sniffed = ApiKind.sniff(baseURL: viewModel.customBaseURL)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.tr("settings.model.api_protocol"))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+            Picker(L10n.tr("settings.model.api_protocol"), selection: $viewModel.customApiKindOverride) {
+                Text(L10n.tr("settings.model.api_protocol_auto", sniffed.displayName))
+                    .tag(ApiKind?.none)
+                ForEach(ApiKind.allCases, id: \.self) { kind in
+                    Text(kind.displayName).tag(ApiKind?.some(kind))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+        }
+    }
     
-    private func labeledTextField(_ title: LocalizedStringKey, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func labeledTextField(_ titleKey: String, text: Binding<String>) -> some View {
+        let title = L10n.tr(titleKey)
+        return VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)

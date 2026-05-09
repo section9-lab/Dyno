@@ -106,16 +106,31 @@ final class LocalizationManager: ObservableObject {
     @Published var language: AppLanguage {
         didSet {
             UserDefaults.standard.set(language.rawValue, forKey: Self.storageKey)
+            Self.applyAppleLanguagesOverride(language)
         }
     }
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: Self.storageKey)
-        self.language = stored.flatMap(AppLanguage.init(rawValue:)) ?? .en
+        let resolved = stored.flatMap(AppLanguage.init(rawValue:)) ?? .en
+        self.language = resolved
+        Self.applyAppleLanguagesOverride(resolved)
     }
 
     var locale: Locale {
         Locale(identifier: language.rawValue)
+    }
+
+    /// Pin `AppleLanguages` to the user's chosen `app.language` so SwiftUI's
+    /// `Text(LocalizedStringKey)` (which resolves via `Bundle.main.preferred
+    /// Localizations`, ignoring `\.locale` env) loads the matching `.lproj`
+    /// instead of falling back to the system locale. Already-rendered text
+    /// inside open SwiftUI views won't update until the next launch — this
+    /// is a SwiftUI cache thing, not the override — so a switch in Settings
+    /// requires relaunch to fully apply. New windows/sheets opened after
+    /// the switch get the new bundle correctly.
+    private static func applyAppleLanguagesOverride(_ language: AppLanguage) {
+        UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
     }
 }
 

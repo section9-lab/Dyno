@@ -55,6 +55,8 @@
 "settings.model.delete_custom_provider" = "Удалить текущего поставщика";
 "settings.model.loading_more_providers" = "Загрузка дополнительных поставщиков";
 "settings.model.connection_parameters" = "Параметры подключения";
+"settings.model.api_protocol" = "Протокол API";
+"settings.model.api_protocol_auto" = "Автоматически (по URL: %@)";
 "settings.model.api_key_placeholder" = "API Key (необязательно для Ollama)";
 "settings.model.env_vars" = "Переменные окружения: %@";
 "settings.model.discover_models" = "Проверить подключение и найти модели";

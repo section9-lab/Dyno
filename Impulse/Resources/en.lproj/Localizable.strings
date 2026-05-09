@@ -61,6 +61,8 @@
 "settings.model.delete_custom_provider" = "Delete Current Custom Provider";
 "settings.model.loading_more_providers" = "Loading more providers";
 "settings.model.connection_parameters" = "Connection Parameters";
+"settings.model.api_protocol" = "API Protocol";
+"settings.model.api_protocol_auto" = "Auto (from URL: %@)";
 "settings.model.api_key_placeholder" = "API Key (optional for Ollama)";
 "settings.model.env_vars" = "Environment variables: %@";
 "settings.model.discover_models" = "Check Connection and Discover Models";
