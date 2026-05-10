@@ -114,3 +114,6 @@ Do not edit `Impulse.xcodeproj` by hand. `project.yml` is the source of truth; r
 - Mark XCTest cases `@MainActor` when exercising MainActor-bound production types, as existing session pool and alert center tests do.
 - Add tests next to existing files in `ImpulseTests/`; if adding source/config files requires project changes, update `project.yml`, run `xcodegen generate`, then run the relevant `xcodebuild test` command.
 - Note: `ImpulseTests/StoreBackupManagerTests.swift.bak` is an observed backup artifact, not a convention to copy.
+
+# ** Plan must read **
+[PLAN](.agent/template/PLAN.md)
