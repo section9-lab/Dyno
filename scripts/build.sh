@@ -33,7 +33,7 @@ cat > "$EXPORT_OPTIONS" <<'EOF'
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>developer-id</string>
+    <string>mac-application</string>
     <key>destination</key>
     <string>export</string>
     <key>signingStyle</key>

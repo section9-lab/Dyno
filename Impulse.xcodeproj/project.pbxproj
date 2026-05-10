@@ -1084,7 +1084,7 @@
 				CODE_SIGN_ENTITLEMENTS = Impulse/Resources/Impulse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 6BWZP56JX9;
+				DEVELOPMENT_TEAM = YP86S77K2X;
 				INFOPLIST_FILE = Impulse/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

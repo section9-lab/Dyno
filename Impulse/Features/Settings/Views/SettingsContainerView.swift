@@ -48,8 +48,8 @@ struct SettingsContainerView: View {
             language: LocalizationManager.shared.language.rawValue,
             theme: ThemeManager.shared.theme.rawValue,
             textSize: ThemeManager.shared.textSize.rawValue,
-            ocrEnabled: true,
-            voiceShortcut: "Option"
+            ocrEnabled: GeneralSettingsStore.loadOCREnabled(),
+            voiceShortcut: GeneralSettingsStore.loadVoiceShortcut()
         ))
 
         _modelSettings = StateObject(wrappedValue: ModelSettingsViewModel(
@@ -162,6 +162,9 @@ struct SettingsContainerView: View {
         if let size = AppTextSize(rawValue: generalConfig.textSize) {
             themeManager.textSize = size
         }
+
+        GeneralSettingsStore.saveOCREnabled(generalConfig.ocrEnabled)
+        GeneralSettingsStore.saveVoiceShortcut(generalConfig.voiceShortcut)
 
         if let model = modelConfig {
             newConfig.providerId = model.providerId
