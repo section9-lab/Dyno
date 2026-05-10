@@ -912,11 +912,18 @@ struct ModelProviderConfigView: View {
     }
 
     private func saveAndConnect() {
-        // Pull the wire protocol from the selected provider when we have one;
-        // for ad-hoc base URLs (custom providers being created on the fly)
-        // sniff from the URL so users typing `https://api.anthropic.com/v1`
-        // get routed correctly without needing a provider entry first.
-        let resolvedKind = currentProvider?.apiKind ?? ApiKind.sniff(baseURL: draftBaseURL)
+        // Resolve the wire protocol with three sources in order:
+        //   1. The picked model's stored override (if any).
+        //   2. A pattern match on the model id (catches `claude-*` /
+        //      `gemini-*` hosted on otherwise-OpenAI-shaped relays).
+        //   3. The provider's apiKind, or a sniff of the base URL when
+        //      the user is creating a custom provider on the fly.
+        let resolvedKind: ApiKind = {
+            if let provider = currentProvider {
+                return provider.effectiveApiKind(forModelId: draftModelId)
+            }
+            return ApiKind.sniff(modelId: draftModelId) ?? ApiKind.sniff(baseURL: draftBaseURL)
+        }()
         let newConfig = AgentServiceConfig(
             providerId: selectedProviderId,
             baseURL: draftBaseURL,

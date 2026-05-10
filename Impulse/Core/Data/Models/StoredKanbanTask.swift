@@ -3,19 +3,19 @@ import CoreTransferable
 import SwiftData
 
 enum KanbanTaskStatus: String, Codable, CaseIterable, Identifiable {
-    case todo
+    /// Raw value stays "todo" to keep existing stored tasks loadable after
+    /// the user-facing rename from "Todo" to "Plan".
+    case plan = "todo"
     case inProgress
-    case pendingReview
     case done
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .todo:          return "Todo"
-        case .inProgress:    return "In Progress"
-        case .pendingReview: return "Pending Review"
-        case .done:          return "Done"
+        case .plan:       return "Plan"
+        case .inProgress: return "In Progress"
+        case .done:       return "Done"
         }
     }
 }
@@ -93,7 +93,7 @@ final class StoredKanbanTask {
     }
 
     var status: KanbanTaskStatus {
-        get { KanbanTaskStatus(rawValue: statusRaw) ?? .todo }
+        get { KanbanTaskStatus(rawValue: statusRaw) ?? .plan }
         set { statusRaw = newValue.rawValue }
     }
 

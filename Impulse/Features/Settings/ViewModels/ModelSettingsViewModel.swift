@@ -18,6 +18,11 @@ class ModelSettingsViewModel: ObservableObject {
     /// wrong (e.g. an Anthropic-compatible proxy hosted on a non-Anthropic
     /// domain that would otherwise default to OpenAI completions).
     @Published var customApiKindOverride: ApiKind?
+    /// `nil` while the unified custom-provider sheet is in "add" mode;
+    /// holds the provider id while editing an existing custom provider.
+    /// The sheet uses this to decide whether Save calls `addCustomProvider`
+    /// or `updateCustomProvider`.
+    @Published var editingCustomProviderId: String?
     @Published var visibleProviderCount: Int
 
     init(
@@ -33,6 +38,7 @@ class ModelSettingsViewModel: ObservableObject {
         customApiKey: String = "",
         customModelId: String = "",
         customApiKindOverride: ApiKind? = nil,
+        editingCustomProviderId: String? = nil,
         visibleProviderCount: Int = 5
     ) {
         self.selectedProviderId = selectedProviderId
@@ -47,7 +53,21 @@ class ModelSettingsViewModel: ObservableObject {
         self.customApiKey = customApiKey
         self.customModelId = customModelId
         self.customApiKindOverride = customApiKindOverride
+        self.editingCustomProviderId = editingCustomProviderId
         self.visibleProviderCount = visibleProviderCount
+    }
+
+    /// Reset every field that backs the custom-provider editor sheet to its
+    /// empty state. Called both when closing the sheet and before opening
+    /// it in "add" mode so stale draft values from a previous session don't
+    /// leak into a fresh add.
+    func resetCustomProviderDraft() {
+        customName = ""
+        customBaseURL = ""
+        customApiKey = ""
+        customModelId = ""
+        customApiKindOverride = nil
+        editingCustomProviderId = nil
     }
 
     func getConfig() -> (providerId: String, baseURL: String, apiKey: String, modelId: String)? {

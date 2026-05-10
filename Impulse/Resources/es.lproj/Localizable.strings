@@ -51,6 +51,7 @@
 "settings.model.provider" = "Proveedor del modelo";
 "settings.model.select_provider" = "Seleccionar proveedor";
 "settings.model.add_custom_provider" = "Añadir proveedor personalizado";
+"settings.model.edit_custom_provider" = "Editar proveedor personalizado";
 "settings.model.custom_provider" = "Proveedor personalizado";
 "settings.model.delete_custom_provider" = "Eliminar proveedor personalizado actual";
 "settings.model.loading_more_providers" = "Cargando más proveedores";
@@ -161,6 +162,7 @@
 "kanban.status.progress" = "En progreso";
 "kanban.status.progress.empty_hint" = "Mueve aquí las tareas activas mientras avanzan.";
 "kanban.status.progress.subtitle" = "Trabajo actualmente en marcha.";
+"kanban.filter_by_project" = "Filtrar por proyecto";
 "kanban.tasks" = "Tareas";
 "kanban.tasks_description" = "Las tareas permanecen ligadas al proyecto y pueden vincularse a una o más sesiones.";
 "kanban.tasks_organized_description" = "Las tareas se organizan a nivel de proyecto y pueden quedar vinculadas a varias sesiones.";
@@ -180,6 +182,7 @@
 "voice.error.unavailable" = "El reconocimiento de voz no está disponible.";
 "agent.empty_after_tools" = "Este turno ejecutó %d llamadas a herramientas. Pídeme que continúe para terminar el último paso.";
 "agent.empty_model_response" = "(El modelo devolvió contenido vacío)";
+"agent.reasoning_only_response" = "_(El modelo solo devolvió su razonamiento — sin respuesta visible.)_\n\n%@";
 "agent.max_steps_reached" = "Alcancé el límite de pasos tras %d llamadas a herramientas y aún debo cerrar la respuesta. Responde \"continuar\" y seguiré desde el contexto actual.";
 
 "tool_approval.title" = "Operación peligrosa";

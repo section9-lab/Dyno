@@ -51,6 +51,7 @@
 "settings.model.provider" = "モデルプロバイダー";
 "settings.model.select_provider" = "プロバイダーを選択";
 "settings.model.add_custom_provider" = "カスタムプロバイダーを追加";
+"settings.model.edit_custom_provider" = "カスタムプロバイダーを編集";
 "settings.model.custom_provider" = "カスタムプロバイダー";
 "settings.model.delete_custom_provider" = "現在のカスタムプロバイダーを削除";
 "settings.model.loading_more_providers" = "さらにプロバイダーを読み込み中";
@@ -161,6 +162,7 @@
 "kanban.status.progress" = "進行中";
 "kanban.status.progress.empty_hint" = "進行中のタスクをここに移動します。";
 "kanban.status.progress.subtitle" = "作業が進行中です。";
+"kanban.filter_by_project" = "プロジェクトで絞り込む";
 "kanban.tasks" = "タスク";
 "kanban.tasks_description" = "タスクはプロジェクトに紐づき、1 つ以上のセッションにリンクできます。";
 "kanban.tasks_organized_description" = "タスクはプロジェクト単位で整理され、複数のセッションにリンクできます。";
@@ -180,6 +182,7 @@
 "voice.error.unavailable" = "音声認識を利用できません。";
 "agent.empty_after_tools" = "このターンでは %d 回のツール呼び出しを実行しました。最後の手順を完了するには続行を依頼してください。";
 "agent.empty_model_response" = "（モデルが空の内容を返しました）";
+"agent.reasoning_only_response" = "_（モデルは推論のみを返しました — 表示できる回答はありません。）_\n\n%@";
 "agent.max_steps_reached" = "%d 回のツール呼び出し後にステップ上限に達しました。まだ収束が必要です。「続けて」と返信すると現在のコンテキストから続行します。";
 
 "tool_approval.title" = "危険な操作";

@@ -168,6 +168,13 @@ struct SettingsContainerView: View {
             newConfig.baseURL = model.baseURL
             newConfig.apiKey = model.apiKey
             newConfig.modelId = model.modelId
+            // Match the wire protocol to the picked model rather than
+            // inheriting whatever was on the previous config — the picked
+            // model may live on a relay whose default protocol differs
+            // from this model's actual shape.
+            if let provider = agent.registry.provider(for: model.providerId) {
+                newConfig.apiKind = provider.effectiveApiKind(forModelId: model.modelId)
+            }
         }
 
         Task {

@@ -21,6 +21,13 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
     /// Defaults to `[.text]` for live-discovered models (their endpoints
     /// don't expose this) and for models.dev entries that omit the field.
     var inputModalities: Set<Modality>
+    /// Per-model wire-protocol override. `nil` means "inherit from the
+    /// provider's `apiKind`". Set when a single base URL fronts multiple
+    /// wire formats (a relay listing both `gpt-4o` and `claude-...`), or
+    /// when the user manually pins a protocol from settings.
+    /// Resolution order at runtime: this field → `ApiKind.sniff(modelId:)`
+    /// → provider's `apiKind`. See `Provider.effectiveApiKind(for:)`.
+    var apiKind: ApiKind?
 
     init(
         id: String,
@@ -29,7 +36,8 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
         reasoning: Bool = false,
         contextWindow: Int? = nil,
         isLive: Bool = false,
-        inputModalities: Set<Modality> = [.text]
+        inputModalities: Set<Modality> = [.text],
+        apiKind: ApiKind? = nil
     ) {
         self.id = id
         self.name = name.isEmpty ? id : name
@@ -38,11 +46,13 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
         self.contextWindow = contextWindow
         self.isLive = isLive
         self.inputModalities = inputModalities
+        self.apiKind = apiKind
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, toolCall, reasoning, contextWindow, isLive
         case inputModalities
+        case apiKind
     }
 
     /// True iff the model can be reached through one of the four
@@ -79,12 +89,15 @@ struct ModelInfo: Identifiable, Codable, Equatable, Hashable {
         self.contextWindow = try c.decodeIfPresent(Int.self, forKey: .contextWindow)
         self.isLive = try c.decode(Bool.self, forKey: .isLive)
         self.inputModalities = try c.decodeIfPresent(Set<Modality>.self, forKey: .inputModalities) ?? [.text]
+        self.apiKind = try c.decodeIfPresent(ApiKind.self, forKey: .apiKind)
     }
 }
 
 struct Provider: Identifiable, Codable, Equatable {
     let id: String
-    let name: String
+    /// Mutable so the unified custom-provider editor can rename. Built-in
+    /// providers are seeded from `ProviderCatalog` and never edited.
+    var name: String
     var baseURL: String
     var apiKey: String
     let envKeys: [String]
@@ -107,5 +120,29 @@ struct Provider: Identifiable, Codable, Equatable {
         self.models = models
         self.isCustom = isCustom
         self.apiKind = apiKind
+    }
+}
+
+extension Provider {
+    /// Resolve which wire protocol to use for a given model. Order:
+    /// 1. The model's explicit override (set by the user, or by an earlier
+    ///    auto-sniff when adding to favorites).
+    /// 2. A pattern match on the model id — picks up `claude-*` and
+    ///    `gemini-*` models that some relays (Nvidia, OpenRouter, generic
+    ///    gateways) expose alongside OpenAI-shaped ones.
+    /// 3. The provider's own default.
+    func effectiveApiKind(for model: ModelInfo) -> ApiKind {
+        if let override = model.apiKind { return override }
+        if let sniffed = ApiKind.sniff(modelId: model.id) { return sniffed }
+        return apiKind
+    }
+
+    /// Convenience for paths that only have a model id (e.g. a draft
+    /// string in the settings view) and need a best-effort apiKind.
+    func effectiveApiKind(forModelId modelId: String) -> ApiKind {
+        if let stored = models.first(where: { $0.id == modelId }) {
+            return effectiveApiKind(for: stored)
+        }
+        return ApiKind.sniff(modelId: modelId) ?? apiKind
     }
 }

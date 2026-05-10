@@ -386,7 +386,7 @@ struct ModelSettingsView: View {
     private var customProviderRows: some View {
         if customProviders.isEmpty {
             Button {
-                viewModel.showCustomSheet = true
+                openCustomProviderEditorForAdd()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "plus.circle")
@@ -415,7 +415,7 @@ struct ModelSettingsView: View {
             }
 
             Button {
-                viewModel.showCustomSheet = true
+                openCustomProviderEditorForAdd()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
@@ -540,8 +540,18 @@ struct ModelSettingsView: View {
                 .fill(selected ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .onTapGesture {
-            selectProvider(provider, autoPickModel: false)
-            providerOptionsProviderId = provider.id
+            if provider.isCustom {
+                // Custom providers route through the unified editor sheet so
+                // add and edit feel like the same surface, with the same
+                // fields (name, base URL, key, protocol, optional model).
+                openCustomProviderEditor(for: provider)
+            } else {
+                // Built-in providers keep the inline popover — name and
+                // protocol are fixed, the user is just picking a model and
+                // entering a key.
+                selectProvider(provider, autoPickModel: false)
+                providerOptionsProviderId = provider.id
+            }
         }
         .popover(
             isPresented: Binding(
@@ -637,20 +647,48 @@ struct ModelSettingsView: View {
                     Text(L10n.tr("settings.model.api_protocol"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
-                    Text(provider.apiKind.displayName)
-                        .font(.system(size: 12))
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.secondary.opacity(0.08))
-                        )
+                    perModelApiKindPicker(provider: provider)
                 }
                 .frame(maxWidth: fieldWidth, alignment: .leading)
             }
         }
+    }
+
+    /// Per-model wire protocol picker. "Auto" inherits the provider's
+    /// default (or a sniff of the model id if it looks like Claude /
+    /// Gemini). The user can pin a specific protocol when the heuristic
+    /// is wrong — the typical case is a relay (Nvidia, OpenRouter,
+    /// custom gateway) that fronts both Claude (Anthropic shape) and
+    /// open-source models (OpenAI shape) on the same base URL.
+    @ViewBuilder
+    private func perModelApiKindPicker(provider: Provider) -> some View {
+        let modelId = viewModel.draftModelId
+        let stored = provider.models.first(where: { $0.id == modelId })
+        let resolved = provider.effectiveApiKind(forModelId: modelId)
+        let autoLabel = L10n.tr("settings.model.api_protocol_auto", resolved.displayName)
+
+        Picker(
+            L10n.tr("settings.model.api_protocol"),
+            selection: Binding<ApiKind?>(
+                get: { stored?.apiKind },
+                set: { newValue in
+                    guard !modelId.isEmpty else { return }
+                    agent.registry.setModelApiKind(
+                        providerId: provider.id,
+                        modelId: modelId,
+                        apiKind: newValue
+                    )
+                }
+            )
+        ) {
+            Text(autoLabel).tag(ApiKind?.none)
+            ForEach(ApiKind.allCases, id: \.self) { kind in
+                Text(kind.displayName).tag(ApiKind?.some(kind))
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .disabled(modelId.isEmpty)
     }
     
     private func modelPickerSection(provider: Provider) -> some View {
@@ -676,7 +714,6 @@ struct ModelSettingsView: View {
                 } else {
                     modelSection(title: L10n.tr("settings.model.live_models_count", liveModels.count), models: liveModels, live: true)
                         .frame(maxWidth: modelListWidth, alignment: .leading)
-                        .frame(maxHeight: 360)
                 }
             }
 
@@ -729,6 +766,13 @@ struct ModelSettingsView: View {
             // Use a plain VStack when the list is short so the popover sizes
             // to content instead of holding empty space (a ScrollView always
             // claims its parent's full height, even with one row).
+            //
+            // For longer lists, the ScrollView needs a *definite* height —
+            // not just `maxHeight` — otherwise SwiftUI uses the LazyVStack's
+            // first-pass ideal height (~one row) and the popover ends up
+            // collapsed to a single row even though `liveModels.count` is
+            // already 26. `.frame(height:)` here forces the ScrollView to
+            // claim the full slot and lets the LazyVStack scroll inside.
             if models.count > 8 {
                 ScrollView {
                     LazyVStack(spacing: 2) {
@@ -737,6 +781,7 @@ struct ModelSettingsView: View {
                         }
                     }
                 }
+                .frame(height: 360)
             } else {
                 VStack(spacing: 2) {
                     ForEach(models) { model in
@@ -794,50 +839,154 @@ struct ModelSettingsView: View {
     }
     
     private var addCustomProviderSheet: some View {
-        VStack(spacing: 16) {
-            Text(L10n.tr("settings.model.add_custom_provider"))
-                .font(.headline)
+        // Single editor used for both adding a new custom provider and
+        // editing an existing one — `viewModel.editingCustomProviderId`
+        // distinguishes the two modes. Keeping these flows on one surface
+        // avoids the older split where "Add" had a stripped-down form and
+        // "Edit" had a richer popover, which felt like two unrelated
+        // tools for the same job.
+        let isEditing = viewModel.editingCustomProviderId != nil
+
+        return VStack(spacing: 16) {
+            HStack {
+                Text(isEditing
+                     ? L10n.tr("settings.model.edit_custom_provider")
+                     : L10n.tr("settings.model.add_custom_provider"))
+                    .font(.headline)
+                Spacer()
+                Button {
+                    closeCustomProviderEditor()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 labeledTextField("settings.model.name", text: $viewModel.customName)
                 labeledTextField("settings.model.base_url", text: $viewModel.customBaseURL)
-                labeledTextField("settings.model.api_key_optional", text: $viewModel.customApiKey)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.tr("settings.model.api_key_optional"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 10) {
+                        Group {
+                            if viewModel.showAPIKey {
+                                TextField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.customApiKey)
+                            } else {
+                                SecureField(L10n.tr("settings.model.api_key_placeholder"), text: $viewModel.customApiKey)
+                            }
+                        }
+                        .textFieldStyle(.roundedBorder)
+
+                        Button {
+                            viewModel.showAPIKey.toggle()
+                        } label: {
+                            Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .frame(maxWidth: fieldWidth, alignment: .leading)
+
                 labeledTextField("settings.model.model_optional", text: $viewModel.customModelId)
                 customApiKindPicker
             }
 
             HStack {
-                Button(L10n.tr("common.cancel")) {
-                    viewModel.customApiKindOverride = nil
-                    viewModel.showCustomSheet = false
+                if isEditing {
+                    Button(role: .destructive) {
+                        deleteEditingCustomProvider()
+                    } label: {
+                        Label(L10n.tr("common.delete"), systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
                 }
                 Spacer()
-                Button(L10n.tr("common.add")) {
-                    let name = viewModel.customName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let url = viewModel.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !name.isEmpty, !url.isEmpty else { return }
-                    agent.registry.addCustomProvider(
-                        name: name,
-                        baseURL: url,
-                        apiKey: viewModel.customApiKey,
-                        modelId: viewModel.customModelId,
-                        apiKind: viewModel.customApiKindOverride
-                    )
-                    if let provider = agent.registry.providers.last(where: { $0.isCustom && $0.name == name && $0.baseURL == url }) {
-                        selectProvider(provider)
-                    }
-                    viewModel.customName = ""
-                    viewModel.customBaseURL = ""
-                    viewModel.customApiKey = ""
-                    viewModel.customModelId = ""
-                    viewModel.customApiKindOverride = nil
-                    viewModel.showCustomSheet = false
+                Button(L10n.tr("common.cancel")) {
+                    closeCustomProviderEditor()
                 }
+                Button(isEditing ? L10n.tr("common.save") : L10n.tr("common.add")) {
+                    commitCustomProviderEditor()
+                }
+                .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.customName.isNotBlank || !viewModel.customBaseURL.isNotBlank)
             }
         }
         .padding(20)
-        .frame(width: 400)
+        .frame(width: 440)
+    }
+
+    /// Open the unified editor in "add" mode (blank draft). Routed through
+    /// here rather than letting each call site flip flags so we can't drift
+    /// into a half-loaded state.
+    private func openCustomProviderEditorForAdd() {
+        viewModel.resetCustomProviderDraft()
+        viewModel.showCustomSheet = true
+    }
+
+    /// Open the unified editor in "edit" mode, preloaded with the given
+    /// custom provider's persisted values.
+    private func openCustomProviderEditor(for provider: Provider) {
+        viewModel.editingCustomProviderId = provider.id
+        viewModel.customName = provider.name
+        viewModel.customBaseURL = provider.baseURL
+        viewModel.customApiKey = provider.apiKey
+        // Surface the most-recently-used live model so users can spot it
+        // and tweak; if there are no live models, leave blank.
+        viewModel.customModelId = provider.models
+            .first(where: { $0.isLive && $0.isChatCompatible })?.id
+            ?? ""
+        viewModel.customApiKindOverride = provider.apiKind
+        viewModel.showCustomSheet = true
+    }
+
+    private func closeCustomProviderEditor() {
+        viewModel.showCustomSheet = false
+        viewModel.resetCustomProviderDraft()
+    }
+
+    private func deleteEditingCustomProvider() {
+        guard let providerId = viewModel.editingCustomProviderId,
+              let provider = agent.registry.provider(for: providerId) else { return }
+        deleteCustomProvider(provider)
+        closeCustomProviderEditor()
+    }
+
+    private func commitCustomProviderEditor() {
+        let name = viewModel.customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = viewModel.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !url.isEmpty else { return }
+
+        if let providerId = viewModel.editingCustomProviderId {
+            agent.registry.updateCustomProvider(
+                id: providerId,
+                name: name,
+                baseURL: url,
+                apiKey: viewModel.customApiKey,
+                modelId: viewModel.customModelId,
+                apiKind: viewModel.customApiKindOverride
+            )
+            if let provider = agent.registry.provider(for: providerId) {
+                selectProvider(provider)
+            }
+        } else {
+            agent.registry.addCustomProvider(
+                name: name,
+                baseURL: url,
+                apiKey: viewModel.customApiKey,
+                modelId: viewModel.customModelId,
+                apiKind: viewModel.customApiKindOverride
+            )
+            if let provider = agent.registry.providers.last(where: { $0.isCustom && $0.name == name && $0.baseURL == url }) {
+                selectProvider(provider)
+            }
+        }
+
+        closeCustomProviderEditor()
     }
 
     /// Lets the user pin the wire protocol when sniff would guess wrong.
@@ -902,7 +1051,7 @@ struct ModelSettingsView: View {
             viewModel.draftModelId = ""
         }
 
-        discoverModels()
+        discoverModels(autoPickModel: autoPickModel)
     }
 
     private func deleteCustomProvider(_ provider: Provider) {
@@ -936,6 +1085,11 @@ struct ModelSettingsView: View {
         newConfig.baseURL = viewModel.draftBaseURL
         newConfig.apiKey = viewModel.draftApiKey
         newConfig.modelId = viewModel.draftModelId
+        // Resolve the wire protocol per-model so `claude-*` entries hosted
+        // by an OpenAI-shaped relay (or vice versa) hit the right route.
+        if let provider = agent.registry.provider(for: viewModel.selectedProviderId) {
+            newConfig.apiKind = provider.effectiveApiKind(forModelId: viewModel.draftModelId)
+        }
         Task {
             await agent.applyConfig(newConfig)
             dismissProviderOptions()
@@ -992,18 +1146,26 @@ struct ModelSettingsView: View {
         }
     }
 
-    private func discoverModels() {
+    /// `autoPickModel` mirrors the flag from `selectProvider`: when the user
+    /// is just browsing a built-in provider's list (autoPickModel: false), we
+    /// must NOT seed `draftModelId` from the discovered list — otherwise the
+    /// outer Save in `SettingsContainerView` would silently switch the active
+    /// model to whichever live model came back first, even though the user
+    /// never clicked it.
+    private func discoverModels(autoPickModel: Bool = true) {
         viewModel.isDiscovering = true
         agent.registry.setApiKey(viewModel.draftApiKey, for: viewModel.selectedProviderId)
-        
+
         if let idx = agent.registry.providers.firstIndex(where: { $0.id == viewModel.selectedProviderId }) {
             agent.registry.providers[idx].baseURL = viewModel.draftBaseURL
         }
-        
+
         Task {
             await agent.registry.discoverLiveModels(for: viewModel.selectedProviderId)
             viewModel.isDiscovering = false
-            
+
+            guard autoPickModel else { return }
+
             if viewModel.draftModelId.isEmpty,
                let provider = agent.registry.provider(for: viewModel.selectedProviderId),
                let first = provider.models.first(where: { $0.isLive && $0.isChatCompatible }) {

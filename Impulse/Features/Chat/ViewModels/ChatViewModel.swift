@@ -113,6 +113,11 @@ final class ChatViewModel: ObservableObject {
     func selectSession(projectPath: String, sessionID: String, agent: AgentManager) {
         selectedProjectPath = projectPath.isEmpty ? nil : projectPath
         selectedSessionID = sessionID
+        // Each session has its own input draft (and its own ↑-recall
+        // history). Carrying `inputText` across a switch leaks whatever
+        // the user typed — or recalled — in the previous session into
+        // the new one's composer.
+        inputText = ""
         draft = nil
         route = .chat
         agent.setActiveProjectPath(projectPath.isEmpty ? nil : projectPath)

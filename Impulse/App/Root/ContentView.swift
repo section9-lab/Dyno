@@ -81,6 +81,17 @@ struct ContentView: View {
         agent.existingSessionAgent(for: vm.selectedSessionID)
     }
 
+    /// Past user messages of the active session, most-recent first. Powers
+    /// the ↑/↓ history recall in the input bar. Empty list when no session
+    /// is selected — recall is then a no-op.
+    private var userInputHistory: [String] {
+        guard let session = selectedSession else { return [] }
+        return session.messages
+            .filter { $0.role == "user" }
+            .sorted { $0.timestamp > $1.timestamp }
+            .map(\.content)
+    }
+
     private func ensureFocusedSessionAgent() {
         guard let sessionID = vm.selectedSessionID else { return }
         let projectPath = vm.selectedProjectPath ?? ""
@@ -216,7 +227,8 @@ struct ContentView: View {
                 onSend: sendMessage,
                 sessionAgent: focusedSessionAgent,
                 agent: agent,
-                onOpenSettings: { vm.showConfigSheet = true }
+                onOpenSettings: { vm.showConfigSheet = true },
+                inputHistory: userInputHistory
             )
             .disabled(askCenter.pendingPrompt != nil)
             .opacity(askCenter.pendingPrompt != nil ? 0.5 : 1)

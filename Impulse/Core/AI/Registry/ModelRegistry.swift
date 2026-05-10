@@ -112,6 +112,36 @@ final class ModelRegistry: ObservableObject {
         saveApiKeys()
     }
 
+    /// Update an existing custom provider in place. Used by the unified
+    /// editor sheet so add and edit share the same code path. Discovered
+    /// models are kept; only the editable fields (name, base URL, key,
+    /// protocol, optional manual model id) are overwritten.
+    func updateCustomProvider(
+        id: String,
+        name: String,
+        baseURL: String,
+        apiKey: String,
+        modelId: String = "",
+        apiKind: ApiKind? = nil
+    ) {
+        guard let idx = providers.firstIndex(where: { $0.id == id && $0.isCustom }) else { return }
+        var provider = providers[idx]
+        provider.name = name
+        provider.baseURL = baseURL
+        provider.apiKey = apiKey
+        if let apiKind {
+            provider.apiKind = apiKind
+        }
+        let trimmedModel = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedModel.isEmpty,
+           !provider.models.contains(where: { $0.id == trimmedModel }) {
+            provider.models.append(ModelInfo(id: trimmedModel, name: trimmedModel, isLive: true))
+        }
+        providers[idx] = provider
+        saveCustomProviders()
+        saveApiKeys()
+    }
+
     func removeCustomProvider(_ providerId: String) {
         providers.removeAll { $0.id == providerId && $0.isCustom }
         saveCustomProviders()
@@ -120,6 +150,21 @@ final class ModelRegistry: ObservableObject {
         let before = favorites.count
         favorites.removeAll { $0.providerId == providerId }
         if favorites.count != before { saveFavorites() }
+    }
+
+    /// Set or clear the per-model wire-protocol override. Pass `nil` to
+    /// fall back to `Provider.effectiveApiKind(for:)` (auto-sniff +
+    /// provider default). Persisted via `saveCustomProviders` for custom
+    /// providers; built-in providers' overrides live only in-memory and
+    /// are re-derived from the catalog on next launch unless models.dev
+    /// (or the live discovery path) carries the override forward.
+    func setModelApiKind(providerId: String, modelId: String, apiKind: ApiKind?) {
+        guard let pIdx = providers.firstIndex(where: { $0.id == providerId }) else { return }
+        guard let mIdx = providers[pIdx].models.firstIndex(where: { $0.id == modelId }) else { return }
+        providers[pIdx].models[mIdx].apiKind = apiKind
+        if providers[pIdx].isCustom {
+            saveCustomProviders()
+        }
     }
 
     func provider(for id: String) -> Provider? {

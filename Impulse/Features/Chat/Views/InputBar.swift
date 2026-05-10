@@ -16,6 +16,10 @@ struct InputBar: View {
     var sessionAgent: SessionAgent?
     @ObservedObject var agent: AgentManager
     var onOpenSettings: () -> Void
+    /// Shell-style input history. Most-recent first. The parent builds this
+    /// from stored user messages in the active session; the InputBar just
+    /// relays it to the underlying NSTextView.
+    var inputHistory: [String] = []
 
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var micPulse = false
@@ -70,7 +74,8 @@ struct InputBar: View {
                             maximumHeight: maximumInputHeight,
                             canSubmit: canSend,
                             onSubmit: onSend,
-                            hasMarkedText: $hasMarkedText
+                            hasMarkedText: $hasMarkedText,
+                            historyProvider: { inputHistory }
                         )
                     }
                     .frame(height: inputHeight, alignment: .topLeading)
@@ -312,7 +317,10 @@ struct InputBar: View {
     }
 
     private var sendIconColor: Color {
-        isResponding || canSend || colorScheme == .light ? .white : Color.white.opacity(0.42)
+        if isResponding || canSend {
+            return .white
+        }
+        return controlIconColor
     }
 
     private var inputBorderColor: Color {

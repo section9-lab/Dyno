@@ -150,7 +150,7 @@ struct ChatModelSwitcher: View {
             baseURL: provider.baseURL,
             apiKey: provider.apiKey,
             modelId: model.id,
-            apiKind: provider.apiKind
+            apiKind: provider.effectiveApiKind(for: model)
         )
         Task { await agent.applyConfig(newConfig) }
     }

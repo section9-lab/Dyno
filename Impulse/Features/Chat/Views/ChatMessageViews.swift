@@ -553,7 +553,9 @@ private struct ToolTimelineRow: View {
     private var chipText: String? {
         switch toolName {
         case "bash":
-            return status == .running ? "Script" : "Script"
+            // The terminal icon already says "this is a shell command" —
+            // a "Script" chip on top of that is just visual noise.
+            return nil
         case "task":
             return L10n.tr("tool.task.chip")
         case "read", "write", "edit":

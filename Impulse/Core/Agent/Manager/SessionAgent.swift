@@ -232,6 +232,13 @@ final class SessionAgent: ObservableObject, Identifiable {
                 if !latestToolExecutions.isEmpty {
                     return L10n.tr("agent.empty_after_tools", latestToolExecutions.count)
                 }
+                // Some models (extended thinking, redacted thinking) can
+                // close a turn with reasoning blocks but no visible text.
+                // Surface the reasoning so the user sees *something* rather
+                // than a bare "empty content" stub.
+                if let reasoning = lastAssistantReasoning(in: runMessages) {
+                    return L10n.tr("agent.reasoning_only_response", reasoning)
+                }
                 return L10n.tr("agent.empty_model_response")
             }
             return text
@@ -298,6 +305,20 @@ final class SessionAgent: ObservableObject, Identifiable {
 
     private func signature(for executions: [AgentToolExecution]) -> String {
         executions.map { "\($0.id)|\($0.status.rawValue)|\($0.summary)" }.joined(separator: "||")
+    }
+
+    /// Concatenated reasoning text from the most recent assistant message, if
+    /// any. Used as a fallback when the turn ends with reasoning blocks but
+    /// no visible answer — better to show the model's thinking than a stub.
+    private func lastAssistantReasoning(in messages: [LLMMessage]) -> String? {
+        guard let last = messages.last(where: { $0.role == .assistant }) else { return nil }
+        let joined = last.content
+            .compactMap(\.asReasoning)
+            .map(\.text)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+        let trimmed = joined.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func extractToolExecutions(from messages: [LLMMessage]) -> [AgentToolExecution] {

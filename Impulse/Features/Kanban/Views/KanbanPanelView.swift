@@ -23,7 +23,7 @@ struct KanbanPanelView: View {
     var onDeleteTask: (StoredKanbanTask) -> Void
     var onUpdateLabels: (StoredKanbanTask, [String]) -> Void
 
-    private let columns = KanbanTaskStatus.allCases
+    private let columns: [KanbanTaskStatus] = [.plan, .inProgress, .done]
 
     /// In aggregate mode, the composer needs to know which project a new
     /// task belongs to. `nil` means the user hasn't chosen one yet — the
@@ -121,9 +121,7 @@ struct KanbanPanelView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
-            projectPicker
-
-            Spacer(minLength: 12)
+            Spacer(minLength: 0)
 
             HStack(spacing: 16) {
                 metricLabel(value: scopedTasks.count, label: "kanban.tasks")
@@ -134,17 +132,21 @@ struct KanbanPanelView: View {
         }
     }
 
+    private var hasActiveFilter: Bool {
+        !activeLabelFilters.isEmpty || selectedProjectPath != nil
+    }
+
     private var settingsButton: some View {
         Button {
             showSettingsPopover.toggle()
         } label: {
             Image(systemName: "slider.horizontal.3")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(activeLabelFilters.isEmpty ? .secondary : .accentColor)
+                .foregroundColor(hasActiveFilter ? .accentColor : .secondary)
                 .frame(width: 28, height: 28)
                 .background(
                     Circle()
-                        .fill(activeLabelFilters.isEmpty ? Color.clear : Color.accentColor.opacity(0.12))
+                        .fill(hasActiveFilter ? Color.accentColor.opacity(0.12) : Color.clear)
                 )
         }
         .buttonStyle(.plain)
@@ -155,7 +157,11 @@ struct KanbanPanelView: View {
     }
 
     private var settingsPopover: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            projectFilterSection
+
+            Divider().opacity(0.5)
+
             HStack {
                 Text("kanban.filter_by_labels")
                     .font(.system(size: 13, weight: .semibold))
@@ -188,6 +194,67 @@ struct KanbanPanelView: View {
         .frame(width: 260, alignment: .leading)
     }
 
+    private var projectFilterSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("kanban.filter_by_project")
+                .font(.system(size: 13, weight: .semibold))
+
+            Menu {
+                Button {
+                    selectedProjectPath = nil
+                } label: {
+                    HStack {
+                        Text("kanban.all_projects")
+                        if selectedProjectPath == nil {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+
+                if !projects.isEmpty {
+                    Divider()
+                    ForEach(projects, id: \.path) { project in
+                        Button {
+                            selectedProjectPath = project.path
+                        } label: {
+                            HStack {
+                                Text(project.displayName)
+                                if selectedProjectPath == project.path {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Text(headerTitle)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+        }
+    }
+
     private func labelFilterRow(_ label: String) -> some View {
         let isActive = activeLabelFilters.contains(label)
         return Button {
@@ -212,52 +279,6 @@ struct KanbanPanelView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var projectPicker: some View {
-        Menu {
-            Button {
-                selectedProjectPath = nil
-            } label: {
-                HStack {
-                    Text("kanban.all_projects")
-                    if selectedProjectPath == nil {
-                        Spacer()
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-
-            if !projects.isEmpty {
-                Divider()
-                ForEach(projects, id: \.path) { project in
-                    Button {
-                        selectedProjectPath = project.path
-                    } label: {
-                        HStack {
-                            Text(project.displayName)
-                            if selectedProjectPath == project.path {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(headerTitle)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.primary)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .buttonStyle(.plain)
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 
     private var headerTitle: String {
@@ -927,19 +948,17 @@ private struct KanbanTaskCardView: View {
 private extension KanbanTaskStatus {
     var localizedTitle: String {
         switch self {
-        case .todo:          return L10n.tr("kanban.status.todo")
-        case .inProgress:    return L10n.tr("kanban.status.in_progress")
-        case .pendingReview: return L10n.tr("kanban.status.pending_review")
-        case .done:          return L10n.tr("kanban.status.done")
+        case .plan:       return L10n.tr("kanban.status.plan")
+        case .inProgress: return L10n.tr("kanban.status.in_progress")
+        case .done:       return L10n.tr("kanban.status.done")
         }
     }
 
     var localizedEmptyHint: String {
         switch self {
-        case .todo:          return L10n.tr("kanban.status.todo.empty_hint")
-        case .inProgress:    return L10n.tr("kanban.status.in_progress.empty_hint")
-        case .pendingReview: return L10n.tr("kanban.status.pending_review.empty_hint")
-        case .done:          return L10n.tr("kanban.status.done.empty_hint")
+        case .plan:       return L10n.tr("kanban.status.plan.empty_hint")
+        case .inProgress: return L10n.tr("kanban.status.in_progress.empty_hint")
+        case .done:       return L10n.tr("kanban.status.done.empty_hint")
         }
     }
 
@@ -947,10 +966,9 @@ private extension KanbanTaskStatus {
     /// column header; the rest of the chrome stays monochrome.
     var tintColor: Color {
         switch self {
-        case .todo:          return Color.secondary
-        case .inProgress:    return Color(nsColor: .systemBlue)
-        case .pendingReview: return Color(nsColor: .systemOrange)
-        case .done:          return Color(nsColor: .systemGreen)
+        case .plan:       return Color.secondary
+        case .inProgress: return Color(nsColor: .systemBlue)
+        case .done:       return Color(nsColor: .systemGreen)
         }
     }
 }

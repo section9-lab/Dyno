@@ -57,6 +57,7 @@
 "settings.model.provider" = "模型提供商";
 "settings.model.select_provider" = "选择提供商";
 "settings.model.add_custom_provider" = "添加自定义提供商";
+"settings.model.edit_custom_provider" = "编辑自定义提供商";
 "settings.model.custom_provider" = "自定义提供商";
 "settings.model.delete_custom_provider" = "删除当前自定义提供商";
 "settings.model.loading_more_providers" = "正在加载更多提供商";
@@ -160,16 +161,14 @@
 "kanban.status.done" = "完成";
 "kanban.status.done.empty_hint" = "将完成的任务放在这里，保持看板整洁。";
 "kanban.status.done.subtitle" = "已完成的工作保留作参考。";
-"kanban.status.todo" = "待办";
-"kanban.status.todo.empty_hint" = "新的项目任务从这里开始。";
-"kanban.status.todo.subtitle" = "范围已明确，可以开始。";
+"kanban.status.plan" = "计划";
+"kanban.status.plan.empty_hint" = "新的项目任务从这里开始。";
+"kanban.status.plan.subtitle" = "范围已明确，可以开始。";
 "kanban.status.in_progress" = "进行中";
 "kanban.status.in_progress.empty_hint" = "把正在推进的任务移到这里。";
 "kanban.status.in_progress.subtitle" = "工作正在推进中。";
-"kanban.status.pending_review" = "待评审";
-"kanban.status.pending_review.empty_hint" = "等待评审的任务落在这里。";
-"kanban.status.pending_review.subtitle" = "完成的工作正在等待确认。";
 "kanban.settings" = "看板设置";
+"kanban.filter_by_project" = "按项目过滤";
 "kanban.filter_by_labels" = "按 Labels 过滤";
 "kanban.no_labels_yet" = "暂无 labels。给任务添加 label 即可使用过滤。";
 "kanban.clear_filter" = "清除过滤";
@@ -196,6 +195,7 @@
 
 "agent.empty_after_tools" = "本轮已执行 %d 次工具调用。请继续让我完成最后一步。";
 "agent.empty_model_response" = "（模型返回空内容）";
+"agent.reasoning_only_response" = "_（模型只返回了思考过程,没有可见回复。）_\n\n%@";
 “agent.max_steps_reached” = “我已经执行到步骤上限（%d 次工具调用），还差最后收敛。你可以回复”继续”，我会基于当前上下文接着完成。”;
 
 “tool_approval.title” = “危险操作”;

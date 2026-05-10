@@ -51,6 +51,7 @@
 "settings.model.provider" = "Поставщик модели";
 "settings.model.select_provider" = "Выбрать поставщика";
 "settings.model.add_custom_provider" = "Добавить своего поставщика";
+"settings.model.edit_custom_provider" = "Изменить своего поставщика";
 "settings.model.custom_provider" = "Свой поставщик";
 "settings.model.delete_custom_provider" = "Удалить текущего поставщика";
 "settings.model.loading_more_providers" = "Загрузка дополнительных поставщиков";
@@ -161,6 +162,7 @@
 "kanban.status.progress" = "В работе";
 "kanban.status.progress.empty_hint" = "Перемещайте активные задачи сюда, пока они выполняются.";
 "kanban.status.progress.subtitle" = "Работа сейчас продвигается.";
+"kanban.filter_by_project" = "Фильтр по проекту";
 "kanban.tasks" = "Задачи";
 "kanban.tasks_description" = "Задачи остаются привязанными к проекту и могут связываться с одной или несколькими сессиями.";
 "kanban.tasks_organized_description" = "Задачи организованы на уровне проекта и могут быть связаны с несколькими сессиями.";
@@ -180,6 +182,7 @@
 "voice.error.unavailable" = "Распознавание речи недоступно.";
 "agent.empty_after_tools" = "В этом ходе выполнено %d вызовов инструментов. Попросите продолжить, чтобы завершить последний шаг.";
 "agent.empty_model_response" = "(Модель вернула пустой ответ)";
+"agent.reasoning_only_response" = "_(Модель вернула только рассуждения — без видимого ответа.)_\n\n%@";
 "agent.max_steps_reached" = "Я достиг лимита шагов после %d вызовов инструментов и еще должен завершить ответ. Напишите \"продолжить\", и я продолжу из текущего контекста.";
 
 "tool_approval.title" = "Опасная операция";

@@ -59,4 +59,33 @@ extension ApiKind {
         }
         return .openAICompletions
     }
+
+    /// Heuristic from a model id alone. Useful when a single base URL
+    /// fronts multiple wire formats — e.g. a relay that exposes both
+    /// `gpt-4o` (OpenAI shape) and `claude-opus-4-7` (Anthropic shape) on
+    /// the same host. Returns `nil` when no signal is strong enough; the
+    /// caller should fall back to the provider's `apiKind` or
+    /// `sniff(baseURL:)` in that case.
+    ///
+    /// Matches against the bare segment after any vendor prefix
+    /// ("anthropic/claude-...", "models/gemini-...") so namespaced ids
+    /// don't dodge the match.
+    static func sniff(modelId: String) -> ApiKind? {
+        let lower = modelId.lowercased()
+        let bare = lower.split(separator: "/").last.map(String.init) ?? lower
+
+        if bare.hasPrefix("claude-")
+            || bare.hasPrefix("claude.")
+            || lower.hasPrefix("anthropic/")
+            || lower.hasPrefix("anthropic.") {
+            return .anthropicMessages
+        }
+        if bare.hasPrefix("gemini-")
+            || bare.hasPrefix("gemini.")
+            || lower.hasPrefix("google/gemini")
+            || lower.hasPrefix("models/gemini") {
+            return .googleGenerativeLanguage
+        }
+        return nil
+    }
 }
