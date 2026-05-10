@@ -50,6 +50,31 @@ final class ChatViewModel: ObservableObject {
 
     private let sandboxAccess = SandboxAccessManager.shared
 
+    /// Per-session composer drafts. Lets the user A→B→A round-trip without
+    /// losing what they were typing in A. In-memory only — drafts are
+    /// transient by nature, and a freshly-launched app should start with
+    /// every composer empty. Keyed by `StoredSession.id`. The "new chat"
+    /// (no-session) draft lives directly in `inputText` per existing
+    /// behaviour and is not stored here.
+    private var sessionDrafts: [String: String] = [:]
+
+    /// Snapshot the current composer text into whichever bucket owns it
+    /// before the active session/draft target changes. Currently we only
+    /// remember per-session drafts; the no-session "new chat" composer is
+    /// considered ephemeral.
+    private func captureActiveDraft() {
+        if let sessionID = selectedSessionID {
+            sessionDrafts[sessionID] = inputText
+        }
+        // No-session draft (`draft != nil` with `selectedSessionID == nil`)
+        // is intentionally not preserved across switches — the user told us
+        // "new chat" is fresh-each-time by clicking the button.
+    }
+
+    private func restoredDraft(forSessionID sessionID: String) -> String {
+        sessionDrafts[sessionID] ?? ""
+    }
+
     // MARK: - View state helpers
 
     var canStartNewChat: Bool {
@@ -94,6 +119,7 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Project / session selection
 
     func selectProject(_ projectPath: String, agent: AgentManager) {
+        captureActiveDraft()
         selectedProjectPath = projectPath
         selectedSessionID = nil
         // Preserve an in-progress New Chat draft — just retarget it to the
@@ -111,13 +137,12 @@ final class ChatViewModel: ObservableObject {
     }
 
     func selectSession(projectPath: String, sessionID: String, agent: AgentManager) {
+        captureActiveDraft()
         selectedProjectPath = projectPath.isEmpty ? nil : projectPath
         selectedSessionID = sessionID
-        // Each session has its own input draft (and its own ↑-recall
-        // history). Carrying `inputText` across a switch leaks whatever
-        // the user typed — or recalled — in the previous session into
-        // the new one's composer.
-        inputText = ""
+        // Restore whatever the user had been typing the last time they
+        // were in this session. Empty string when there's no saved draft.
+        inputText = restoredDraft(forSessionID: sessionID)
         draft = nil
         route = .chat
         agent.setActiveProjectPath(projectPath.isEmpty ? nil : projectPath)
@@ -132,6 +157,7 @@ final class ChatViewModel: ObservableObject {
     /// project-less ("conversations") row. The `StoredSession` is only
     /// inserted on the first `sendMessage` (see `commitDraftIfNeeded`).
     func beginDraftSession(projectPath: String?, agent: AgentManager) {
+        captureActiveDraft()
         selectedProjectPath = projectPath
         selectedSessionID = nil
         inputText = ""
@@ -185,6 +211,7 @@ final class ChatViewModel: ObservableObject {
         )
         for session in (try? modelContext.fetch(sessionsDescriptor)) ?? [] {
             agent.discardSessionAgent(for: session.id)
+            sessionDrafts.removeValue(forKey: session.id)
             modelContext.delete(session)
         }
 
@@ -279,6 +306,7 @@ final class ChatViewModel: ObservableObject {
     func deleteSession(_ session: StoredSession, modelContext: ModelContext) {
         let id = session.id
         AgentManager.shared.discardSessionAgent(for: id)
+        sessionDrafts.removeValue(forKey: id)
         modelContext.delete(session)
 
         if selectedSessionID == id {
@@ -327,6 +355,7 @@ final class ChatViewModel: ObservableObject {
             targetSession.title = normalizedTitle(from: trimmed)
         }
         inputText = ""
+        sessionDrafts.removeValue(forKey: targetSession.id)
 
         let sessionAgent = agent.sessionAgent(for: targetSession.id, projectPath: targetSession.projectPath)
 
@@ -364,6 +393,7 @@ final class ChatViewModel: ObservableObject {
         let userMsg = StoredMessage(timestamp: Date(), role: "user", content: input, session: session)
         modelContext.insert(userMsg)
         inputText = ""
+        sessionDrafts.removeValue(forKey: session.id)
 
         let sessionAgent = agent.sessionAgent(for: session.id, projectPath: session.projectPath)
         let instructions = compactInstructions(from: input)
