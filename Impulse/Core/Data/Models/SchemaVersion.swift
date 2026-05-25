@@ -26,6 +26,9 @@ import Foundation
 ///   v4 — Added StoredTodoSnapshot for per-session todo state from
 ///        SwiftHarnessAgent's `todo_write` productivity tool. Inverse
 ///        relationship added on StoredSession.
+///   v5 — Added StoredSubagentToolRun for nested subagent tool timelines,
+///        plus optional `argumentsJSON` on StoredToolRun so the task-fanout
+///        UI can show per-task labels before the tool finishes.
 enum SchemaVersion {
-    static let current: Int = 4
+    static let current: Int = 5
 }

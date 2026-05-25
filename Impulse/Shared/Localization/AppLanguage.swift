@@ -25,7 +25,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var speechLocaleIdentifier: String {
         switch self {
         case .en: return "en-US"
-        case .zh: return "zh-Hans"
+        case .zh: return "zh-CN"
         case .es: return "es-ES"
         case .fr: return "fr-FR"
         case .ru: return "ru-RU"

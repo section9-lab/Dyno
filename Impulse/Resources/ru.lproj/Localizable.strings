@@ -102,6 +102,7 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "sidebar.action.new_chat" = "Новый чат";
 "sidebar.action.auto_intelligence" = "Проактивный ИИ";
+"sidebar.action.mail" = "Почта";
 "sidebar.action.kanban" = "Канбан";
 "sidebar.section.projects" = "Проекты";
 "sidebar.section.projects.empty" = "Пока нет проектов";
@@ -109,6 +110,8 @@
 "sidebar.draft.unsent" = "Новый чат (не отправлено)";
 "sidebar.auto_intelligence.coming_soon.title" = "Проактивный ИИ";
 "sidebar.auto_intelligence.coming_soon.subtitle" = "Скоро";
+"sidebar.mail.coming_soon.title" = "Почта";
+"sidebar.mail.coming_soon.subtitle" = "Скоро";
 "chat.draft.title" = "Начать новую беседу";
 "chat.draft.subtitle.no_project" = "После первого сообщения чат появится в разделе «Беседы».";
 "chat.draft.subtitle.in_project" = "Отправьте первое сообщение, чтобы создать сессию в этом проекте.";
@@ -179,6 +182,7 @@
 "voice.error.recognition" = "Ошибка распознавания: %@";
 "voice.error.restricted" = "Распознавание речи не поддерживается на этом устройстве.";
 "voice.error.service_unavailable" = "Сервис распознавания речи недоступен.";
+"voice.error.locale_not_supported" = "Этот Mac не поддерживает текущий язык распознавания речи.";
 "voice.error.unavailable" = "Распознавание речи недоступно.";
 "agent.empty_after_tools" = "В этом ходе выполнено %d вызовов инструментов. Попросите продолжить, чтобы завершить последний шаг.";
 "agent.empty_model_response" = "(Модель вернула пустой ответ)";
@@ -286,9 +290,11 @@
 "ask.banner.submit" = "Отправить";
 "ask.banner.cancel" = "Отменить";
 "ask.banner.required_hint" = "Выберите по одному варианту на каждый вопрос, чтобы отправить.";
-"tool.task.running_n" = "Запущено %1$d субагентов (%2$@)";
-"tool.task.ran_n" = "Завершено %1$d субагентов (%2$@)";
-"tool.task.failed" = "Партия субагентов не удалась (%@)";
+"tool.task.running_n" = "Запущено %1$d субагентов · %2$@";
+"tool.task.ran_n" = "Завершено %1$d субагентов · %2$@";
+"tool.task.failed" = "Партия субагентов не удалась · %@";
 "tool.task.chip" = "Субагент";
 "tool.task.success_count" = "Успешно: %d";
 "tool.task.failure_count" = "Ошибки: %d";
+"tool.task.inner_tools" = "Внутренние инструменты";
+"tool.task.final_output" = "Финальный вывод";

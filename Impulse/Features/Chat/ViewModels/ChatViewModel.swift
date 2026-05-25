@@ -11,6 +11,7 @@ enum ChatRoute {
     case chat
     case kanban
     case autoIntelligence
+    case mail
 }
 
 /// In-memory placeholder for a session the user has begun composing but
@@ -430,36 +431,94 @@ final class ChatViewModel: ObservableObject {
 
     /// Write tool runs + assistant message + (optional) compaction summary
     /// captured by the SessionAgent during one chat run.
+    ///
+    /// Walks `liveTimeline` in emission order so that interleaved text and
+    /// tool calls keep their relative position on disk (each item gets a
+    /// monotonically-increasing sub-millisecond timestamp). Each text block
+    /// becomes its own `StoredMessage`; each tool call becomes a
+    /// `StoredToolRun`. Reasoning is attached to the first text block of
+    /// the turn so a single carrier survives reload.
     private func persistRunResults(
         responseText: String,
         sessionAgent: SessionAgent,
         session: StoredSession,
         modelContext: ModelContext
     ) {
-        var nextTimestamp = Date()
-        for execution in sessionAgent.latestToolExecutions {
-            let run = StoredToolRun(
-                id: execution.id,
-                timestamp: nextTimestamp,
-                toolName: execution.toolName,
-                status: execution.status.rawValue,
-                summary: execution.summary,
-                output: execution.output,
-                session: session
-            )
-            modelContext.insert(run)
-            nextTimestamp = nextTimestamp.addingTimeInterval(0.001)
-        }
+        var ts = Date()
+        let step: TimeInterval = 0.001
+        var firstTextEmitted = false
 
         let trimmedReasoning = sessionAgent.liveReasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let assistantMsg = StoredMessage(
-            timestamp: nextTimestamp,
-            role: "assistant",
-            content: responseText,
-            reasoning: trimmedReasoning.isEmpty ? nil : sessionAgent.liveReasoningText,
-            session: session
-        )
-        modelContext.insert(assistantMsg)
+        let reasoningPayload: String? = trimmedReasoning.isEmpty ? nil : sessionAgent.liveReasoningText
+
+        for item in sessionAgent.liveTimeline {
+            switch item {
+            case .text(_, let content):
+                let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                let msg = StoredMessage(
+                    timestamp: ts,
+                    role: "assistant",
+                    content: content,
+                    reasoning: firstTextEmitted ? nil : reasoningPayload,
+                    session: session
+                )
+                modelContext.insert(msg)
+                firstTextEmitted = true
+
+            case .tool(let exec):
+                let run = StoredToolRun(
+                    id: exec.id,
+                    timestamp: ts,
+                    toolName: exec.toolName,
+                    status: exec.status.rawValue,
+                    summary: exec.summary,
+                    output: exec.output,
+                    argumentsJSON: exec.argumentsJSON,
+                    session: session
+                )
+                modelContext.insert(run)
+                // Persist any captured subagent inner tool runs so the
+                // task-fanout row can rebuild its nested timeline on
+                // reload. Timestamps stay grouped under the parent.
+                if exec.toolName == "task", !exec.subagentLive.isEmpty {
+                    var childTS = ts
+                    let childStep: TimeInterval = 0.0001
+                    for task in exec.subagentLive {
+                        for inner in task.innerTools {
+                            childTS = childTS.addingTimeInterval(childStep)
+                            let child = StoredSubagentToolRun(
+                                id: inner.id,
+                                timestamp: childTS,
+                                subagentTaskID: task.id,
+                                agentID: task.agentID,
+                                toolName: inner.toolName,
+                                status: inner.status.rawValue,
+                                summary: inner.summary,
+                                output: inner.output,
+                                parent: run
+                            )
+                            modelContext.insert(child)
+                        }
+                    }
+                }
+            }
+            ts = ts.addingTimeInterval(step)
+        }
+
+        // Tool-only turn (no visible text): persist the resolved fallback
+        // text so the row stays addressable on reload (timestamp, copy menu,
+        // reasoning carrier).
+        if !firstTextEmitted {
+            let fallback = StoredMessage(
+                timestamp: ts,
+                role: "assistant",
+                content: responseText,
+                reasoning: reasoningPayload,
+                session: session
+            )
+            modelContext.insert(fallback)
+        }
 
         if let summary = sessionAgent.latestCompactionSummary,
            !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -480,6 +539,13 @@ final class ChatViewModel: ObservableObject {
                 modelContext: modelContext
             )
         }
+
+        // Clear the live timeline so `AgentResponseView` drops away and
+        // the persisted `ChatRow`s rendered by `buildChatRows` take over.
+        // Without this the same content shows twice: once from the still-
+        // populated timeline and once from the just-inserted stored rows.
+        sessionAgent.liveTimeline = []
+        sessionAgent.liveReasoningText = ""
     }
 
     /// Read the snapshot of the SessionAgent's todo store and upsert it

@@ -1,5 +1,37 @@
 import SwiftUI
 
+enum VoiceShortcut: String, CaseIterable, Identifiable {
+    case option = "Option"
+    case command = "Command"
+    case control = "Control"
+    case function = "Fn"
+
+    var id: String { rawValue }
+
+    init(storedValue: String) {
+        self = VoiceShortcut(rawValue: storedValue) ?? .option
+    }
+
+    var modifierFlag: NSEvent.ModifierFlags {
+        switch self {
+        case .option:
+            return .option
+        case .command:
+            return .command
+        case .control:
+            return .control
+        case .function:
+            return .function
+        }
+    }
+
+    func isPressed(in flags: NSEvent.ModifierFlags) -> Bool {
+        flags
+            .intersection(.deviceIndependentFlagsMask)
+            .contains(modifierFlag)
+    }
+}
+
 @MainActor
 class GeneralSettingsViewModel: ObservableObject {
     @Published var language: String
@@ -30,28 +62,36 @@ class GeneralSettingsViewModel: ObservableObject {
 /// Tiny `UserDefaults`-backed store for general settings that don't live on
 /// the agent config (OCR toggle, voice shortcut).
 enum GeneralSettingsStore {
+    static let ocrEnabledDidChangeNotification = Notification.Name("settings.general.ocrEnabled.didChange")
+
     private static let ocrEnabledKey = "settings.general.ocrEnabled"
     private static let voiceShortcutKey = "settings.general.voiceShortcut"
     private static let defaultVoiceShortcut = "Option"
 
-    static func loadOCREnabled() -> Bool {
-        let defaults = UserDefaults.standard
-        // `object(forKey:)` distinguishes "never set" (default to true) from
-        // "explicitly set to false" — `bool(forKey:)` alone would silently
-        // return false on the first launch.
-        if defaults.object(forKey: ocrEnabledKey) == nil { return true }
+    static func loadOCREnabled(defaults: UserDefaults = .standard) -> Bool {
+        // `object(forKey:)` distinguishes "never set" from an explicit value.
+        // Automatic OCR is opt-in, so first launch defaults to disabled.
+        if defaults.object(forKey: ocrEnabledKey) == nil { return false }
         return defaults.bool(forKey: ocrEnabledKey)
     }
 
-    static func saveOCREnabled(_ value: Bool) {
-        UserDefaults.standard.set(value, forKey: ocrEnabledKey)
+    static func saveOCREnabled(_ value: Bool, defaults: UserDefaults = .standard) {
+        let oldValue = loadOCREnabled(defaults: defaults)
+        defaults.set(value, forKey: ocrEnabledKey)
+
+        guard oldValue != value else { return }
+        NotificationCenter.default.post(
+            name: ocrEnabledDidChangeNotification,
+            object: nil,
+            userInfo: ["enabled": value]
+        )
     }
 
-    static func loadVoiceShortcut() -> String {
-        UserDefaults.standard.string(forKey: voiceShortcutKey) ?? defaultVoiceShortcut
+    static func loadVoiceShortcut(defaults: UserDefaults = .standard) -> String {
+        defaults.string(forKey: voiceShortcutKey) ?? defaultVoiceShortcut
     }
 
-    static func saveVoiceShortcut(_ value: String) {
-        UserDefaults.standard.set(value, forKey: voiceShortcutKey)
+    static func saveVoiceShortcut(_ value: String, defaults: UserDefaults = .standard) {
+        defaults.set(value, forKey: voiceShortcutKey)
     }
 }

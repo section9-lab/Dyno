@@ -95,6 +95,7 @@ struct GeneralSettingsView: View {
             }
         }
         .task {
+            guard viewModel.ocrEnabled else { return }
             await permissions.probe()
         }
     }

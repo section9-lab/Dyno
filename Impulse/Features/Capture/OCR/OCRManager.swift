@@ -13,6 +13,10 @@ final class OCRManager: ObservableObject, @unchecked Sendable {
     @Published var lastCapturedText: String?
 
     func start(storageDirectory: URL) {
+        guard GeneralSettingsStore.loadOCREnabled() else {
+            stop()
+            return
+        }
         guard orchestrator == nil else { return }
 
         let rawDirectory = storageDirectory

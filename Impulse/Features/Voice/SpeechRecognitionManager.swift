@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class SpeechRecognitionManager: ObservableObject {
     @Published private(set) var isListening = false
+    @Published private(set) var isRewriting = false
     @Published var transcript = ""
     @Published var errorMessage: String?
 
@@ -15,14 +16,8 @@ final class SpeechRecognitionManager: ObservableObject {
     private var didInstallTap = false
     private var state: ListeningState = .idle {
         didSet {
-            isListening = state.isRecording
+            isListening = state.isCaptureActive
         }
-    }
-    private var speechRecognizer: SFSpeechRecognizer? {
-        let language = LocalizationManager.shared.language
-        return SFSpeechRecognizer(locale: Locale(identifier: language.speechLocaleIdentifier))
-            ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-            ?? SFSpeechRecognizer()
     }
 
     private var textBeforeListening = ""
@@ -35,21 +30,22 @@ final class SpeechRecognitionManager: ObservableObject {
         textBeforeListening = currentText
         transcript = ""
         errorMessage = nil
+        isRewriting = false
 
-        SpeechAuthorization.request { [weak self] status in
+        VoiceInputAuthorization.request { [weak self] status in
             guard let self else { return }
             guard self.state.matches(sessionID) else { return }
 
             switch status {
             case .authorized:
                 self.beginRecording(sessionID: sessionID)
-            case .denied:
+            case .microphoneDenied, .speechDenied:
                 self.finishWithError(L10n.tr("voice.error.denied"))
-            case .restricted:
+            case .speechRestricted:
                 self.finishWithError(L10n.tr("voice.error.restricted"))
-            case .notDetermined:
+            case .speechNotDetermined:
                 self.finishWithError(L10n.tr("voice.error.not_determined"))
-            @unknown default:
+            case .unavailable:
                 self.finishWithError(L10n.tr("voice.error.unavailable"))
             }
         }
@@ -79,7 +75,8 @@ final class SpeechRecognitionManager: ObservableObject {
     }
 
     private func beginRecording(sessionID: UUID) {
-        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+        guard state.matches(sessionID) else { return }
+        guard let recognizer = makeSpeechRecognizer(), recognizer.isAvailable else {
             finishWithError(L10n.tr("voice.error.service_unavailable"))
             return
         }
@@ -120,13 +117,21 @@ final class SpeechRecognitionManager: ObservableObject {
         state = .recording(sessionID)
     }
 
+    private func makeSpeechRecognizer() -> SFSpeechRecognizer? {
+        let language = LocalizationManager.shared.language
+        let locale = Locale(identifier: language.speechLocaleIdentifier)
+        guard SFSpeechRecognizer.supportedLocales().contains(locale) else {
+            return nil
+        }
+        return SFSpeechRecognizer(locale: locale)
+    }
+
     private func handleRecognition(transcript: String?, isFinal: Bool, error: NSError?) {
         if let transcript {
             self.transcript = transcript
         }
 
         if let error {
-            // Code 1 = recognition ended normally (user stopped), 216 = request cancelled
             if error.domain == "kAFAssistantErrorDomain" && (error.code == 1 || error.code == 216) {
                 return
             }
@@ -142,6 +147,7 @@ final class SpeechRecognitionManager: ObservableObject {
 
         audioEngine = nil
         recognitionRequest = nil
+        recognitionTask?.cancel()
         recognitionTask = nil
 
         engine?.stop()
@@ -164,14 +170,57 @@ final class SpeechRecognitionManager: ObservableObject {
     }
 }
 
-private enum SpeechAuthorization {
-    static func request(
-        _ completion: @escaping @MainActor (SFSpeechRecognizerAuthorizationStatus) -> Void
-    ) {
-        SFSpeechRecognizer.requestAuthorization { status in
-            Task { @MainActor in
-                completion(status)
+private enum VoiceInputAuthorization {
+    enum Status {
+        case authorized
+        case microphoneDenied
+        case speechDenied
+        case speechRestricted
+        case speechNotDetermined
+        case unavailable
+    }
+
+    static func request(_ completion: @escaping @MainActor (Status) -> Void) {
+        requestMicrophone { microphoneAllowed in
+            guard microphoneAllowed else {
+                Task { @MainActor in
+                    completion(.microphoneDenied)
+                }
+                return
             }
+
+            SFSpeechRecognizer.requestAuthorization { status in
+                let mappedStatus: Status
+                switch status {
+                case .authorized:
+                    mappedStatus = .authorized
+                case .denied:
+                    mappedStatus = .speechDenied
+                case .restricted:
+                    mappedStatus = .speechRestricted
+                case .notDetermined:
+                    mappedStatus = .speechNotDetermined
+                @unknown default:
+                    mappedStatus = .unavailable
+                }
+
+                Task { @MainActor in
+                    completion(mappedStatus)
+                }
+            }
+        }
+    }
+
+    private static func requestMicrophone(_ completion: @escaping @Sendable (Bool) -> Void) {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio, completionHandler: completion)
+        case .denied, .restricted:
+            completion(false)
+        @unknown default:
+            completion(false)
         }
     }
 }
@@ -219,11 +268,13 @@ private enum ListeningState {
         return false
     }
 
-    var isRecording: Bool {
-        if case .recording = self {
+    var isCaptureActive: Bool {
+        switch self {
+        case .requestingAuthorization, .starting, .recording:
             return true
+        case .idle:
+            return false
         }
-        return false
     }
 
     func matches(_ sessionID: UUID) -> Bool {

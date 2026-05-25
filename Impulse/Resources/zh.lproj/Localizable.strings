@@ -106,6 +106,7 @@
 "chat.add_project" = "添加项目";
 "sidebar.action.new_chat" = "新对话";
 "sidebar.action.auto_intelligence" = "主动智能";
+"sidebar.action.mail" = "邮件";
 "sidebar.action.kanban" = "看板";
 "sidebar.section.projects" = "项目";
 "sidebar.section.projects.empty" = "暂无项目";
@@ -113,6 +114,8 @@
 "sidebar.draft.unsent" = "新对话（未发送）";
 "sidebar.auto_intelligence.coming_soon.title" = "主动智能";
 "sidebar.auto_intelligence.coming_soon.subtitle" = "敬请期待";
+"sidebar.mail.coming_soon.title" = "邮件";
+"sidebar.mail.coming_soon.subtitle" = "敬请期待";
 "chat.draft.title" = "开始新对话";
 "chat.draft.subtitle.no_project" = "发送第一条消息后，会话将出现在「对话」分组。";
 "chat.draft.subtitle.in_project" = "发送第一条消息后，会话将归入当前项目。";
@@ -191,6 +194,7 @@
 "voice.error.recognition" = "识别出错：%@";
 "voice.error.restricted" = "此设备不支持语音识别。";
 "voice.error.service_unavailable" = "语音识别服务不可用。";
+"voice.error.locale_not_supported" = "这台 Mac 不支持当前语音识别语言。";
 "voice.error.unavailable" = "语音识别不可用。";
 
 "agent.empty_after_tools" = "本轮已执行 %d 次工具调用。请继续让我完成最后一步。";
@@ -292,6 +296,10 @@
 /* ── productivity tools (todo / ask / task) ── */
 "todo.indicator.help" = "待办：%1$d/%2$d";
 "todo.indicator.help_with_active" = "待办：%1$d/%2$d — %3$@";
+"todo.popover.title" = "进度";
+"todo.popover.project_files.empty" = "暂无文件。";
+"todo.popover.project_files.no_project" = "未选择项目。";
+"todo.popover.project_files.error" = "无法读取项目目录。";
 "ask.banner.title" = "代理提问";
 "ask.banner.recommended" = "推荐";
 "ask.banner.other" = "其他（自行输入）";
@@ -299,9 +307,14 @@
 "ask.banner.submit" = "提交";
 "ask.banner.cancel" = "取消";
 "ask.banner.required_hint" = "每个问题需选择一个选项后才能提交。";
-"tool.task.running_n" = "正在运行 %1$d 个子代理（%2$@）";
-"tool.task.ran_n" = "已运行 %1$d 个子代理（%2$@）";
-"tool.task.failed" = "子代理批次失败（%@）";
+"tool.task.running_n" = "正在运行 %1$d 个子代理 · %2$@";
+"tool.task.ran_n" = "已运行 %1$d 个子代理 · %2$@";
+"tool.task.failed" = "子代理批次失败 · %@";
 "tool.task.chip" = "子代理";
+"tool.todo_write.running" = "正在更新待办列表";
+"tool.todo_write.success" = "已更新待办列表";
+"tool.todo_write.failed" = "更新待办列表失败";
 "tool.task.success_count" = "成功 %d";
 "tool.task.failure_count" = "失败 %d";
+"tool.task.inner_tools" = "内部工具";
+"tool.task.final_output" = "最终输出";

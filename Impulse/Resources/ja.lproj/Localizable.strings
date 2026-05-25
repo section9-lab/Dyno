@@ -102,6 +102,7 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "sidebar.action.new_chat" = "新しい会話";
 "sidebar.action.auto_intelligence" = "プロアクティブ AI";
+"sidebar.action.mail" = "メール";
 "sidebar.action.kanban" = "カンバン";
 "sidebar.section.projects" = "プロジェクト";
 "sidebar.section.projects.empty" = "プロジェクトなし";
@@ -109,6 +110,8 @@
 "sidebar.draft.unsent" = "新しい会話（未送信）";
 "sidebar.auto_intelligence.coming_soon.title" = "プロアクティブ AI";
 "sidebar.auto_intelligence.coming_soon.subtitle" = "近日公開";
+"sidebar.mail.coming_soon.title" = "メール";
+"sidebar.mail.coming_soon.subtitle" = "近日公開";
 "chat.draft.title" = "新しい会話を始める";
 "chat.draft.subtitle.no_project" = "最初のメッセージを送信すると「会話」セクションに表示されます。";
 "chat.draft.subtitle.in_project" = "最初のメッセージを送信すると、このプロジェクトに会話が作成されます。";
@@ -179,6 +182,7 @@
 "voice.error.recognition" = "認識エラー: %@";
 "voice.error.restricted" = "このデバイスは音声認識をサポートしていません。";
 "voice.error.service_unavailable" = "音声認識サービスを利用できません。";
+"voice.error.locale_not_supported" = "この Mac は現在の音声認識言語に対応していません。";
 "voice.error.unavailable" = "音声認識を利用できません。";
 "agent.empty_after_tools" = "このターンでは %d 回のツール呼び出しを実行しました。最後の手順を完了するには続行を依頼してください。";
 "agent.empty_model_response" = "（モデルが空の内容を返しました）";
@@ -286,9 +290,11 @@
 "ask.banner.submit" = "送信";
 "ask.banner.cancel" = "キャンセル";
 "ask.banner.required_hint" = "各質問に1つずつ選択肢を選んで送信してください。";
-"tool.task.running_n" = "%1$d 個のサブエージェントを実行中（%2$@）";
-"tool.task.ran_n" = "%1$d 個のサブエージェントを実行しました（%2$@）";
-"tool.task.failed" = "サブエージェントが失敗しました（%@）";
+"tool.task.running_n" = "%1$d 個のサブエージェントを実行中 · %2$@";
+"tool.task.ran_n" = "%1$d 個のサブエージェントを実行しました · %2$@";
+"tool.task.failed" = "サブエージェントが失敗しました · %@";
 "tool.task.chip" = "サブエージェント";
 "tool.task.success_count" = "%d 件成功";
 "tool.task.failure_count" = "%d 件失敗";
+"tool.task.inner_tools" = "内部ツール";
+"tool.task.final_output" = "最終出力";

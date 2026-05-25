@@ -98,7 +98,18 @@ final class StoredToolRun {
     var status: String                      // "running" | "success" | "failed"
     var summary: String
     var output: String
+    /// JSON-encoded arguments to the tool. Optional because legacy
+    /// (pre-v5) rows don't have it. Used by the task-fanout UI to render
+    /// per-subagent task names and descriptions before the tool finishes —
+    /// the `summary` string is too compressed ("explore × 3") to hold
+    /// individual task labels.
+    var argumentsJSON: String?
     var session: StoredSession?
+
+    /// Per-subagent inner tool runs, populated when `toolName == "task"`.
+    /// Empty for every other tool. Cascade-deletes with the parent task.
+    @Relationship(deleteRule: .cascade, inverse: \StoredSubagentToolRun.parent)
+    var subagentRuns: [StoredSubagentToolRun] = []
 
     init(
         id: String,
@@ -107,6 +118,7 @@ final class StoredToolRun {
         status: String,
         summary: String,
         output: String,
+        argumentsJSON: String? = nil,
         session: StoredSession? = nil
     ) {
         self.id = id
@@ -115,7 +127,50 @@ final class StoredToolRun {
         self.status = status
         self.summary = summary
         self.output = output
+        self.argumentsJSON = argumentsJSON
         self.session = session
+    }
+}
+
+/// One inner tool invocation made by a subagent dispatched through the
+/// `task` tool. Each row stores which parallel task spawned it, the
+/// per-subagent task id, and the same shape (toolName/status/summary/output)
+/// as a regular `StoredToolRun` so the UI can render a nested timeline.
+@Model
+final class StoredSubagentToolRun {
+    @Attribute(.unique) var id: String       // SDK toolUseID (subagent-local)
+    var timestamp: Date
+    /// `task` tool task id (matches the `id` field on `SubagentTaskRequest`).
+    /// Multiple inner tool runs share the same `subagentTaskID` when one
+    /// subagent calls several tools.
+    var subagentTaskID: String
+    var agentID: String                      // e.g. "explore"
+    var toolName: String
+    var status: String                       // "running" | "success" | "failed"
+    var summary: String
+    var output: String
+    var parent: StoredToolRun?
+
+    init(
+        id: String,
+        timestamp: Date,
+        subagentTaskID: String,
+        agentID: String,
+        toolName: String,
+        status: String,
+        summary: String,
+        output: String,
+        parent: StoredToolRun? = nil
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.subagentTaskID = subagentTaskID
+        self.agentID = agentID
+        self.toolName = toolName
+        self.status = status
+        self.summary = summary
+        self.output = output
+        self.parent = parent
     }
 }
 

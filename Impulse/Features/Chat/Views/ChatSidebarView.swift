@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ChatSidebarView: View {
@@ -16,6 +17,7 @@ struct ChatSidebarView: View {
     var onAddProject: () -> Void
     var onBeginDraft: () -> Void
     var onAutoIntelligence: () -> Void
+    var onMail: () -> Void
     var onKanban: () -> Void
     var onBeginDraftInProject: (StoredProject) -> Void
     var onToggleProject: (StoredProject) -> Void
@@ -34,10 +36,11 @@ struct ChatSidebarView: View {
 
     @State private var hoveredButtonId: String?
     @State private var showUserPopover = false
+    private let chromeReservedTopPadding: CGFloat = 14
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     actionsSection
                     projectsSection
@@ -46,7 +49,7 @@ struct ChatSidebarView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 12)
+                .padding(.top, chromeReservedTopPadding)
                 .padding(.bottom, 14)
             }
 
@@ -76,6 +79,13 @@ struct ChatSidebarView: View {
                 systemImage: "sparkles",
                 isActive: route == .autoIntelligence,
                 action: onAutoIntelligence
+            )
+            actionRow(
+                id: "action.mail",
+                title: "sidebar.action.mail",
+                systemImage: "envelope",
+                isActive: route == .mail,
+                action: onMail
             )
             actionRow(
                 id: "action.kanban",
@@ -414,33 +424,11 @@ struct ChatSidebarView: View {
 
     @ViewBuilder
     private var avatarView: some View {
-        if let url = accountAvatarURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .failure, .empty:
-                    avatarFallback
-                @unknown default:
-                    avatarFallback
-                }
-            }
-            .clipShape(Circle())
-        } else {
-            avatarFallback
-        }
-    }
-
-    private var avatarFallback: some View {
-        Circle()
-            .fill(Color.gray.opacity(0.3))
-            .overlay {
-                Text(accountInitial)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-            }
+        AccountAvatarImage(
+            url: accountAvatarURL,
+            fallbackInitial: accountInitial,
+            fallbackFontSize: 14
+        )
     }
 
     private func previewText(for text: String) -> String {
@@ -509,6 +497,75 @@ private struct SessionStatusBadge: View {
             }
         }
         .frame(width: 10, height: 10)
+    }
+}
+
+struct AccountAvatarImage: View {
+    let url: URL?
+    let fallbackInitial: String
+    var fallbackFontSize: CGFloat
+
+    @State private var loadedImage: NSImage?
+    @State private var failedURL: URL?
+
+    var body: some View {
+        Group {
+            if let loadedImage {
+                Image(nsImage: loadedImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                fallback
+            }
+        }
+        .clipShape(Circle())
+        .task(id: url) {
+            await loadAvatar()
+        }
+    }
+
+    private var fallback: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay {
+                Text(fallbackInitial)
+                    .font(.system(size: fallbackFontSize, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+    }
+
+    private func loadAvatar() async {
+        guard let url else {
+            loadedImage = nil
+            failedURL = nil
+            return
+        }
+
+        if failedURL == url {
+            return
+        }
+
+        loadedImage = nil
+
+        for attempt in 0..<3 {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard !Task.isCancelled else { return }
+                if let image = NSImage(data: data) {
+                    loadedImage = image
+                    failedURL = nil
+                    return
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+            }
+
+            if attempt < 2 {
+                try? await Task.sleep(for: .milliseconds(450))
+            }
+        }
+
+        failedURL = url
     }
 }
 

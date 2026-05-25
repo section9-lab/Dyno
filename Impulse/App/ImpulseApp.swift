@@ -6,8 +6,9 @@
 //
 
 import SwiftUI
+import AppKit
 import SwiftData
-
+import Combine
 struct OnboardingLoginView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var authSession: AuthSession
@@ -494,15 +495,7 @@ private struct LoginWindowConfigurator: NSViewRepresentable {
 
     private func configure(window: NSWindow?) {
         guard let window else { return }
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        window.backgroundColor = .clear
-        // Without fullSizeContentView the titlebar area paints opaque white
-        // and the onboarding background image stops below it. Match the
-        // main window configurator so the image fills edge-to-edge.
-        window.titlebarSeparatorStyle = .none
-        window.styleMask.insert(.fullSizeContentView)
+        applyNativeWindowChrome(to: window)
     }
 }
 
@@ -523,13 +516,25 @@ private struct MainWindowConfigurator: NSViewRepresentable {
 
     private func configure(window: NSWindow?) {
         guard let window else { return }
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = false
-        window.backgroundColor = .clear
-        window.titlebarSeparatorStyle = .none
-        window.styleMask.insert(.fullSizeContentView)
+        applyNativeWindowChrome(to: window)
     }
+}
+
+@MainActor
+private func applyNativeWindowChrome(to window: NSWindow) {
+    window.styleMask.remove(.borderless)
+    window.styleMask.insert(.titled)
+    window.styleMask.insert(.closable)
+    window.styleMask.insert(.miniaturizable)
+    window.styleMask.insert(.resizable)
+    window.styleMask.insert(.fullSizeContentView)
+    window.titlebarAppearsTransparent = true
+    window.titleVisibility = .hidden
+    window.isMovableByWindowBackground = true
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.hasShadow = true
+    window.titlebarSeparatorStyle = .none
 }
 
 private struct PrivacyAgreementView: View {
@@ -609,6 +614,7 @@ private struct PrivacyAgreementView: View {
     }
 }
 
+
 @main
 struct ImpulseApp: App {
     var sharedModelContainer: ModelContainer = {
@@ -623,6 +629,7 @@ struct ImpulseApp: App {
             StoredSession.self,
             StoredMessage.self,
             StoredToolRun.self,
+            StoredSubagentToolRun.self,
             StoredCompactionSummary.self,
             StoredKanbanTask.self,
             StoredTodoSnapshot.self,
@@ -637,7 +644,7 @@ struct ImpulseApp: App {
     }()
 
     @StateObject private var agent = AgentManager.shared
-    @StateObject private var ocrManager = OCRManager()
+    @StateObject private var ocrManager = OCRManager.shared
     @StateObject private var localization = LocalizationManager.shared
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var authSession = AuthSession.shared
@@ -668,6 +675,9 @@ struct ImpulseApp: App {
                 .onChange(of: authSession.isSignedIn) { _, _ in
                     syncOCRCapture()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: GeneralSettingsStore.ocrEnabledDidChangeNotification)) { _ in
+                    syncOCRCapture()
+                }
         }
         .defaultSize(width: 1180, height: 820)
         .modelContainer(sharedModelContainer)
@@ -686,7 +696,7 @@ struct ImpulseApp: App {
     }
 
     private func syncOCRCapture() {
-        if authSession.isSignedIn {
+        if authSession.isSignedIn, GeneralSettingsStore.loadOCREnabled() {
             ocrManager.start(storageDirectory: agent.storageDirectoryURL)
         } else {
             ocrManager.stop()

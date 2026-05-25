@@ -102,6 +102,7 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "sidebar.action.new_chat" = "Nouvelle conversation";
 "sidebar.action.auto_intelligence" = "Intelligence proactive";
+"sidebar.action.mail" = "Courrier";
 "sidebar.action.kanban" = "Kanban";
 "sidebar.section.projects" = "Projets";
 "sidebar.section.projects.empty" = "Aucun projet pour l'instant";
@@ -109,6 +110,8 @@
 "sidebar.draft.unsent" = "Nouvelle conversation (non envoyée)";
 "sidebar.auto_intelligence.coming_soon.title" = "Intelligence proactive";
 "sidebar.auto_intelligence.coming_soon.subtitle" = "Bientôt disponible";
+"sidebar.mail.coming_soon.title" = "Courrier";
+"sidebar.mail.coming_soon.subtitle" = "Bientôt disponible";
 "chat.draft.title" = "Commencer une nouvelle conversation";
 "chat.draft.subtitle.no_project" = "Cette conversation apparaîtra dans Conversations après le premier message.";
 "chat.draft.subtitle.in_project" = "Envoyez le premier message pour créer la session dans ce projet.";
@@ -179,6 +182,7 @@
 "voice.error.recognition" = "Erreur de reconnaissance : %@";
 "voice.error.restricted" = "La reconnaissance vocale n'est pas prise en charge sur cet appareil.";
 "voice.error.service_unavailable" = "Le service de reconnaissance vocale est indisponible.";
+"voice.error.locale_not_supported" = "Ce Mac ne prend pas en charge la langue actuelle de reconnaissance vocale.";
 "voice.error.unavailable" = "La reconnaissance vocale est indisponible.";
 "agent.empty_after_tools" = "Ce tour a exécuté %d appels d'outils. Demandez-moi de continuer pour terminer la dernière étape.";
 "agent.empty_model_response" = "(Le modèle a renvoyé un contenu vide)";
@@ -286,9 +290,11 @@
 "ask.banner.submit" = "Envoyer";
 "ask.banner.cancel" = "Annuler";
 "ask.banner.required_hint" = "Choisissez une option par question avant d'envoyer.";
-"tool.task.running_n" = "Exécution de %1$d sous-agents (%2$@)";
-"tool.task.ran_n" = "%1$d sous-agents exécutés (%2$@)";
-"tool.task.failed" = "Lot de sous-agents en échec (%@)";
+"tool.task.running_n" = "Exécution de %1$d sous-agents · %2$@";
+"tool.task.ran_n" = "%1$d sous-agents exécutés · %2$@";
+"tool.task.failed" = "Lot de sous-agents en échec · %@";
 "tool.task.chip" = "Sous-agent";
 "tool.task.success_count" = "%d réussi(s)";
 "tool.task.failure_count" = "%d échoué(s)";
+"tool.task.inner_tools" = "Outils internes";
+"tool.task.final_output" = "Sortie finale";

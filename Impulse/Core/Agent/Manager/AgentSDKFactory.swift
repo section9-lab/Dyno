@@ -120,10 +120,17 @@ enum AgentSDKFactory {
             // typically configure the provider with `https://api.anthropic.com/v1`
             // already, and `AnthropicMessagesClient` appends the `messages` segment
             // itself, so we hand it the base unchanged.
+            //
+            // Extended thinking is opt-in by id pattern: Sonnet/Opus 4.x and the
+            // `*-thinking` variants emit `thinking` blocks only when the request
+            // carries `thinking.budget_tokens > 0`. Without this, Claude
+            // silently falls back to text-only and the UI's reasoning pane
+            // stays empty — which is exactly the bug we're fixing.
             return AnthropicMessagesClient(
                 baseURL: baseURL,
                 apiKey: apiKey,
-                timeout: 300
+                timeout: 300,
+                thinkingBudgetTokens: anthropicThinkingBudget(forModelId: config.modelId)
             )
         case .openAICompletions:
             return OpenAIChatCompletionsClient(
@@ -142,6 +149,41 @@ enum AgentSDKFactory {
                 timeout: 300
             )
         }
+    }
+
+    /// Returns the `thinking.budget_tokens` value to send for a given Claude
+    /// model id. Non-zero turns on extended thinking; zero disables it.
+    ///
+    /// Extended thinking is supported on Sonnet 3.7+, Sonnet 4.x, Opus 4.x,
+    /// and the explicit `*-thinking` variants. Haiku and the older 3.0/3.5
+    /// Sonnet/Opus generations don't support it — sending a budget there is
+    /// rejected by the API, which would silently break the chat. We match
+    /// conservatively by id prefix so unknown future models default to off.
+    ///
+    /// 8192 tokens is a balanced default: enough for the model to do real
+    /// chain-of-thought on multi-step coding tasks without burning a huge
+    /// reasoning bill on every short reply. Make this user-configurable
+    /// when we add a "reasoning depth" picker.
+    private static func anthropicThinkingBudget(forModelId modelId: String) -> Int {
+        let id = modelId.lowercased()
+        // Some relays namespace ids ("anthropic/claude-..."); strip the prefix
+        // so the pattern checks below still match.
+        let bare = id.split(separator: "/").last.map(String.init) ?? id
+
+        // Explicit "-thinking" variants always want it on.
+        if bare.contains("thinking") { return 8192 }
+
+        // Haiku never supports extended thinking.
+        if bare.contains("haiku") { return 0 }
+
+        // Sonnet 3.7 and 4.x, Opus 4.x — supported. The id shapes are
+        // `claude-sonnet-4-...`, `claude-opus-4-...`, `claude-3-7-sonnet-...`,
+        // plus the dotted variants (`claude-sonnet-4.5`). Match generously
+        // so vendor-renamed snapshots still hit.
+        if bare.contains("sonnet-4") || bare.contains("opus-4") { return 8192 }
+        if bare.contains("3-7-sonnet") || bare.contains("3.7-sonnet") { return 8192 }
+
+        return 0
     }
 
     private static let defaultSystemPrompt = """

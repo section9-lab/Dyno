@@ -102,6 +102,7 @@
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "sidebar.action.new_chat" = "Nueva conversación";
 "sidebar.action.auto_intelligence" = "Inteligencia proactiva";
+"sidebar.action.mail" = "Correo";
 "sidebar.action.kanban" = "Tablero";
 "sidebar.section.projects" = "Proyectos";
 "sidebar.section.projects.empty" = "Aún no hay proyectos";
@@ -109,6 +110,8 @@
 "sidebar.draft.unsent" = "Nueva conversación (sin enviar)";
 "sidebar.auto_intelligence.coming_soon.title" = "Inteligencia proactiva";
 "sidebar.auto_intelligence.coming_soon.subtitle" = "Próximamente";
+"sidebar.mail.coming_soon.title" = "Correo";
+"sidebar.mail.coming_soon.subtitle" = "Próximamente";
 "chat.draft.title" = "Iniciar una nueva conversación";
 "chat.draft.subtitle.no_project" = "Esta conversación aparecerá en Conversaciones tras el primer mensaje.";
 "chat.draft.subtitle.in_project" = "Envía el primer mensaje para crear la sesión en este proyecto.";
@@ -179,6 +182,7 @@
 "voice.error.recognition" = "Error de reconocimiento: %@";
 "voice.error.restricted" = "El reconocimiento de voz no es compatible con este dispositivo.";
 "voice.error.service_unavailable" = "El servicio de reconocimiento de voz no está disponible.";
+"voice.error.locale_not_supported" = "Este Mac no admite el idioma actual de reconocimiento de voz.";
 "voice.error.unavailable" = "El reconocimiento de voz no está disponible.";
 "agent.empty_after_tools" = "Este turno ejecutó %d llamadas a herramientas. Pídeme que continúe para terminar el último paso.";
 "agent.empty_model_response" = "(El modelo devolvió contenido vacío)";
@@ -286,9 +290,11 @@
 "ask.banner.submit" = "Enviar";
 "ask.banner.cancel" = "Cancelar";
 "ask.banner.required_hint" = "Elige una opción para cada pregunta antes de enviar.";
-"tool.task.running_n" = "Ejecutando %1$d subagentes (%2$@)";
-"tool.task.ran_n" = "%1$d subagentes ejecutados (%2$@)";
-"tool.task.failed" = "El lote de subagentes falló (%@)";
+"tool.task.running_n" = "Ejecutando %1$d subagentes · %2$@";
+"tool.task.ran_n" = "%1$d subagentes ejecutados · %2$@";
+"tool.task.failed" = "El lote de subagentes falló · %@";
 "tool.task.chip" = "Subagente";
 "tool.task.success_count" = "%d con éxito";
 "tool.task.failure_count" = "%d con fallo";
+"tool.task.inner_tools" = "Herramientas internas";
+"tool.task.final_output" = "Salida final";

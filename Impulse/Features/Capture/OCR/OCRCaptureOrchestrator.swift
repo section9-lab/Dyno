@@ -25,6 +25,7 @@ final class OCRCaptureOrchestrator {
 
     private var isRunning = false
     private var isProcessing = false
+    private var processingTask: Task<Void, Never>?
 
     var onStatusChanged: ((Status) -> Void)?
     var onOCRCompleted: ((String, URL) -> Void)?
@@ -50,24 +51,37 @@ final class OCRCaptureOrchestrator {
     }
 
     func stop() {
+        processingTask?.cancel()
+        processingTask = nil
         idleWatcher.stop()
         isRunning = false
     }
 
     private func handleIdle() {
-        guard !isProcessing else { return }
+        guard isRunning, !isProcessing else { return }
         isProcessing = true
 
-        Task { @MainActor in
-            defer { isProcessing = false }
+        processingTask = Task { @MainActor in
+            defer {
+                isProcessing = false
+                processingTask = nil
+            }
 
             do {
+                try Task.checkCancellation()
+                guard isRunning else { return }
+
                 onStatusChanged?(.capturing)
                 // 后台 OCR 不应在应用启动后隐式触发系统录屏授权弹窗。
                 let image = try await screenCapture.captureScreen(promptIfNeeded: false)
+                try Task.checkCancellation()
+                guard isRunning else { return }
+
                 let timestamp = makeTimestamp()
                 let screenshotURL = try saveScreenshot(image, timestamp: timestamp)
                 print("📸 [OCR] 原始截屏已保存: \(screenshotURL.path)")
+                try Task.checkCancellation()
+                guard isRunning else { return }
 
                 // --- 视觉指纹检测 ---
                 let currentFingerprint = createFingerprint(from: image)
@@ -83,6 +97,9 @@ final class OCRCaptureOrchestrator {
                 onStatusChanged?(.recognizing)
 
                 let text = try await ocrService.recognizeText(from: screenshotURL)
+                try Task.checkCancellation()
+                guard isRunning else { return }
+
                 let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 guard !trimmedText.isEmpty else {
@@ -114,6 +131,8 @@ final class OCRCaptureOrchestrator {
 
                 onOCRCompleted?(trimmedText, savedURL)
 
+            } catch is CancellationError {
+                onStatusChanged?(.skipped(reason: "OCR 已停止"))
             } catch ScreenCaptureService.CaptureError.permissionDenied {
                 print("📸 [OCR] 缺少录屏权限，跳过本次 OCR（本次启动不再重复弹窗）")
                 onStatusChanged?(.skipped(reason: "缺少录屏权限"))

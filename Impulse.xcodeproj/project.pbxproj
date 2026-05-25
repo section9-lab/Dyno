@@ -10,6 +10,7 @@
 		00C329194F6CA7F8190F389B /* DiagnosticsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD100608B3FEA3586998F61C /* DiagnosticsSettingsView.swift */; };
 		0EC3EF736BAE2062A2FFD9CB /* OCRCaptureOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1551F3E20889B3DBC5F6B768 /* OCRCaptureOrchestrator.swift */; };
 		12EBA742ADB66D4F010BAF97 /* VisionOCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8CAEC4FA3854B1F8556325 /* VisionOCRService.swift */; };
+		1561997A343E9C95F47CEB05 /* GeneralSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A5C430EF59471928C4B415 /* GeneralSettingsStoreTests.swift */; };
 		175D57594E0C4CF2B311FDF8 /* OAuthWebAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F32252C936ECDF875573B5 /* OAuthWebAuthenticator.swift */; };
 		196685E351C0DA19DF8E2D66 /* UserAlertBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C11927FC53B6722DBF193D8 /* UserAlertBanner.swift */; };
 		1B4EFC843CD8CBB84AC22E3E /* MessageComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C668B8339D1D1642F93040A9 /* MessageComposer.swift */; };
@@ -118,6 +119,7 @@
 		26F530FDD95561A77BF8A664 /* EmailOTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailOTPClient.swift; sourceTree = "<group>"; };
 		2902AE7A5C18CC0CB4FFDC75 /* SessionAgentPoolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAgentPoolTests.swift; sourceTree = "<group>"; };
 		291BE9E4DDC2A1749CC56955 /* SandboxSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxSettingsViewModel.swift; sourceTree = "<group>"; };
+		29A5C430EF59471928C4B415 /* GeneralSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsStoreTests.swift; sourceTree = "<group>"; };
 		2B6DAED73C11A505EA95DF0F /* SandboxAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxAccessManager.swift; sourceTree = "<group>"; };
 		34FCDE7605F82FA9A4A5820A /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
 		37E15902F425AF0C6AEDE511 /* UserAccountPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAccountPopover.swift; sourceTree = "<group>"; };
@@ -258,6 +260,7 @@
 			children = (
 				81CAE722F05A75BF3F571B06 /* AgentConfigStoreTests.swift */,
 				E2ED1959311C2A4333A4861F /* EmailOTPValidationTests.swift */,
+				29A5C430EF59471928C4B415 /* GeneralSettingsStoreTests.swift */,
 				626B740D538AC157B3800E61 /* OTPInputProcessorTests.swift */,
 				2902AE7A5C18CC0CB4FFDC75 /* SessionAgentPoolTests.swift */,
 				FDB594959D58ACEE21783F5C /* StoreBackupManagerTests.swift */,
@@ -809,6 +812,7 @@
 			files = (
 				F59D9517D4F20DACE455CE05 /* AgentConfigStoreTests.swift in Sources */,
 				AD68DDC421476714E9AE8602 /* EmailOTPValidationTests.swift in Sources */,
+				1561997A343E9C95F47CEB05 /* GeneralSettingsStoreTests.swift in Sources */,
 				5F4A2EC143FDC8F8A6EFDD02 /* OTPInputProcessorTests.swift in Sources */,
 				44EA094552C26229E403A550 /* SessionAgentPoolTests.swift in Sources */,
 				625B85CC824A13B3D78D8FD2 /* StoreBackupManagerTests.swift in Sources */,
@@ -988,7 +992,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1066,7 +1070,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -18,20 +18,17 @@ struct InputBar: View {
     var onOpenSettings: () -> Void
     /// Shell-style input history. Most-recent first. The parent builds this
     /// from stored user messages in the active session; the InputBar just
-    /// relays it to the underlying NSTextView.
+    /// relays it to the input composer.
     var inputHistory: [String] = []
 
     @StateObject private var speechManager = SpeechRecognitionManager()
     @State private var micPulse = false
-    @State private var inputHeight: CGFloat = 38
     @State private var isAttachmentButtonHovered = false
-    @State private var optionKeyMonitor: Any?
-    @State private var hasMarkedText: Bool = false
+    @State private var voiceShortcutMonitor: Any?
     @State private var showContextPopover: Bool = false
     @State private var isCompacting: Bool = false
+    @State private var inputFocusRequest: Int = 0
 
-    private let minimumInputHeight: CGFloat = 38
-    private let maximumInputHeight: CGFloat = 114
     private let controlButtonSize: CGFloat = 32
     private let inputCornerRadius: CGFloat = 22
     private let trayCornerRadius: CGFloat = 22
@@ -54,32 +51,24 @@ struct InputBar: View {
             VStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        // Placeholder is always in the tree, hidden by opacity,
-                        // so the ZStack's child list stays stable. A conditional
-                        // (`if inputText.isEmpty { Text }`) would invalidate the
-                        // structure on the first keystroke and force the
-                        // NSTextView through a layout pass that eats the first
-                        // character.
                         Text(L10n.tr("chat.send_message_placeholder"))
                             .font(.system(size: 15, weight: .regular))
                             .foregroundColor(.secondary)
                             .padding(.top, 1)
-                            .opacity(inputText.isEmpty && !hasMarkedText ? 1 : 0)
+                            .opacity(inputText.isEmpty ? 1 : 0)
                             .allowsHitTesting(false)
 
                         MultilineMessageInput(
                             text: $inputText,
-                            height: $inputHeight,
-                            minimumHeight: minimumInputHeight,
-                            maximumHeight: maximumInputHeight,
                             canSubmit: canSend,
                             onSubmit: onSend,
-                            hasMarkedText: $hasMarkedText,
+                            focusRequest: inputFocusRequest,
                             historyProvider: { inputHistory }
                         )
                     }
-                    .frame(height: inputHeight, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, minHeight: 38, alignment: .topLeading)
                 }
+                .frame(maxWidth: .infinity)
 
                 HStack(spacing: 8) {
                     Button(action: {}) {
@@ -101,7 +90,11 @@ struct InputBar: View {
 
                     Spacer()
 
-                    ChatModelSwitcher(agent: agent, onOpenSettings: onOpenSettings)
+                    ChatModelSwitcher(
+                        agent: agent,
+                        onOpenSettings: onOpenSettings,
+                        onRequestInputFocus: requestInputFocus
+                    )
 
                     micButton
 
@@ -132,6 +125,10 @@ struct InputBar: View {
                     .buttonStyle(.plain)
                     .disabled(!isResponding && !canSend)
                 }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                requestInputFocus()
             }
             .padding(.horizontal, 12)
             .padding(.top, 12)
@@ -241,23 +238,23 @@ struct InputBar: View {
 
     private var micButton: some View {
         Circle()
-            .fill(speechManager.isListening ? Color.red : controlButtonBackground)
+            .fill(speechManager.isListening ? Color.red : (speechManager.isRewriting ? Color.accentColor : controlButtonBackground))
             .frame(width: controlButtonSize, height: controlButtonSize)
             .overlay(
-                Image(systemName: speechManager.isListening ? "waveform" : "mic")
+                Image(systemName: speechManager.isListening ? "waveform" : (speechManager.isRewriting ? "sparkles" : "mic"))
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(speechManager.isListening ? .white : controlIconColor)
-                    .symbolEffect(.variableColor.iterative, isActive: speechManager.isListening)
+                    .foregroundColor((speechManager.isListening || speechManager.isRewriting) ? .white : controlIconColor)
+                    .symbolEffect(.variableColor.iterative, isActive: speechManager.isListening || speechManager.isRewriting)
             )
             .scaleEffect(micPulse ? 1.08 : 1.0)
             .animation(
-                speechManager.isListening
+                (speechManager.isListening || speechManager.isRewriting)
                     ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true)
                     : .default,
                 value: micPulse
             )
-            .onChange(of: speechManager.isListening) { _, listening in
-                micPulse = listening
+            .onChange(of: speechManager.isListening || speechManager.isRewriting) { _, active in
+                micPulse = active
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -271,6 +268,10 @@ struct InputBar: View {
     }
 
     // MARK: - Voice Input
+
+    private func requestInputFocus() {
+        inputFocusRequest += 1
+    }
 
     private func startVoiceInput() {
         speechManager.startListening(currentText: inputText)
@@ -331,14 +332,15 @@ struct InputBar: View {
         colorScheme == .dark ? Color.white.opacity(0.56) : Color.gray.opacity(0.9)
     }
 
-    // MARK: - Option Key Monitor
+    // MARK: - Voice Shortcut Monitor
 
     private func installOptionKeyMonitor() {
-        guard optionKeyMonitor == nil else { return }
-        optionKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            let optionPressed = event.modifierFlags.contains(.option)
+        guard voiceShortcutMonitor == nil else { return }
+        voiceShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            let shortcut = VoiceShortcut(storedValue: GeneralSettingsStore.loadVoiceShortcut())
+            let shortcutPressed = shortcut.isPressed(in: event.modifierFlags)
             Task { @MainActor in
-                if optionPressed {
+                if shortcutPressed {
                     startVoiceInput()
                 } else {
                     stopVoiceInput()
@@ -349,10 +351,11 @@ struct InputBar: View {
     }
 
     private func removeOptionKeyMonitor() {
-        if let monitor = optionKeyMonitor {
+        if let monitor = voiceShortcutMonitor {
             NSEvent.removeMonitor(monitor)
-            optionKeyMonitor = nil
+            voiceShortcutMonitor = nil
         }
+        stopVoiceInput()
     }
 }
 
@@ -372,4 +375,3 @@ private struct HoverCircleButtonStyle: ButtonStyle {
             .contentShape(Circle())
     }
 }
-

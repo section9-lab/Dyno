@@ -106,6 +106,7 @@
 "chat.add_project" = "Add Project";
 "sidebar.action.new_chat" = "New Chat";
 "sidebar.action.auto_intelligence" = "Proactive";
+"sidebar.action.mail" = "Mail";
 "sidebar.action.kanban" = "Kanban";
 "sidebar.section.projects" = "Projects";
 "sidebar.section.projects.empty" = "No projects yet";
@@ -113,6 +114,8 @@
 "sidebar.draft.unsent" = "New chat (unsent)";
 "sidebar.auto_intelligence.coming_soon.title" = "Proactive Intelligence";
 "sidebar.auto_intelligence.coming_soon.subtitle" = "Coming soon";
+"sidebar.mail.coming_soon.title" = "Mail";
+"sidebar.mail.coming_soon.subtitle" = "Coming soon";
 "chat.draft.title" = "Start a new conversation";
 "chat.draft.subtitle.no_project" = "This chat will land in Conversations once you send the first message.";
 "chat.draft.subtitle.in_project" = "Send your first message to create the session in this project.";
@@ -191,6 +194,7 @@
 "voice.error.recognition" = "Recognition error: %@";
 "voice.error.restricted" = "Speech recognition is not supported on this device.";
 "voice.error.service_unavailable" = "Speech recognition service is unavailable.";
+"voice.error.locale_not_supported" = "This speech recognition language is not supported on this Mac.";
 "voice.error.unavailable" = "Speech recognition is unavailable.";
 
 "agent.empty_after_tools" = "This turn executed %d tool calls. Please ask me to continue so I can finish the final step.";
@@ -292,6 +296,10 @@
 /* ── productivity tools (todo / ask / task) ── */
 "todo.indicator.help" = "Todos: %1$d/%2$d";
 "todo.indicator.help_with_active" = "Todos: %1$d/%2$d — %3$@";
+"todo.popover.title" = "Progress";
+"todo.popover.project_files.empty" = "No files yet.";
+"todo.popover.project_files.no_project" = "No project selected.";
+"todo.popover.project_files.error" = "Cannot read project folder.";
 "ask.banner.title" = "Agent question";
 "ask.banner.recommended" = "Recommended";
 "ask.banner.other" = "Other (type your own)";
@@ -299,9 +307,14 @@
 "ask.banner.submit" = "Submit";
 "ask.banner.cancel" = "Cancel";
 "ask.banner.required_hint" = "Pick one option per question to submit.";
-"tool.task.running_n" = "Running %1$d subagents (%2$@)";
-"tool.task.ran_n" = "Ran %1$d subagents (%2$@)";
-"tool.task.failed" = "Subagent batch failed (%@)";
+"tool.task.running_n" = "Running %1$d subagents · %2$@";
+"tool.task.ran_n" = "Ran %1$d subagents · %2$@";
+"tool.task.failed" = "Subagent batch failed · %@";
 "tool.task.chip" = "Subagent";
 "tool.task.success_count" = "%d succeeded";
 "tool.task.failure_count" = "%d failed";
+"tool.task.inner_tools" = "Inner tools";
+"tool.task.final_output" = "Final output";
+"tool.todo_write.running" = "Updating todo list";
+"tool.todo_write.success" = "Updated todo list";
+"tool.todo_write.failed" = "Todo list update failed";

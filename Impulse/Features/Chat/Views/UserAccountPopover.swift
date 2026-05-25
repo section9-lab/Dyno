@@ -80,33 +80,11 @@ struct UserAccountPopover: View {
 
     @ViewBuilder
     private var avatarView: some View {
-        if let url = accountAvatarURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .failure, .empty:
-                    avatarFallback
-                @unknown default:
-                    avatarFallback
-                }
-            }
-            .clipShape(Circle())
-        } else {
-            avatarFallback
-        }
-    }
-
-    private var avatarFallback: some View {
-        Circle()
-            .fill(Color.gray.opacity(0.3))
-            .overlay {
-                Text(accountInitial)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-            }
+        AccountAvatarImage(
+            url: accountAvatarURL,
+            fallbackInitial: accountInitial,
+            fallbackFontSize: 18
+        )
     }
 }
 

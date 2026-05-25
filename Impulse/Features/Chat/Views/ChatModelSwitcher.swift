@@ -7,14 +7,20 @@ struct ChatModelSwitcher: View {
     @ObservedObject var agent: AgentManager
     @ObservedObject var registry: ModelRegistry
     var onOpenSettings: () -> Void
+    var onRequestInputFocus: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isPopoverShown = false
 
-    init(agent: AgentManager, onOpenSettings: @escaping () -> Void) {
+    init(
+        agent: AgentManager,
+        onOpenSettings: @escaping () -> Void,
+        onRequestInputFocus: @escaping () -> Void = {}
+    ) {
         self.agent = agent
         self.registry = agent.registry
         self.onOpenSettings = onOpenSettings
+        self.onRequestInputFocus = onRequestInputFocus
     }
 
     private var favorites: [(provider: Provider, model: ModelInfo)] {
@@ -152,7 +158,15 @@ struct ChatModelSwitcher: View {
             modelId: model.id,
             apiKind: provider.effectiveApiKind(for: model)
         )
-        Task { await agent.applyConfig(newConfig) }
+        DispatchQueue.main.async {
+            onRequestInputFocus()
+        }
+        Task {
+            await agent.applyConfig(newConfig)
+            await MainActor.run {
+                onRequestInputFocus()
+            }
+        }
     }
 
     private var chipBackground: Color {

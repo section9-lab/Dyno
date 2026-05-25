@@ -18,6 +18,8 @@ struct TypingIndicatorView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var animating = false
+    private let dotSize: CGFloat = 9
+    private let dotTravel: CGFloat = 2.5
 
     var body: some View {
         HStack {
@@ -25,11 +27,12 @@ struct TypingIndicatorView: View {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
                         .fill(Color.gray.opacity(0.6))
-                        .frame(width: 9, height: 9)
-                        .scaleEffect(animating ? 1.0 : 0.5)
-                        .opacity(animating ? 1.0 : 0.3)
+                        .frame(width: dotSize, height: dotSize)
+                        .scaleEffect(animating ? 1.0 : 0.82)
+                        .offset(y: animating ? -dotTravel : dotTravel)
+                        .opacity(animating ? 0.95 : 0.45)
                         .animation(
-                            .easeInOut(duration: 0.5)
+                            .easeInOut(duration: 0.55)
                                 .repeatForever(autoreverses: true)
                                 .delay(Double(index) * 0.15),
                             value: animating
@@ -41,6 +44,7 @@ struct TypingIndicatorView: View {
             .background(
                 Capsule().fill(colorScheme == .dark ? Color.white.opacity(0.07) : Color.white.opacity(0.55))
             )
+            .clipShape(Capsule())
             Spacer()
         }
         .padding(.horizontal, 56)
@@ -227,14 +231,22 @@ struct ToolExecutionMessageView: View {
     var isActive: Bool = true
 
     var body: some View {
-        ToolTimelineRow(
-            toolName: execution.toolName,
-            status: execution.status,
-            summary: execution.summary,
-            output: execution.output,
-            isLast: isLast,
-            isActive: isActive
-        )
+        if execution.toolName == "task" {
+            TaskFanoutRow(
+                model: TaskFanoutModelBuilder.fromLive(execution),
+                isLast: isLast,
+                isActive: isActive
+            )
+        } else {
+            ToolTimelineRow(
+                toolName: execution.toolName,
+                status: execution.status,
+                summary: execution.summary,
+                output: execution.output,
+                isLast: isLast,
+                isActive: isActive
+            )
+        }
     }
 }
 
@@ -243,126 +255,31 @@ struct PersistedToolExecutionMessageView: View {
     var isLast: Bool = true
 
     var body: some View {
-        ToolTimelineRow(
-            toolName: run.toolName,
-            status: run.status == "success" ? .success : (run.status == "failed" ? .failed : .running),
-            summary: run.summary,
-            output: run.output,
-            isLast: isLast,
-            isActive: false
-        )
+        if run.toolName == "task" {
+            TaskFanoutRow(
+                model: TaskFanoutModelBuilder.fromPersisted(run),
+                isLast: isLast,
+                isActive: false
+            )
+        } else {
+            ToolTimelineRow(
+                toolName: run.toolName,
+                status: run.status == "success" ? .success : (run.status == "failed" ? .failed : .running),
+                summary: run.summary,
+                output: run.output,
+                isLast: isLast,
+                isActive: false
+            )
+        }
     }
 }
 
-// MARK: - Group view (collapsible run of tool executions)
+// MARK: - Single persisted tool execution row
 
-struct ToolExecutionGroup: Identifiable {
-    let id: String
-    let runs: [StoredToolRun]
-}
-
-/// Renders a contiguous run of persisted tool executions as a collapsible
-/// timeline. Once finished, the user sees a one-line summary header that
-/// can be re-expanded.
-struct ToolExecutionGroupView: View {
-    let group: ToolExecutionGroup
-
-    @State private var isExpanded: Bool = true
-    @State private var hasAutoCollapsed: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(group.runs.enumerated()), id: \.element.id) { index, run in
-                        PersistedToolExecutionMessageView(
-                            run: run,
-                            // Last row keeps its connector so the rail flows
-                            // into the Done marker that follows.
-                            isLast: false
-                        )
-                    }
-
-                    DoneTimelineMarker()
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .onAppear {
-            if !hasAutoCollapsed {
-                isExpanded = false
-                hasAutoCollapsed = true
-            }
-        }
-    }
-
-    private var header: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.toggle()
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(summaryText)
-                    .chatFont(.body)
-                    .foregroundColor(.secondary)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary.opacity(0.6))
-                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
-
-                Spacer()
-            }
-            .padding(.horizontal, 56)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var summaryText: String {
-        let count = group.runs.count
-        let bashCount = group.runs.filter { $0.toolName == "bash" }.count
-        let fileCount = group.runs.filter { ["read", "write", "edit"].contains($0.toolName) }.count
-
-        if bashCount > 0 && fileCount > 0 {
-            return "Ran \(bashCount) command\(bashCount == 1 ? "" : "s"), touched \(fileCount) file\(fileCount == 1 ? "" : "s")"
-        }
-        if bashCount > 0 {
-            return "Ran \(bashCount) command\(bashCount == 1 ? "" : "s")"
-        }
-        if fileCount > 0 {
-            return "Touched \(fileCount) file\(fileCount == 1 ? "" : "s")"
-        }
-        return "\(count) tool call\(count == 1 ? "" : "s")"
-    }
-}
-
-/// Terminal cap for a tool-call timeline. Mirrors the original
-/// `doneFooter` look (small SF Symbol + bold label, indented to line
-/// up with the rail) but is a reusable component so it can be dropped
-/// in wherever a group of timeline rows ends.
-private struct DoneTimelineMarker: View {
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundColor(.primary.opacity(0.75))
-                .frame(width: 22, height: 22)
-
-            Text("chat.tool_group.done")
-                .chatFont(.body, weight: .semibold)
-                .foregroundColor(.primary.opacity(0.92))
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 56)
-        .padding(.top, 4)
-    }
-}
+// Persisted tool runs are rendered as individual rows in the chat scroll
+// area, in their original emission order. Each row owns its own status
+// icon (success / failed / running) so the per-tool "done" state is
+// visible immediately without a group-level summary card.
 
 private struct ToolTimelineRow: View {
     let toolName: String
@@ -476,6 +393,7 @@ private struct ToolTimelineRow: View {
         case "edit": return "pencil.line"
         case "bash": return "terminal"
         case "task": return "square.stack.3d.up"
+        case "todo_write": return "checklist"
         default: return "wrench.and.screwdriver"
         }
     }
@@ -517,6 +435,12 @@ private struct ToolTimelineRow: View {
                 return L10n.tr("tool.task.ran_n", count, agentID)
             case .failed:
                 return L10n.tr("tool.task.failed", agentID)
+            }
+        case "todo_write":
+            switch status {
+            case .running: return L10n.tr("tool.todo_write.running")
+            case .success: return L10n.tr("tool.todo_write.success")
+            case .failed:  return L10n.tr("tool.todo_write.failed")
             }
         default:
             return toolName.capitalized
@@ -599,11 +523,7 @@ private struct ToolDetailPanel: View {
             // Output
             if status != .running {
                 Divider().opacity(0.4)
-                if toolName == "task" {
-                    taskOutputSection
-                } else {
-                    outputSection
-                }
+                outputSection
             } else {
                 Text(L10n.tr("tool.no_output"))
                     .chatFont(.footnote)
@@ -617,40 +537,6 @@ private struct ToolDetailPanel: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
         )
-    }
-
-    /// Rendering for `task` tool output. The SDK joins per-task summaries
-    /// as `## Task <id> (<agent>) — success/failed\nsteps: N\n...` blocks;
-    /// we split and render them as individual cards so successes vs.
-    /// failures are easy to scan.
-    @ViewBuilder
-    private var taskOutputSection: some View {
-        let blocks = TaskOutputParser.parse(output)
-        if blocks.isEmpty {
-            outputSection
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                let succeeded = blocks.filter { $0.success }.count
-                let failed = blocks.count - succeeded
-                HStack(spacing: 8) {
-                    if succeeded > 0 {
-                        Label(L10n.tr("tool.task.success_count", succeeded), systemImage: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .chatFont(.footnote, weight: .medium)
-                    }
-                    if failed > 0 {
-                        Label(L10n.tr("tool.task.failure_count", failed), systemImage: "xmark.octagon.fill")
-                            .foregroundColor(.red)
-                            .chatFont(.footnote, weight: .medium)
-                    }
-                    Spacer()
-                }
-
-                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                    TaskOutputCard(block: block)
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -861,5 +747,503 @@ struct TaskOutputCard: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.secondary.opacity(0.06))
         )
+    }
+}
+
+// MARK: - Task fanout row (parallel subagents)
+
+/// One inner tool call inside a single subagent — used by both the live
+/// (in-flight) and persisted (reload) rendering paths.
+struct TaskFanoutInnerTool: Identifiable, Equatable {
+    let id: String
+    let toolName: String
+    let status: AgentToolExecutionStatus
+    let summary: String
+    let output: String
+}
+
+/// One parallel subagent task within a fanout. The merged shape both the
+/// live `AgentToolExecution.subagentLive` and the persisted
+/// `argumentsJSON` + `StoredSubagentToolRun` + parsed output blocks get
+/// flattened into.
+struct TaskFanoutTaskEntry: Identifiable, Equatable {
+    let id: String
+    let description: String
+    let agentID: String
+    let status: AgentToolExecutionStatus
+    let steps: Int
+    let output: String
+    let error: String?
+    let innerTools: [TaskFanoutInnerTool]
+}
+
+/// Top-level model handed to `TaskFanoutRow`. Carries the agent label,
+/// an aggregate status for the whole batch, and the per-task entries
+/// in their original order.
+struct TaskFanoutModel: Equatable {
+    let agentLabel: String
+    let overallStatus: AgentToolExecutionStatus
+    let entries: [TaskFanoutTaskEntry]
+}
+
+/// Builds a `TaskFanoutModel` from either a live `AgentToolExecution`
+/// or a reloaded `StoredToolRun`. The same row renderer consumes either.
+enum TaskFanoutModelBuilder {
+    /// Live path: read straight off `AgentToolExecution.subagentLive`.
+    /// Entries may be partial (no output yet) while the batch is running.
+    static func fromLive(_ exec: AgentToolExecution) -> TaskFanoutModel {
+        let entries: [TaskFanoutTaskEntry] = exec.subagentLive.map { task in
+            TaskFanoutTaskEntry(
+                id: task.id,
+                description: task.description,
+                agentID: task.agentID,
+                status: task.status,
+                steps: task.steps,
+                output: task.output,
+                error: task.error,
+                innerTools: task.innerTools.map {
+                    TaskFanoutInnerTool(
+                        id: $0.id,
+                        toolName: $0.toolName,
+                        status: $0.status,
+                        summary: $0.summary,
+                        output: $0.output
+                    )
+                }
+            )
+        }
+        let agentLabel = entries.first?.agentID ?? agentLabelFromSummary(exec.summary)
+        return TaskFanoutModel(
+            agentLabel: agentLabel,
+            overallStatus: exec.status,
+            entries: entries
+        )
+    }
+
+    /// Persisted path: merge per-task descriptions from `argumentsJSON`,
+    /// inner tool runs from `StoredSubagentToolRun`s, and final status
+    /// from `TaskOutputParser` blocks. Any data we can't recover falls
+    /// back to neutral defaults so the row still renders.
+    static func fromPersisted(_ run: StoredToolRun) -> TaskFanoutModel {
+        // Step 1: parse arguments JSON for per-task description + agent.
+        let (argAgent, argTasks) = parseArguments(run.argumentsJSON)
+        // Step 2: parse final output for per-task success/failure/steps.
+        let blocks = TaskOutputParser.parse(run.output)
+        let blocksByID: [String: TaskOutputBlock] = Dictionary(
+            uniqueKeysWithValues: blocks.map { ($0.id, $0) }
+        )
+        // Step 3: group inner tool runs by their subagentTaskID.
+        let innerByTask: [String: [StoredSubagentToolRun]] = Dictionary(
+            grouping: run.subagentRuns.sorted { $0.timestamp < $1.timestamp },
+            by: { $0.subagentTaskID }
+        )
+
+        // Determine the iteration order. Prefer arguments-JSON order (matches
+        // what the model dispatched); fall back to output blocks; fall back
+        // to inner-run grouping keys.
+        let orderedIDs: [String]
+        if !argTasks.isEmpty {
+            orderedIDs = argTasks.map(\.id)
+        } else if !blocks.isEmpty {
+            orderedIDs = blocks.map(\.id)
+        } else {
+            orderedIDs = Array(innerByTask.keys)
+        }
+
+        var entries: [TaskFanoutTaskEntry] = []
+        for id in orderedIDs {
+            let description = argTasks.first(where: { $0.id == id })?.description ?? ""
+            let block = blocksByID[id]
+            let agentID = block?.agentID ?? argAgent ?? ""
+            let status: AgentToolExecutionStatus
+            if let block {
+                status = block.success ? .success : .failed
+            } else {
+                // No final block yet — treat as running (this row was
+                // persisted mid-flight, which currently shouldn't happen
+                // because persistence runs after the turn finishes).
+                status = .running
+            }
+            let inner = (innerByTask[id] ?? []).map { row in
+                TaskFanoutInnerTool(
+                    id: row.id,
+                    toolName: row.toolName,
+                    status: AgentToolExecutionStatus(rawValue: row.status) ?? .success,
+                    summary: row.summary,
+                    output: row.output
+                )
+            }
+            entries.append(TaskFanoutTaskEntry(
+                id: id,
+                description: description,
+                agentID: agentID,
+                status: status,
+                steps: block?.steps ?? 0,
+                output: block?.output ?? "",
+                error: block?.error,
+                innerTools: inner
+            ))
+        }
+
+        let overall: AgentToolExecutionStatus
+        switch run.status {
+        case "success": overall = .success
+        case "failed":  overall = .failed
+        default:        overall = .running
+        }
+        let agentLabel = argAgent ?? entries.first?.agentID ?? agentLabelFromSummary(run.summary)
+        return TaskFanoutModel(
+            agentLabel: agentLabel,
+            overallStatus: overall,
+            entries: entries
+        )
+    }
+
+    private struct ArgTask: Equatable {
+        let id: String
+        let description: String
+    }
+
+    /// Extract `agent` + the per-task `[{id, description}]` list from the
+    /// JSON arguments captured at `toolStarted` time. Returns `(nil, [])`
+    /// for legacy rows that pre-date the `argumentsJSON` field.
+    private static func parseArguments(_ argumentsJSON: String?) -> (String?, [ArgTask]) {
+        guard let argumentsJSON,
+              let data = argumentsJSON.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return (nil, []) }
+        let agent = obj["agent"] as? String
+        let rawTasks = (obj["tasks"] as? [[String: Any]]) ?? []
+        let tasks = rawTasks.compactMap { dict -> ArgTask? in
+            guard let id = dict["id"] as? String, !id.isEmpty else { return nil }
+            let description = (dict["description"] as? String) ?? ""
+            return ArgTask(id: id, description: description)
+        }
+        return (agent, tasks)
+    }
+
+    /// Fallback used when `argumentsJSON` is missing: extract the agent
+    /// name out of the `"explore × 3"` summary string written by
+    /// `SessionAgent.buildToolSummary`.
+    private static func agentLabelFromSummary(_ summary: String) -> String {
+        if let xIdx = summary.range(of: " × ") {
+            return String(summary[..<xIdx.lowerBound])
+        }
+        return summary
+    }
+}
+
+/// Collapsible row for a `task` tool call. The header shows `N
+/// subagents · <agent>` plus an aggregate status icon; expanding it
+/// reveals one row per parallel subagent. Each subagent row is itself
+/// independently collapsible — the inner tool timeline and final
+/// output only appear when the user opts in. This keeps the chat
+/// scrollback compact when fanouts are common.
+struct TaskFanoutRow: View {
+    let model: TaskFanoutModel
+    let isLast: Bool
+    let isActive: Bool
+
+    @State private var isExpanded = false
+    @State private var pulseOn = false
+
+    private var shouldPulse: Bool {
+        model.overallStatus == .running && isActive
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Left rail: keeps visual continuity with regular tool rows.
+            VStack(spacing: 0) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(iconColor)
+                    .frame(width: 22, height: 22)
+                if !isLast {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.25))
+                        .frame(width: 1)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(headerText)
+                            .chatFont(.body)
+                            .foregroundColor(.primary.opacity(0.92))
+                            .opacity(shouldPulse && pulseOn ? 0.45 : 1.0)
+
+                        statusBadges
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(.secondary.opacity(0.6))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(model.entries) { entry in
+                            TaskSubagentRow(entry: entry)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .onAppear {
+            guard shouldPulse else { return }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                pulseOn.toggle()
+            }
+        }
+    }
+
+    private var headerText: String {
+        let total = model.entries.count
+        switch model.overallStatus {
+        case .running:
+            return L10n.tr("tool.task.running_n", total, model.agentLabel)
+        case .success, .failed:
+            return L10n.tr("tool.task.ran_n", total, model.agentLabel)
+        }
+    }
+
+    /// Per-status mini badges next to the title — "2 ✓, 1 ✗" — so the
+    /// user can scan batch state without expanding.
+    @ViewBuilder
+    private var statusBadges: some View {
+        let succeeded = model.entries.filter { $0.status == .success }.count
+        let failed = model.entries.filter { $0.status == .failed }.count
+        let running = model.entries.filter { $0.status == .running }.count
+
+        HStack(spacing: 6) {
+            if succeeded > 0 {
+                Label("\(succeeded)", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.titleAndIcon)
+                    .chatFont(.caption, weight: .medium)
+                    .foregroundColor(.green)
+            }
+            if failed > 0 {
+                Label("\(failed)", systemImage: "xmark.octagon.fill")
+                    .labelStyle(.titleAndIcon)
+                    .chatFont(.caption, weight: .medium)
+                    .foregroundColor(.red)
+            }
+            if running > 0 {
+                Label("\(running)", systemImage: "circle.dotted")
+                    .labelStyle(.titleAndIcon)
+                    .chatFont(.caption, weight: .medium)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var iconColor: Color {
+        switch model.overallStatus {
+        case .running: return .secondary
+        case .success: return .secondary
+        case .failed:  return .red
+        }
+    }
+}
+
+/// One subagent's row inside a `TaskFanoutRow`. Always shows id +
+/// description + status; expanding it reveals the inner tool calls
+/// the subagent made (live or persisted) plus the final output text.
+struct TaskSubagentRow: View {
+    let entry: TaskFanoutTaskEntry
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: statusIcon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(statusColor)
+                        .frame(width: 14)
+
+                    Text(entry.id)
+                        .chatFont(.footnote, weight: .semibold)
+                        .foregroundColor(.primary.opacity(0.9))
+
+                    if !entry.description.isEmpty {
+                        Text(entry.description)
+                            .chatFont(.footnote)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    if entry.steps > 0 {
+                        Text("\(entry.steps) steps")
+                            .chatFont(.caption, design: .monospaced)
+                            .foregroundColor(.secondary.opacity(0.8))
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.secondary.opacity(0.5))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                expandedDetail
+                    .padding(.leading, 22)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.04))
+        )
+    }
+
+    @ViewBuilder
+    private var expandedDetail: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !entry.innerTools.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.tr("tool.task.inner_tools"))
+                        .chatFont(.caption, weight: .semibold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    ForEach(entry.innerTools) { inner in
+                        TaskSubagentInnerToolRow(tool: inner)
+                    }
+                }
+            }
+
+            if let error = entry.error, !error.isEmpty {
+                Text(error)
+                    .chatFont(.caption)
+                    .foregroundColor(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !entry.output.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.tr("tool.task.final_output"))
+                        .chatFont(.caption, weight: .semibold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    ScrollView {
+                        Text(entry.output)
+                            .chatFont(.caption)
+                            .foregroundColor(.primary.opacity(0.85))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 200)
+                }
+            }
+        }
+    }
+
+    private var statusIcon: String {
+        switch entry.status {
+        case .running: return "circle.dotted"
+        case .success: return "checkmark.circle.fill"
+        case .failed:  return "xmark.octagon.fill"
+        }
+    }
+
+    private var statusColor: Color {
+        switch entry.status {
+        case .running: return .secondary
+        case .success: return .green
+        case .failed:  return .red
+        }
+    }
+}
+
+/// Inline timeline row for one tool call inside a subagent. Compact —
+/// the user is already two levels deep, so the row stays single-line
+/// and the output is hidden behind another disclosure.
+private struct TaskSubagentInnerToolRow: View {
+    let tool: TaskFanoutInnerTool
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: statusIcon)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(statusColor)
+                        .frame(width: 12)
+                    Text(tool.toolName)
+                        .chatFont(.caption, weight: .medium)
+                        .foregroundColor(.primary.opacity(0.85))
+                    Text(tool.summary)
+                        .chatFont(.caption, design: .monospaced)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 4)
+                    if !tool.output.isEmpty {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.secondary.opacity(0.5))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded, !tool.output.isEmpty {
+                ScrollView {
+                    Text(tool.output)
+                        .chatFont(.caption, design: .monospaced)
+                        .foregroundColor(.primary.opacity(0.8))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 140)
+            }
+        }
+    }
+
+    private var statusIcon: String {
+        switch tool.status {
+        case .running: return "circle.dotted"
+        case .success: return "checkmark.circle"
+        case .failed:  return "xmark.octagon"
+        }
+    }
+
+    private var statusColor: Color {
+        switch tool.status {
+        case .running: return .secondary
+        case .success: return .green
+        case .failed:  return .red
+        }
     }
 }

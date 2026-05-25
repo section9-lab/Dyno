@@ -120,7 +120,6 @@ struct ContentView: View {
             .background(MetalParticleBackground(isDark: colorScheme == .dark))
             .overlay(alignment: .top) { UserAlertBanner() }
             .navigationTitle("")
-            .toolbarBackground(.hidden, for: .windowToolbar)
             .toolbar { mainToolbar }
             .sheet(isPresented: $vm.showConfigSheet) {
                 SettingsContainerView(agent: agent)
@@ -172,6 +171,7 @@ struct ContentView: View {
             onAddProject: addProject,
             onBeginDraft: { vm.beginDraftSession(projectPath: nil, agent: agent) },
             onAutoIntelligence: { vm.setRoute(.autoIntelligence) },
+            onMail: { vm.setRoute(.mail) },
             onKanban: { vm.setRoute(.kanban) },
             onBeginDraftInProject: { project in
                 vm.beginDraftSession(projectPath: project.path, agent: agent)
@@ -204,6 +204,8 @@ struct ContentView: View {
             kanbanColumn
         case .autoIntelligence:
             autoIntelligenceColumn
+        case .mail:
+            mailColumn
         }
     }
 
@@ -280,6 +282,21 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var mailColumn: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "envelope")
+                .font(.system(size: 44, weight: .light))
+                .foregroundColor(.secondary.opacity(0.7))
+            Text("sidebar.mail.coming_soon.title")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.primary.opacity(0.85))
+            Text("sidebar.mail.coming_soon.subtitle")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private var chatScrollArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -289,8 +306,8 @@ struct ContentView: View {
                     } else if selectedSession == nil {
                         emptyState
                     } else {
-                        ForEach(chatRows) { row in
-                            chatRowView(row)
+                        ForEach(Array(chatRows.enumerated()), id: \.element.id) { index, row in
+                            chatRowView(row, at: index, in: chatRows)
                         }
                         if let focusedSessionAgent {
                             AgentResponseView(sessionAgent: focusedSessionAgent)
@@ -320,15 +337,39 @@ struct ContentView: View {
                 }
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if let focusedSessionAgent, selectedSession != nil {
+                GeometryReader { geometry in
+                    VStack(spacing: 0) {
+                        Spacer()
+                            .frame(height: geometry.size.height / 3)
+
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            TodoProgressIndicator(sessionAgent: focusedSessionAgent)
+                                .allowsHitTesting(true)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
-    private func chatRowView(_ row: ChatRow) -> some View {
+    private func chatRowView(_ row: ChatRow, at index: Int, in rows: [ChatRow]) -> some View {
         switch row {
         case .message(let m):
             MessageView(message: m).id(row.id)
-        case .toolGroup(let group):
-            ToolExecutionGroupView(group: group).id(group.id)
+        case .toolRun(let run):
+            // The timeline rail draws a connector down to the next row when
+            // `isLast == false`. Keep it visible only when the next row is
+            // also a tool — that's what gives us a single contiguous rail
+            // across back-to-back tools and breaks it cleanly when text
+            // (or any other row) interrupts the sequence.
+            let nextIsTool = index + 1 < rows.count && rows[index + 1].isToolRun
+            PersistedToolExecutionMessageView(run: run, isLast: !nextIsTool).id(row.id)
         case .reasoning(let m):
             if let reasoning = m.reasoning {
                 PersistedReasoningRow(text: reasoning).id(row.id)
@@ -347,11 +388,6 @@ struct ContentView: View {
                 vm.toggleSidebar()
             } label: {
                 Image(systemName: vm.isSidebarCollapsed ? "sidebar.left" : "sidebar.leading")
-            }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            if let focusedSessionAgent {
-                TodoProgressIndicator(sessionAgent: focusedSessionAgent)
             }
         }
     }
@@ -406,27 +442,19 @@ struct ContentView: View {
     }
 
     private var sidebarResizeHandle: some View {
-        ZStack {
-            Color.clear
-            Rectangle()
-                .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.16))
-                .frame(width: 1)
-        }
-        .frame(width: 8)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if vm.dragSidebarStartWidth == nil {
-                        vm.dragSidebarStartWidth = vm.sidebarWidth
-                    }
-                    guard let start = vm.dragSidebarStartWidth else { return }
-                    vm.sidebarWidth = min(max(start + value.translation.width, 240), 520)
+        SidebarResizeHandle(
+            colorScheme: colorScheme,
+            onDragChanged: { translation in
+                if vm.dragSidebarStartWidth == nil {
+                    vm.dragSidebarStartWidth = vm.sidebarWidth
                 }
-                .onEnded { _ in
-                    vm.lastExpandedSidebarWidth = vm.sidebarWidth
-                    vm.dragSidebarStartWidth = nil
-                }
+                guard let start = vm.dragSidebarStartWidth else { return }
+                vm.sidebarWidth = min(max(start + translation, 240), 520)
+            },
+            onDragEnded: {
+                vm.lastExpandedSidebarWidth = vm.sidebarWidth
+                vm.dragSidebarStartWidth = nil
+            }
         )
     }
 
@@ -451,9 +479,10 @@ struct ContentView: View {
     // MARK: - Row construction
 
     /// Merge messages, tool runs, and compaction summaries into a single
-    /// chronologically-sorted list and fold adjacent tool runs into groups.
+    /// chronologically-sorted list. Each event becomes its own row — there
+    /// is no longer any tool-group folding, so interleaved `text → tool
+    /// → text → tool` turns reload with the same ordering they had live.
     static func buildChatRows(for session: StoredSession) -> [ChatRow] {
-        // Each event has a kind so we can sort heterogeneously by timestamp.
         enum Event {
             case message(StoredMessage)
             case toolRun(StoredToolRun)
@@ -476,42 +505,23 @@ struct ContentView: View {
         events.sort { $0.timestamp < $1.timestamp }
 
         var rows: [ChatRow] = []
-        var pendingRuns: [StoredToolRun] = []
-        var groupAnchor: String?
-
-        func flush() {
-            guard !pendingRuns.isEmpty, let anchor = groupAnchor else {
-                pendingRuns = []
-                groupAnchor = nil
-                return
-            }
-            rows.append(.toolGroup(ToolExecutionGroup(id: "group-\(anchor)", runs: pendingRuns)))
-            pendingRuns = []
-            groupAnchor = nil
-        }
-
         for event in events {
             switch event {
             case .toolRun(let run):
-                if groupAnchor == nil { groupAnchor = run.id }
-                pendingRuns.append(run)
+                rows.append(.toolRun(run))
             case .message(let m):
-                // Reasoning belongs to the assistant turn that *preceded* the
-                // tool group — emit it before flushing so the timeline reads
-                // "thinking → tools → answer".
+                // Reasoning belongs to the assistant turn — emit it as its
+                // own row immediately before the text it preceded.
                 if m.role == "assistant",
                    let reasoning = m.reasoning,
                    !reasoning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     rows.append(.reasoning(m))
                 }
-                flush()
                 rows.append(.message(m))
             case .summary(let s):
-                flush()
                 rows.append(.compactionSummary(s))
             }
         }
-        flush()
         return rows
     }
 }
@@ -614,39 +624,254 @@ private struct SeededRandomGenerator: RandomNumberGenerator {
 
 enum ChatRow: Identifiable {
     case message(StoredMessage)
-    case toolGroup(ToolExecutionGroup)
+    case toolRun(StoredToolRun)
     case compactionSummary(StoredCompactionSummary)
     /// Persisted chain-of-thought / reasoning trace tied to an assistant
     /// message. Inserted as a row of its own — visually placed *before* the
-    /// tool group that ran on behalf of this turn — so the reading order
-    /// stays "thinking → tools → answer" rather than mixing reasoning into
-    /// the answer bubble.
+    /// assistant text it preceded — so the reading order stays
+    /// "thinking → answer" rather than mixing reasoning into the answer bubble.
     case reasoning(StoredMessage)
 
     var id: String {
         switch self {
         case .message(let m): return "msg-\(m.persistentModelID.hashValue)"
-        case .toolGroup(let group): return group.id
+        case .toolRun(let run): return "tool-\(run.id)"
         case .compactionSummary(let s): return "sum-\(s.persistentModelID.hashValue)"
         case .reasoning(let m): return "reasoning-\(m.persistentModelID.hashValue)"
         }
     }
+
+    var isToolRun: Bool {
+        if case .toolRun = self { return true } else { return false }
+    }
 }
+
+/// Thin separator between the sidebar and the main column with a draggable
+/// hit area. A pill-shaped indicator fades in while the cursor hovers or a
+/// drag is in flight, telegraphing that the column is resizable.
+private struct SidebarResizeHandle: View {
+    private static let hitWidth: CGFloat = 12
+
+    let colorScheme: ColorScheme
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
+
+    @State private var isHovering = false
+    @State private var isDragging = false
+
+    private var lineColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.16)
+    }
+
+    private var handleColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.45) : Color.black.opacity(0.42)
+    }
+
+    private var isActive: Bool { isHovering || isDragging }
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            Rectangle()
+                .fill(lineColor)
+                .frame(width: 1)
+            Capsule()
+                .fill(handleColor)
+                .frame(width: 3, height: 28)
+                .opacity(isActive ? 1 : 0)
+                .scaleEffect(isActive ? 1 : 0.6, anchor: .center)
+        }
+        .frame(width: Self.hitWidth)
+        .contentShape(Rectangle())
+        .animation(.easeInOut(duration: 0.15), value: isActive)
+        .overlay {
+            SidebarResizeEventLayer(
+                onHoverChanged: { hovering in
+                    isHovering = hovering
+                },
+                onDragChanged: { translation in
+                    isDragging = true
+                    onDragChanged(translation)
+                },
+                onDragEnded: {
+                    isDragging = false
+                    onDragEnded()
+                }
+            )
+        }
+    }
+}
+
+private struct SidebarResizeEventLayer: NSViewRepresentable {
+    let onHoverChanged: (Bool) -> Void
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onHoverChanged: onHoverChanged,
+            onDragChanged: onDragChanged,
+            onDragEnded: onDragEnded
+        )
+    }
+
+    func makeNSView(context: Context) -> ResizeEventView {
+        let view = ResizeEventView()
+        view.coordinator = context.coordinator
+        return view
+    }
+
+    func updateNSView(_ nsView: ResizeEventView, context: Context) {
+        context.coordinator.onHoverChanged = onHoverChanged
+        context.coordinator.onDragChanged = onDragChanged
+        context.coordinator.onDragEnded = onDragEnded
+        nsView.coordinator = context.coordinator
+    }
+
+    final class Coordinator {
+        var onHoverChanged: (Bool) -> Void
+        var onDragChanged: (CGFloat) -> Void
+        var onDragEnded: () -> Void
+        var dragStartX: CGFloat?
+        var previousWindowDragState: Bool?
+
+        init(
+            onHoverChanged: @escaping (Bool) -> Void,
+            onDragChanged: @escaping (CGFloat) -> Void,
+            onDragEnded: @escaping () -> Void
+        ) {
+            self.onHoverChanged = onHoverChanged
+            self.onDragChanged = onDragChanged
+            self.onDragEnded = onDragEnded
+        }
+    }
+
+    final class ResizeEventView: NSView {
+        weak var coordinator: Coordinator?
+        private var trackingArea: NSTrackingArea?
+
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let trackingArea {
+                removeTrackingArea(trackingArea)
+            }
+
+            let area = NSTrackingArea(
+                rect: bounds,
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                owner: self
+            )
+            trackingArea = area
+            addTrackingArea(area)
+        }
+
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(bounds, cursor: .resizeLeftRight)
+        }
+
+        override func cursorUpdate(with event: NSEvent) {
+            NSCursor.resizeLeftRight.set()
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            coordinator?.onHoverChanged(true)
+            NSCursor.resizeLeftRight.set()
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            coordinator?.onHoverChanged(true)
+            NSCursor.resizeLeftRight.set()
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            coordinator?.onHoverChanged(false)
+            if coordinator?.dragStartX == nil {
+                NSCursor.arrow.set()
+            }
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            guard let coordinator else { return }
+            coordinator.dragStartX = event.locationInWindow.x
+            coordinator.previousWindowDragState = window?.isMovableByWindowBackground
+            window?.isMovableByWindowBackground = false
+            coordinator.onHoverChanged(true)
+            NSCursor.resizeLeftRight.set()
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let coordinator, let dragStartX = coordinator.dragStartX else { return }
+            NSCursor.resizeLeftRight.set()
+            coordinator.onDragChanged(event.locationInWindow.x - dragStartX)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard let coordinator else { return }
+            let isStillHovering = bounds.contains(convert(event.locationInWindow, from: nil))
+            coordinator.dragStartX = nil
+            if let previousWindowDragState = coordinator.previousWindowDragState {
+                window?.isMovableByWindowBackground = previousWindowDragState
+            }
+            coordinator.previousWindowDragState = nil
+            coordinator.onHoverChanged(isStillHovering)
+            coordinator.onDragEnded()
+            if isStillHovering {
+                NSCursor.resizeLeftRight.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
+    }
+}
+
 
 /// Walks up to the enclosing NSScrollView and switches it to overlay
 /// scrollers. The default "legacy" style paints a solid track background
 /// that doesn't blend with the chat surface; overlay scrollers float over
 /// content and fade out when idle.
 private struct OverlayScrollerHook: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { HookView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func makeNSView(context: Context) -> NSView {
+        let view = HookView()
+        view.applyOverlayScrollerStyle()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? HookView)?.applyOverlayScrollerStyle()
+    }
 
     private final class HookView: NSView {
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            applyOverlayScrollerStyle()
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            applyOverlayScrollerStyle()
+        }
+
+        func applyOverlayScrollerStyle() {
+            apply()
             DispatchQueue.main.async { [weak self] in
-                self?.enclosingScrollView?.scrollerStyle = .overlay
+                self?.apply()
             }
+        }
+
+        private func apply() {
+            guard let scrollView = enclosingScrollView else { return }
+            scrollView.scrollerStyle = .overlay
+            scrollView.drawsBackground = false
+            scrollView.autohidesScrollers = true
+            scrollView.verticalScroller?.scrollerStyle = .overlay
+            scrollView.horizontalScroller?.scrollerStyle = .overlay
         }
     }
 }

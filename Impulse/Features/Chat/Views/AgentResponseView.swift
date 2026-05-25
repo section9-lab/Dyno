@@ -2,79 +2,69 @@ import SwiftHarnessAgent
 import MarkdownUI
 import SwiftUI
 
-/// Isolated view that observes a SessionAgent for live tool executions, the
-/// assistant's streaming partial answer, an optional collapsed thinking pane,
-/// and a typing indicator. Each session has its own SessionAgent so multiple
-/// sessions can stream in parallel without overlapping into each other's UI.
+/// Isolated view that observes a SessionAgent for the in-flight assistant
+/// turn: the interleaved timeline of text blocks and tool calls (in the
+/// exact emission order the model produced them), an optional collapsed
+/// thinking pane, and a persistent typing indicator that stays at the
+/// bottom until the run completes.
 struct AgentResponseView: View {
     @ObservedObject var sessionAgent: SessionAgent
 
-    /// True once at least one tool has run and *every* execution has left
-    /// the `.running` state. Drives the live `Done` marker so the visual
-    /// order mirrors the temporal one: tools → Done → assistant text.
-    private var allToolsFinished: Bool {
-        !sessionAgent.latestToolExecutions.isEmpty
-            && sessionAgent.latestToolExecutions.allSatisfy { $0.status != .running }
-    }
-
-    /// Index of the last execution still in `.running`, or `nil` if none.
-    /// Only that row pulses — earlier completed rows stay static, and the
-    /// model rarely runs tools in true parallel so this is the right one
-    /// to draw attention to.
-    private var lastRunningIndex: Int? {
-        sessionAgent.latestToolExecutions.lastIndex(where: { $0.status == .running })
+    /// The id of the tool execution currently in `.running`, if any.
+    /// Used to drive the pulsing visual on the active row — earlier
+    /// completed rows stay static, and the model rarely runs tools in
+    /// true parallel so this is the one to draw attention to.
+    private var lastRunningToolID: String? {
+        for item in sessionAgent.liveTimeline.reversed() {
+            if case .tool(let exec) = item, exec.status == .running {
+                return exec.id
+            }
+        }
+        return nil
     }
 
     var body: some View {
-        if sessionAgent.isResponding {
+        if sessionAgent.isResponding || !sessionAgent.liveTimeline.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 if !sessionAgent.liveReasoningText.isEmpty {
                     LiveReasoningPane(text: sessionAgent.liveReasoningText)
                         .padding(.horizontal, 56)
                 }
 
-                ForEach(Array(sessionAgent.latestToolExecutions.enumerated()), id: \.element.id) { index, execution in
-                    ToolExecutionMessageView(
-                        execution: execution,
-                        isLast: index == sessionAgent.latestToolExecutions.count - 1,
-                        isActive: index == lastRunningIndex
-                    )
+                ForEach(Array(sessionAgent.liveTimeline.enumerated()), id: \.element.id) { index, item in
+                    switch item {
+                    case .text(_, let content):
+                        LiveAssistantBubble(text: content)
+                            .padding(.horizontal, 56)
+                    case .tool(let exec):
+                        // Keep the connector running into the next row only
+                        // when it's another tool — that gives back-to-back
+                        // tools a single rail and cleanly breaks the rail
+                        // when text or the typing dots interrupt the run.
+                        let nextIsTool: Bool = {
+                            let next = index + 1
+                            guard next < sessionAgent.liveTimeline.count else { return false }
+                            if case .tool = sessionAgent.liveTimeline[next] { return true }
+                            return false
+                        }()
+                        ToolExecutionMessageView(
+                            execution: exec,
+                            isLast: !nextIsTool,
+                            isActive: exec.id == lastRunningToolID
+                        )
+                    }
                 }
 
-                if allToolsFinished {
-                    LiveDoneMarker()
-                }
-
-                if !sessionAgent.liveAssistantText.isEmpty {
-                    LiveAssistantBubble(text: sessionAgent.liveAssistantText)
-                        .padding(.horizontal, 56)
-                } else if sessionAgent.latestToolExecutions.isEmpty {
-                    // Pre-tool thinking — show the typing indicator. Once
-                    // tools are running the executions themselves convey
-                    // activity, and once they're done the Done marker does.
+                // Always-on typing dots: while the agent is responding, the
+                // three pulsing dots sit at the bottom of the latest content
+                // regardless of whether text, a tool, or a gap between tools
+                // is the most recent event.
+                if sessionAgent.isResponding {
                     TypingIndicatorView()
+                        .padding(.horizontal, 56)
                 }
             }
         }
-    }
-}
-
-private struct LiveDoneMarker: View {
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundColor(.primary.opacity(0.75))
-                .frame(width: 22, height: 22)
-
-            Text("chat.tool_group.done")
-                .chatFont(.body, weight: .semibold)
-                .foregroundColor(.primary.opacity(0.92))
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 56)
-        .padding(.top, 4)
     }
 }
 
@@ -85,7 +75,7 @@ private struct LiveAssistantBubble: View {
     var body: some View {
         // Streaming uses MarkdownUI for rich formatting (code blocks, lists,
         // tables, links). To keep parsing/layout cost bounded, `SessionAgent`
-        // throttles `liveAssistantText` updates to ~10fps — so MarkdownUI
+        // throttles the timeline's text appends to ~10fps — so MarkdownUI
         // only re-parses ~10 times per second instead of once per token.
         // That keeps the main thread responsive (scroll wheel, clicks) while
         // still feeling like real-time streaming.
