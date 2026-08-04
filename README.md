@@ -5,10 +5,10 @@
 
 <p><b>A native macOS assistant that sees your screen, hears your voice, and remembers your projects — running locally with the model you choose.</b></p>
 
-[![License](https://img.shields.io/github/license/section9-lab/Impulse?style=flat-square&color=000)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/section9-lab/Impulse?style=flat-square&color=000)](https://github.com/section9-lab/Impulse/releases/latest)
+[![License](https://img.shields.io/github/license/section9-lab/pi-work?style=flat-square&color=000)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/section9-lab/pi-work?style=flat-square&color=000)](https://github.com/section9-lab/pi-work/releases/latest)
 [![macOS](https://img.shields.io/badge/macOS-14.0%2B-000?style=flat-square)](https://www.apple.com/macos/)
-[![Stars](https://img.shields.io/github/stars/section9-lab/Impulse?style=flat-square&color=000)](https://github.com/section9-lab/Impulse/stargazers)
+[![Stars](https://img.shields.io/github/stars/section9-lab/pi-work?style=flat-square&color=000)](https://github.com/section9-lab/pi-work/stargazers)
 
 </div>
 
@@ -69,7 +69,7 @@ Files stay scoped to folders you grant via security-scoped bookmarks. Tool calls
 
 ```bash
 # 1. Download the latest .dmg
-open https://github.com/section9-lab/Impulse/releases/latest
+open https://github.com/section9-lab/pi-work/releases/latest
 
 # 2. Drag Impulse.app into /Applications, then launch it
 
@@ -117,7 +117,7 @@ That's it. Grant Screen Recording and Microphone permissions when macOS prompts 
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=section9-lab/Impulse&type=Date)](https://star-history.com/#section9-lab/Impulse&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=section9-lab/pi-work&type=Date)](https://star-history.com/#section9-lab/pi-work&Date)
 
 ## License
 

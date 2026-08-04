@@ -471,7 +471,7 @@ struct ContentView: View {
     }
 
     private func openHelp() {
-        if let url = URL(string: "https://github.com/section9-lab/Impulse/issues") {
+        if let url = URL(string: "https://github.com/section9-lab/pi-work/issues") {
             NSWorkspace.shared.open(url)
         }
     }

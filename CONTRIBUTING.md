@@ -22,7 +22,7 @@ Thanks for the interest. This doc covers everything you need to build Impulse fr
 
 ```bash
 # 1. Clone alongside SwiftHarnessAgent
-git clone https://github.com/section9-lab/Impulse.git
+git clone https://github.com/section9-lab/pi-work.git
 git clone https://github.com/section9-lab/SwiftHarnessAgent.git
 
 # 2. Generate the Xcode project (project.yml is the source of truth)
