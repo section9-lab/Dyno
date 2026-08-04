@@ -34,13 +34,6 @@ settings:
       CODE_SIGN_STYLE: Automatic
       DEVELOPMENT_TEAM: 6BWZP56JX9
 
-packages:
-  SwiftHarnessAgent:
-    path: ../SwiftHarnessAgent
-  MarkdownUI:
-    url: https://github.com/gonzalezreal/swift-markdown-ui
-    from: "2.4.0"
-
 targets:
   Impulse:
     type: application
@@ -54,9 +47,6 @@ targets:
       - path: skills
         type: folder
         buildPhase: resources
-    dependencies:
-      - package: SwiftHarnessAgent
-      - package: MarkdownUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.section9lab.Impulse

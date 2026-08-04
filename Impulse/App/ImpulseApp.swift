@@ -579,37 +579,36 @@ private struct PrivacyAgreementView: View {
         """
         Impulse Privacy Agreement
 
-        This agreement explains how Impulse handles information when you use the macOS app. It is written for a local-first AI workspace that helps with coding, debugging, note-taking, document handling, screenshots, voice input, and multi-step agent workflows.
+        This agreement explains how Impulse handles information when you use the macOS app. It is written for a local-first project workspace focused on project boards, settings, and account access.
 
         1. Account sign-in
         Impulse uses a secure authentication service to complete sign-in. Google may share basic account information such as an account identifier, display name, avatar, and email address, depending on the consent screen. If you sign in with email, Impulse only stores the email address you provide and a verification code that expires within minutes.
 
         2. Local workspace data
-        Impulse stores projects, sessions, chat messages, compaction summaries, tool execution records, settings, authorized folders, and agent workspace data on this Mac. App state is stored under Impulse's application support directories unless you explicitly select project folders or authorize additional directories.
+        Impulse stores projects, kanban tasks, settings, and sign-in state on this Mac. App state is stored under Impulse's application support directories.
 
-        3. Project and file access
-        Impulse can access the project folders and additional directories you select. Agent tools may read, write, edit, or run commands within the allowed roots needed to complete your requests. You should only authorize folders that you are comfortable using with an AI-assisted coding agent.
+        3. Project folders
+        Impulse can access the project folders you select so it can organize your boards around them. You control which folders are added to the app.
 
-        4. AI provider requests
-        When you send messages or ask the agent to work, relevant prompts, conversation context, tool results, OCR text, file snippets, and other selected context may be sent to the model provider configured in Settings. The provider's own terms and privacy policy apply to that processing. Avoid sending secrets or sensitive personal data unless you intend the configured provider to process it.
+        4. Authentication requests
+        When you sign in, relevant authentication details are exchanged with the configured authentication service. The provider's own terms and privacy policy apply to that processing.
 
-        5. Screen capture, OCR, microphone, and speech
-        If you enable screen capture, OCR, microphone, or speech recognition, Impulse may process screenshots, recognized text, and spoken input to support the app's features. OCR captures are stored locally in the app's data directory. Speech recognition may use Apple's system services depending on macOS behavior and your system settings.
+        5. Local backups
+        Impulse maintains local backups of its data store so you can restore project and task data if something goes wrong. Backups stay on this Mac unless you move them yourself.
 
-        6. Security-scoped access
-        Impulse uses macOS folder authorization and security-scoped bookmarks so it can reopen folders you previously allowed. You can manage authorized folders in Settings. Removing or reauthorizing folders may limit what agent tools can access.
+        6. Data sharing
+        Impulse does not sell personal data. Data is shared only when needed to provide app features, such as completing sign-in or using operating system services you enable.
 
-        7. Data sharing
-        Impulse does not sell personal data. Data is shared only when needed to provide app features, such as sending selected context to your configured AI model provider, completing Google sign-in, or using operating system services you enable.
+        7. Your choices
+        You can sign out, remove projects, delete tasks, and restore local backups. Signing out clears the local sign-in token and cached account profile but does not delete existing project or task data.
 
-        8. Your choices
-        You can sign out, change model providers, disable OCR-related behavior, remove authorized folders, delete local sessions, and clear local app data from macOS storage locations. Signing out clears the local sign-in token and cached account profile but does not delete existing project or session data.
+        8. Sensitive information
+        Because Impulse is designed to work with local project folders, you are responsible for reviewing what you choose to store in the app and which folders you add.
 
-        9. Sensitive information
-        Because Impulse is designed to work with source code, terminals, files, screenshots, and AI tools, you are responsible for reviewing what you ask the app to process. Do not authorize folders or send content that you do not want the configured model provider or local agent tools to access.
+        9. Changes
+        This agreement may change as hosted services, sync features, or other integrations are added. Material changes should be reflected in the app before those features are used.
 
-        10. Changes
-        This agreement may change as cloud sync, billing, team features, or other hosted services are added. Material changes should be reflected in the app before those features are used.
+        
         """
     }
 }
@@ -618,21 +617,11 @@ private struct PrivacyAgreementView: View {
 @main
 struct ImpulseApp: App {
     var sharedModelContainer: ModelContainer = {
-        // Run a rolling daily backup of the SwiftData store BEFORE the
-        // container opens it. Once SwiftData has the file open the on-disk
-        // bytes can be mid-transaction; copying then risks an inconsistent
-        // backup. Best-effort — never blocks startup.
         StoreBackupManager.default()?.runDailyBackupIfNeeded()
 
         let schema = Schema([
             StoredProject.self,
-            StoredSession.self,
-            StoredMessage.self,
-            StoredToolRun.self,
-            StoredSubagentToolRun.self,
-            StoredCompactionSummary.self,
             StoredKanbanTask.self,
-            StoredTodoSnapshot.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -643,8 +632,6 @@ struct ImpulseApp: App {
         }
     }()
 
-    @StateObject private var agent = AgentManager.shared
-    @StateObject private var ocrManager = OCRManager.shared
     @StateObject private var localization = LocalizationManager.shared
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var authSession = AuthSession.shared
@@ -659,25 +646,17 @@ struct ImpulseApp: App {
                     OnboardingLoginView(authSession: authSession)
                 }
             }
-                .environmentObject(authSession)
-                .environmentObject(localization)
-                .environmentObject(themeManager)
-                .environment(\.locale, localization.locale)
-                .preferredColorScheme(themeManager.theme.colorScheme)
-                .onAppear {
-                    configureApp()
-                    syncOCRCapture()
-                }
-                .task {
-                    await authSession.restoreSessionOnLaunch()
-                    syncOCRCapture()
-                }
-                .onChange(of: authSession.isSignedIn) { _, _ in
-                    syncOCRCapture()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: GeneralSettingsStore.ocrEnabledDidChangeNotification)) { _ in
-                    syncOCRCapture()
-                }
+            .environmentObject(authSession)
+            .environmentObject(localization)
+            .environmentObject(themeManager)
+            .environment(\.locale, localization.locale)
+            .preferredColorScheme(themeManager.theme.colorScheme)
+            .onAppear {
+                configureApp()
+            }
+            .task {
+                await authSession.restoreSessionOnLaunch()
+            }
         }
         .defaultSize(width: 1180, height: 820)
         .modelContainer(sharedModelContainer)
@@ -687,19 +666,9 @@ struct ImpulseApp: App {
         let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
         let appPath = Bundle.main.bundleURL.path
         let executablePath = Bundle.main.executableURL?.path ?? "unknown"
-        let storageDirectory = agent.storageDirectoryURL
 
         print("🔧 [APP] Bundle ID: \(bundleId)")
         print("🔧 [APP] App Path: \(appPath)")
         print("🔧 [APP] Executable Path: \(executablePath)")
-        print("🔧 [APP] Impulse storage directory: \(storageDirectory.path)")
-    }
-
-    private func syncOCRCapture() {
-        if authSession.isSignedIn, GeneralSettingsStore.loadOCREnabled() {
-            ocrManager.start(storageDirectory: agent.storageDirectoryURL)
-        } else {
-            ocrManager.stop()
-        }
     }
 }

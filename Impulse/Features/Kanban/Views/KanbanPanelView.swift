@@ -2,36 +2,17 @@ import AppKit
 import SwiftUI
 
 struct KanbanPanelView: View {
-    /// All projects available — used to populate the picker. The header
-    /// picker drives `selectedProjectPath`; tasks/sessions are filtered by
-    /// the parent based on that selection.
     let projects: [StoredProject]
-    /// Which project the kanban currently scopes to. `nil` means "all
-    /// projects" — the default aggregate view.
     @Binding var selectedProjectPath: String?
-    let selectedSession: StoredSession?
-    /// All tasks across the workspace. The view filters by
-    /// `selectedProjectPath` itself so the parent doesn't have to recompute
-    /// when the picker changes.
     let tasks: [StoredKanbanTask]
-    /// Sessions for the currently-scoped project (or all sessions when in
-    /// aggregate mode). Used to look up titles for primary-session links.
-    let projectSessions: [StoredSession]
     var onCreateTask: (_ projectPath: String, _ title: String, _ priority: KanbanTaskPriority, _ status: KanbanTaskStatus, _ labels: [String]) -> Void
     var onMoveTask: (StoredKanbanTask, KanbanTaskStatus) -> Void
-    var onLinkSelectedSession: (StoredKanbanTask) -> Void
     var onDeleteTask: (StoredKanbanTask) -> Void
     var onUpdateLabels: (StoredKanbanTask, [String]) -> Void
 
     private let columns: [KanbanTaskStatus] = [.plan, .inProgress, .done]
 
-    /// In aggregate mode, the composer needs to know which project a new
-    /// task belongs to. `nil` means the user hasn't chosen one yet — the
-    /// composer surfaces an explicit picker rather than silently defaulting
-    /// to the first project.
     @State private var composerProjectPath: String?
-    /// Labels currently applied as a filter (multi-select). Empty == no
-    /// filter, all tasks shown.
     @State private var activeLabelFilters: Set<String> = []
     @State private var showSettingsPopover = false
 
@@ -41,27 +22,21 @@ struct KanbanPanelView: View {
     }
 
     private var scopedTasks: [StoredKanbanTask] {
-        let projectScoped: [StoredKanbanTask]
-        if let path = selectedProjectPath {
-            projectScoped = tasks.filter { $0.projectPath == path }
-        } else {
-            projectScoped = tasks
-        }
+        let projectScoped = selectedProjectPath.map { path in
+            tasks.filter { $0.projectPath == path }
+        } ?? tasks
+
         guard !activeLabelFilters.isEmpty else { return projectScoped }
         return projectScoped.filter { task in
             !activeLabelFilters.isDisjoint(with: Set(task.labels))
         }
     }
 
-    /// Distinct labels across the project-scoped task set (before label
-    /// filtering). Drives the settings popover's filter list.
     private var availableLabels: [String] {
-        let projectScoped: [StoredKanbanTask]
-        if let path = selectedProjectPath {
-            projectScoped = tasks.filter { $0.projectPath == path }
-        } else {
-            projectScoped = tasks
-        }
+        let projectScoped = selectedProjectPath.map { path in
+            tasks.filter { $0.projectPath == path }
+        } ?? tasks
+
         var seen = Set<String>()
         var ordered: [String] = []
         for task in projectScoped {
@@ -90,13 +65,8 @@ struct KanbanPanelView: View {
                         composerProjectPath: $composerProjectPath,
                         scopedProjectPath: selectedProjectPath,
                         canCompose: !projects.isEmpty,
-                        selectedSession: selectedSession,
-                        projectSessions: projectSessions,
-                        onCreateTask: { projectPath, title, priority, statusValue, labels in
-                            onCreateTask(projectPath, title, priority, statusValue, labels)
-                        },
+                        onCreateTask: onCreateTask,
                         onMoveTask: onMoveTask,
-                        onLinkSelectedSession: onLinkSelectedSession,
                         onDeleteTask: onDeleteTask,
                         onUpdateLabels: onUpdateLabels
                     )
@@ -104,13 +74,11 @@ struct KanbanPanelView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            composerProjectPath = selectedProjectPath
+        }
         .onChange(of: selectedProjectPath) { _, newValue in
-            // When user pins to a specific project, mirror it so the composer
-            // selection stays in sync. Switching back to aggregate clears the
-            // composer's choice — we don't want to silently inherit the last
-            // scope.
             composerProjectPath = newValue
-            // Drop filters that no longer apply to the new scope.
             activeLabelFilters = activeLabelFilters.intersection(Set(availableLabels))
         }
     }
@@ -123,10 +91,7 @@ struct KanbanPanelView: View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             Spacer(minLength: 0)
 
-            HStack(spacing: 16) {
-                metricLabel(value: scopedTasks.count, label: "kanban.tasks")
-                metricLabel(value: linkedSessionCount, label: "kanban.sessions")
-            }
+            metricLabel(value: scopedTasks.count, label: "kanban.tasks")
 
             settingsButton
         }
@@ -282,10 +247,7 @@ struct KanbanPanelView: View {
     }
 
     private var headerTitle: String {
-        if let scopedProject {
-            return scopedProject.displayName
-        }
-        return L10n.tr("kanban.all_projects")
+        scopedProject?.displayName ?? L10n.tr("kanban.all_projects")
     }
 
     private func metricLabel(value: Int, label: LocalizedStringKey) -> some View {
@@ -298,10 +260,6 @@ struct KanbanPanelView: View {
                 .foregroundColor(.primary.opacity(0.85))
         }
     }
-
-    private var linkedSessionCount: Int {
-        Set(scopedTasks.flatMap(\.linkedSessionIDs)).count
-    }
 }
 
 private struct KanbanColumnView: View {
@@ -309,24 +267,13 @@ private struct KanbanColumnView: View {
     let tasks: [StoredKanbanTask]
     let showProjectName: Bool
     let projectsByPath: [String: StoredProject]
-    /// Full list of projects — used by the composer's inline picker when in
-    /// aggregate mode so the user can pick the destination project per task.
     let availableProjects: [StoredProject]
-    /// True when the kanban is showing all projects. Drives whether the
-    /// composer surfaces a project picker.
     let isAggregateMode: Bool
-    /// Composer's selected destination project (binding so all four columns
-    /// stay in sync).
     @Binding var composerProjectPath: String?
-    /// When the user has scoped to a specific project, the composer uses
-    /// that path directly and skips its own picker.
     let scopedProjectPath: String?
     let canCompose: Bool
-    let selectedSession: StoredSession?
-    let projectSessions: [StoredSession]
     var onCreateTask: (_ projectPath: String, _ title: String, _ priority: KanbanTaskPriority, _ status: KanbanTaskStatus, _ labels: [String]) -> Void
     var onMoveTask: (StoredKanbanTask, KanbanTaskStatus) -> Void
-    var onLinkSelectedSession: (StoredKanbanTask) -> Void
     var onDeleteTask: (StoredKanbanTask) -> Void
     var onUpdateLabels: (StoredKanbanTask, [String]) -> Void
 
@@ -342,9 +289,6 @@ private struct KanbanColumnView: View {
                         KanbanTaskCardView(
                             task: task,
                             projectName: showProjectName ? projectsByPath[task.projectPath]?.displayName : nil,
-                            projectSessions: projectSessions,
-                            selectedSession: selectedSession,
-                            onLinkSelectedSession: onLinkSelectedSession,
                             onDeleteTask: onDeleteTask,
                             onUpdateLabels: onUpdateLabels
                         )
@@ -380,8 +324,7 @@ private struct KanbanColumnView: View {
         )
         .dropDestination(for: KanbanTaskDragPayload.self) { dropped, _ in
             guard let payload = dropped.first,
-                  let task = tasks.first(where: { $0.id == payload.id })
-                      ?? findTask(byID: payload.id)
+                  let task = tasks.first(where: { $0.id == payload.id }) ?? findTask(byID: payload.id)
             else { return false }
             onMoveTask(task, status)
             return true
@@ -410,22 +353,14 @@ private struct KanbanColumnView: View {
         .padding(.top, 2)
     }
 
-    /// See parent — cross-column drag would need a ModelContext lookup we
-    /// don't have here. The parent's `onMoveTask` re-fetches by id.
     private func findTask(byID id: String) -> StoredKanbanTask? { nil }
 }
 
 private struct KanbanColumnComposerView: View {
     let status: KanbanTaskStatus
     let availableProjects: [StoredProject]
-    /// True in aggregate ("All Projects") mode — composer surfaces an
-    /// inline project picker and refuses to submit without a selection.
     let showProjectPicker: Bool
-    /// When the kanban is scoped to a specific project, this carries that
-    /// path so the composer can route tasks to it without a picker.
     let scopedProjectPath: String?
-    /// Composer's current destination project in aggregate mode. Bound up
-    /// so the choice persists across columns/expansions in one session.
     @Binding var composerProjectPath: String?
     var onCreateTask: (_ projectPath: String, _ title: String, _ priority: KanbanTaskPriority, _ status: KanbanTaskStatus, _ labels: [String]) -> Void
 
@@ -442,8 +377,6 @@ private struct KanbanColumnComposerView: View {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The project path the submit will commit to. Scoped mode wins; in
-    /// aggregate mode we use the explicit picker selection.
     private var resolvedProjectPath: String? {
         scopedProjectPath ?? composerProjectPath
     }
@@ -505,8 +438,6 @@ private struct KanbanColumnComposerView: View {
                 composerLabelChips
             }
 
-            // Linear-style pill row: each metadata is its own capsule button.
-            // Vertical stack so it fits any column width without truncation.
             VStack(alignment: .leading, spacing: 6) {
                 if showProjectPicker {
                     projectPicker
@@ -637,8 +568,6 @@ private struct KanbanColumnComposerView: View {
         }
     }
 
-    /// Shared capsule label for pill buttons (project / priority / add label).
-    /// `tint` overrides the foreground color for emphasis (e.g. high priority).
     private func pillLabel(systemImage: String, text: String, isPlaceholder: Bool, tint: Color? = nil) -> some View {
         HStack(spacing: 5) {
             Image(systemName: systemImage)
@@ -720,13 +649,7 @@ private struct KanbanColumnComposerView: View {
 
 private struct KanbanTaskCardView: View {
     let task: StoredKanbanTask
-    /// Non-nil only in aggregate ("all projects") mode — shown as a small
-    /// badge on the card so the user can tell which project a task belongs
-    /// to without switching scope.
     let projectName: String?
-    let projectSessions: [StoredSession]
-    let selectedSession: StoredSession?
-    var onLinkSelectedSession: (StoredKanbanTask) -> Void
     var onDeleteTask: (StoredKanbanTask) -> Void
     var onUpdateLabels: (StoredKanbanTask, [String]) -> Void
 
@@ -785,16 +708,6 @@ private struct KanbanTaskCardView: View {
                         .layoutPriority(2)
                 }
 
-                if !task.linkedSessionIDs.isEmpty {
-                    Label(linkedSessionsLabel, systemImage: "link")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.secondary)
-                        .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-                }
-
                 Spacer(minLength: 0)
 
                 Text(task.updatedAt, format: .dateTime.month().day())
@@ -816,14 +729,9 @@ private struct KanbanTaskCardView: View {
                 )
         )
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
+            isHovered = hovering
         }
         .contextMenu {
-            if selectedSession != nil && !isLinkedToSelectedSession {
-                Button("kanban.link_current_session", systemImage: "link.badge.plus") {
-                    onLinkSelectedSession(task)
-                }
-            }
             Button("kanban.delete_task", systemImage: "trash", role: .destructive) {
                 onDeleteTask(task)
             }
@@ -920,22 +828,6 @@ private struct KanbanTaskCardView: View {
         onUpdateLabels(task, current)
     }
 
-    private var primarySessionTitle: String? {
-        guard let primarySessionID = task.primarySessionID else { return nil }
-        return projectSessions.first(where: { $0.id == primarySessionID })?.title
-    }
-
-    private var isLinkedToSelectedSession: Bool {
-        guard let selectedSession else { return false }
-        return task.linkedSessionIDs.contains(selectedSession.id)
-    }
-
-    private var linkedSessionsLabel: String {
-        task.linkedSessionIDs.count == 1
-            ? L10n.tr("kanban.one_session")
-            : L10n.tr("kanban.sessions_count", task.linkedSessionIDs.count)
-    }
-
     private var priorityForeground: Color {
         switch task.priority {
         case .low:    return .secondary
@@ -954,16 +846,6 @@ private extension KanbanTaskStatus {
         }
     }
 
-    var localizedEmptyHint: String {
-        switch self {
-        case .plan:       return L10n.tr("kanban.status.plan.empty_hint")
-        case .inProgress: return L10n.tr("kanban.status.in_progress.empty_hint")
-        case .done:       return L10n.tr("kanban.status.done.empty_hint")
-        }
-    }
-
-    /// Muted status accents — Linear-style. Only used as a 6pt dot in the
-    /// column header; the rest of the chrome stays monochrome.
     var tintColor: Color {
         switch self {
         case .plan:       return Color.secondary

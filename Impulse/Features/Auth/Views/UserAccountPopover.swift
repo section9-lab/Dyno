@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct UserAccountPopover: View {
@@ -85,6 +86,75 @@ struct UserAccountPopover: View {
             fallbackInitial: accountInitial,
             fallbackFontSize: 18
         )
+    }
+}
+
+struct AccountAvatarImage: View {
+    let url: URL?
+    let fallbackInitial: String
+    var fallbackFontSize: CGFloat
+
+    @State private var loadedImage: NSImage?
+    @State private var failedURL: URL?
+
+    var body: some View {
+        Group {
+            if let loadedImage {
+                Image(nsImage: loadedImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                fallback
+            }
+        }
+        .clipShape(Circle())
+        .task(id: url) {
+            await loadAvatar()
+        }
+    }
+
+    private var fallback: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay {
+                Text(fallbackInitial)
+                    .font(.system(size: fallbackFontSize, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+    }
+
+    private func loadAvatar() async {
+        guard let url else {
+            loadedImage = nil
+            failedURL = nil
+            return
+        }
+
+        if failedURL == url {
+            return
+        }
+
+        loadedImage = nil
+
+        for attempt in 0..<3 {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard !Task.isCancelled else { return }
+                if let image = NSImage(data: data) {
+                    loadedImage = image
+                    failedURL = nil
+                    return
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+            }
+
+            if attempt < 2 {
+                try? await Task.sleep(for: .milliseconds(450))
+            }
+        }
+
+        failedURL = url
     }
 }
 

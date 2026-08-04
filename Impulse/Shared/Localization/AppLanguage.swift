@@ -21,17 +21,6 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .ja: return "日本語"
         }
     }
-
-    var speechLocaleIdentifier: String {
-        switch self {
-        case .en: return "en-US"
-        case .zh: return "zh-CN"
-        case .es: return "es-ES"
-        case .fr: return "fr-FR"
-        case .ru: return "ru-RU"
-        case .ja: return "ja-JP"
-        }
-    }
 }
 
 enum AppTheme: String, CaseIterable, Identifiable {
@@ -50,31 +39,11 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
-enum AppTextSize: String, CaseIterable, Identifiable {
-    case small
-    case medium
-    case large
-
-    var id: String { rawValue }
-
-    /// Multiplier applied to base font sizes used by chat views. The spread
-    /// (~0.92 / 1.0 / 1.14) is wide enough to be visible without breaking
-    /// existing layouts that rely on row heights / line wrapping.
-    var multiplier: CGFloat {
-        switch self {
-        case .small:  return 0.92
-        case .medium: return 1.0
-        case .large:  return 1.14
-        }
-    }
-}
-
 @MainActor
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
     private static let themeKey = "app.theme"
-    private static let textSizeKey = "app.textSize"
 
     @Published var theme: AppTheme {
         didSet {
@@ -82,18 +51,9 @@ final class ThemeManager: ObservableObject {
         }
     }
 
-    @Published var textSize: AppTextSize {
-        didSet {
-            UserDefaults.standard.set(textSize.rawValue, forKey: Self.textSizeKey)
-        }
-    }
-
     private init() {
         let storedTheme = UserDefaults.standard.string(forKey: Self.themeKey)
         self.theme = storedTheme.flatMap(AppTheme.init(rawValue:)) ?? .auto
-
-        let storedSize = UserDefaults.standard.string(forKey: Self.textSizeKey)
-        self.textSize = storedSize.flatMap(AppTextSize.init(rawValue:)) ?? .medium
     }
 }
 
@@ -121,14 +81,6 @@ final class LocalizationManager: ObservableObject {
         Locale(identifier: language.rawValue)
     }
 
-    /// Pin `AppleLanguages` to the user's chosen `app.language` so SwiftUI's
-    /// `Text(LocalizedStringKey)` (which resolves via `Bundle.main.preferred
-    /// Localizations`, ignoring `\.locale` env) loads the matching `.lproj`
-    /// instead of falling back to the system locale. Already-rendered text
-    /// inside open SwiftUI views won't update until the next launch — this
-    /// is a SwiftUI cache thing, not the override — so a switch in Settings
-    /// requires relaunch to fully apply. New windows/sheets opened after
-    /// the switch get the new bundle correctly.
     private static func applyAppleLanguagesOverride(_ language: AppLanguage) {
         UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
     }
@@ -143,7 +95,6 @@ enum L10n {
         let bundle = resolvedBundle(for: language)
         var format = NSLocalizedString(key, bundle: bundle, comment: "")
 
-        // If key not found in preferred language, fall back to English
         if format == key, language != AppLanguage.en.rawValue,
            let enBundle = resolvedBundle(language: AppLanguage.en.rawValue) {
             let enFormat = NSLocalizedString(key, bundle: enBundle, comment: "")

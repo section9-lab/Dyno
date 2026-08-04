@@ -1,17 +1,18 @@
 import SwiftUI
 
 struct SettingsContainerView: View {
-    let agent: AgentManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localization: LocalizationManager
     @EnvironmentObject private var themeManager: ThemeManager
 
     @State private var selectedTab: SettingsTab = .general
+    @StateObject private var generalSettings = GeneralSettingsViewModel(
+        language: LocalizationManager.shared.language.rawValue,
+        theme: ThemeManager.shared.theme.rawValue
+    )
 
     enum SettingsTab: CaseIterable, Identifiable {
         case general
-        case model
-        case sandbox
         case diagnostics
 
         var id: Self { self }
@@ -19,8 +20,6 @@ struct SettingsContainerView: View {
         var titleKey: LocalizedStringKey {
             switch self {
             case .general: return "settings.tab.general"
-            case .model: return "settings.tab.model"
-            case .sandbox: return "settings.tab.files"
             case .diagnostics: return "settings.tab.diagnostics"
             }
         }
@@ -28,38 +27,9 @@ struct SettingsContainerView: View {
         var icon: String {
             switch self {
             case .general: return "gear"
-            case .model: return "cpu"
-            case .sandbox: return "folder.badge.gear"
             case .diagnostics: return "stethoscope"
             }
         }
-    }
-
-    // References to child views for collecting config
-    @StateObject private var generalSettings: GeneralSettingsViewModel
-    @StateObject private var modelSettings: ModelSettingsViewModel
-    @StateObject private var sandboxSettings: SandboxSettingsViewModel
-
-    init(agent: AgentManager) {
-        self.agent = agent
-        let config = agent.config
-
-        _generalSettings = StateObject(wrappedValue: GeneralSettingsViewModel(
-            language: LocalizationManager.shared.language.rawValue,
-            theme: ThemeManager.shared.theme.rawValue,
-            textSize: ThemeManager.shared.textSize.rawValue,
-            ocrEnabled: GeneralSettingsStore.loadOCREnabled(),
-            voiceShortcut: GeneralSettingsStore.loadVoiceShortcut()
-        ))
-
-        _modelSettings = StateObject(wrappedValue: ModelSettingsViewModel(
-            selectedProviderId: config.providerId,
-            draftApiKey: config.apiKey,
-            draftBaseURL: config.baseURL,
-            draftModelId: config.modelId
-        ))
-
-        _sandboxSettings = StateObject(wrappedValue: SandboxSettingsViewModel())
     }
 
     var body: some View {
@@ -71,9 +41,6 @@ struct SettingsContainerView: View {
         .environment(\.locale, localization.locale)
         .id(localization.language)
         .frame(width: 800, height: 640)
-        .task {
-            await agent.refreshServiceStatus()
-        }
         .onChange(of: generalSettings.language) { _, newValue in
             guard let language = AppLanguage(rawValue: newValue) else { return }
             localization.language = language
@@ -82,12 +49,8 @@ struct SettingsContainerView: View {
             guard let theme = AppTheme(rawValue: newValue) else { return }
             themeManager.theme = theme
         }
-        .onChange(of: generalSettings.textSize) { _, newValue in
-            guard let size = AppTextSize(rawValue: newValue) else { return }
-            themeManager.textSize = size
-        }
     }
-    
+
     private var sidebar: some View {
         List(SettingsTab.allCases, selection: $selectedTab) { tab in
             Label(tab.titleKey, systemImage: tab.icon)
@@ -96,21 +59,13 @@ struct SettingsContainerView: View {
         .listStyle(.sidebar)
         .frame(minWidth: 150)
     }
-    
+
     private var detailContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     sectionContainer(.general, title: "settings.general.title") {
                         GeneralSettingsView(viewModel: generalSettings)
-                    }
-
-                    sectionContainer(.model, title: "settings.model.title") {
-                        ModelSettingsView(agent: agent, viewModel: modelSettings)
-                    }
-
-                    sectionContainer(.sandbox, title: "settings.files.title") {
-                        SandboxSettingsView(agent: agent, viewModel: sandboxSettings)
                     }
 
                     sectionContainer(.diagnostics, title: "settings.diagnostics.title") {
@@ -150,43 +105,21 @@ struct SettingsContainerView: View {
         }
         .id(tab)
     }
-    
+
     private func saveSettings() {
         let generalConfig = generalSettings.getConfig()
-        let modelConfig = modelSettings.getConfig()
 
-        var newConfig = agent.config
         if let theme = AppTheme(rawValue: generalConfig.theme) {
             themeManager.theme = theme
         }
-        if let size = AppTextSize(rawValue: generalConfig.textSize) {
-            themeManager.textSize = size
+        if let language = AppLanguage(rawValue: generalConfig.language) {
+            localization.language = language
         }
 
-        GeneralSettingsStore.saveOCREnabled(generalConfig.ocrEnabled)
-        GeneralSettingsStore.saveVoiceShortcut(generalConfig.voiceShortcut)
-
-        if let model = modelConfig {
-            newConfig.providerId = model.providerId
-            newConfig.baseURL = model.baseURL
-            newConfig.apiKey = model.apiKey
-            newConfig.modelId = model.modelId
-            // Match the wire protocol to the picked model rather than
-            // inheriting whatever was on the previous config — the picked
-            // model may live on a relay whose default protocol differs
-            // from this model's actual shape.
-            if let provider = agent.registry.provider(for: model.providerId) {
-                newConfig.apiKind = provider.effectiveApiKind(forModelId: model.modelId)
-            }
-        }
-
-        Task {
-            await agent.applyConfig(newConfig)
-            dismiss()
-        }
+        dismiss()
     }
 }
 
 #Preview {
-    SettingsContainerView(agent: AgentManager.shared)
+    SettingsContainerView()
 }

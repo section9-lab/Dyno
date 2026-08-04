@@ -82,8 +82,8 @@ final class UserAlertCenter: ObservableObject {
         guard let delay = alert.autoDismissAfter else { return }
         // `weak self` keeps this @Sendable — the closure captures only an
         // optional weak reference, no main-actor state crosses the boundary.
-        autoDismissTask = scheduleAutoDismissImpl(delay) { [weak self] in
-            Task { @MainActor in
+        autoDismissTask = scheduleAutoDismissImpl(delay) {
+            Task { @MainActor [weak self] in
                 self?.dismissCurrent()
             }
         }
