@@ -1,24 +1,9 @@
 import Foundation
+import PiWorkCore
 import SwiftUI
 
-enum AuthError: LocalizedError {
-    case missingOpenAuthIssuer
-    case invalidAuthorizationURL
-    case invalidCallback
-    case invalidState
-    case missingAuthorizationCode
-    case authorizationFailed(String)
-    case tokenExchangeFailed(String)
-    case invalidServerResponse
-    case invalidAccessToken
-    case keychainFailure(OSStatus)
-    case randomGenerationFailed(OSStatus)
-    case webAuthenticationFailed(String)
-    // Email + OTP flow.
-    case invalidEmail
-    case invalidEmailCode
-
-    var errorDescription: String? {
+extension AuthError: LocalizedError {
+    public var errorDescription: String? {
         switch self {
         case .missingOpenAuthIssuer:
             return L10n.tr("auth.error.missing_issuer")

@@ -1,5 +1,5 @@
 import XCTest
-@testable import PiWork
+@testable import PiWorkCore
 
 @MainActor
 final class UserAlertCenterTests: XCTestCase {

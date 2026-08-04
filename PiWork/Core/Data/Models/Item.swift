@@ -5,6 +5,7 @@ import SwiftData
 
 /// A project that the user has added to the app. Path-keyed; the on-disk
 /// folder this points at can move or disappear (see `isMissing`).
+@available(macOS 14.0, *)
 @Model
 final class StoredProject {
     @Attribute(.unique) var path: String

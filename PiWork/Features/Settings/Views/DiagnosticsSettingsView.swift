@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import PiWorkCore
 
 /// Diagnostics page in Settings: lists daily store backups and lets the user
 /// restore one. Restore requires a relaunch; the page makes that explicit.

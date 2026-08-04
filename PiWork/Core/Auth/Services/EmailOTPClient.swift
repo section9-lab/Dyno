@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PiWorkCore
 import Security
 
 /// Drives pi-work's email-OTP login flow against the openauth issuer's
@@ -212,37 +213,6 @@ final class EmailOTPClient: NSObject {
 
     private static func isLikelyEmail(_ candidate: String) -> Bool {
         EmailOTPValidation.isLikelyEmail(candidate)
-    }
-}
-
-/// Pure-function helpers extracted so unit tests can exercise them without
-/// spinning up a live URLSession or hitting the openauth issuer.
-enum EmailOTPValidation {
-    /// Lightweight email check matching what the issuer accepts: requires a
-    /// non-empty local part, an `@`, and a TLD-bearing domain. We reject
-    /// edge cases like leading/trailing dots in the domain so a typo
-    /// surfaces inline before we burn a network round trip.
-    static func isLikelyEmail(_ candidate: String) -> Bool {
-        guard candidate.contains("@") else { return false }
-        let parts = candidate.split(separator: "@", maxSplits: 1)
-        guard parts.count == 2 else { return false }
-        let local = parts[0]
-        let domain = parts[1]
-        return !local.isEmpty
-            && domain.contains(".")
-            && !domain.hasPrefix(".")
-            && !domain.hasSuffix(".")
-    }
-
-    /// CodeProvider's HTML form re-renders with one of these error markers
-    /// when the verification code is wrong. Match permissively because the
-    /// exact wording is owned by the openauth library and may shift across
-    /// versions. New markers should land here when discovered.
-    static func assertNoCodeError(html: String) throws {
-        let lower = html.lowercased()
-        if lower.contains("invalid_code") || lower.contains("invalid code") {
-            throw AuthError.invalidEmailCode
-        }
     }
 }
 

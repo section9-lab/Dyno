@@ -1,7 +1,8 @@
 import XCTest
-@testable import PiWork
+@testable import PiWorkCore
 
 final class StoreBackupManagerTests: XCTestCase {
+    private let currentSchemaVersion = 6
     private var tempRoot: URL!
     private var storeURL: URL!
     private var backupRoot: URL!
@@ -28,7 +29,12 @@ final class StoreBackupManagerTests: XCTestCase {
     }
 
     private func makeManager(keepCount: Int = 7) -> StoreBackupManager {
-        StoreBackupManager(storeURL: storeURL, backupRoot: backupRoot, keepCount: keepCount)
+        StoreBackupManager(
+            storeURL: storeURL,
+            backupRoot: backupRoot,
+            keepCount: keepCount,
+            schemaVersion: currentSchemaVersion
+        )
     }
 
     private func todayFolder(in: Date = Date()) -> URL {
@@ -132,13 +138,13 @@ final class StoreBackupManagerTests: XCTestCase {
     // MARK: - listBackups
 
     /// Helper: synthesise a backup folder with given content under `dateID`.
-    /// Stamps the folder with `schemaVersion` (default `SchemaVersion.current`)
+    /// Stamps the folder with `schemaVersion` (default current test schema)
     /// so existing happy-path tests don't trip the mismatch guard. Pass `nil`
     /// to simulate a legacy stamp-less backup.
     private func makeBackupFolder(
         _ dateID: String,
         content: String = "backup-bytes",
-        schemaVersion: Int? = SchemaVersion.current
+        schemaVersion: Int? = 6
     ) throws -> URL {
         try FileManager.default.createDirectory(at: backupRoot, withIntermediateDirectories: true)
         let folder = backupRoot.appendingPathComponent(dateID, isDirectory: true)
@@ -201,7 +207,7 @@ final class StoreBackupManagerTests: XCTestCase {
             id: "2026-04-01",
             url: backupFolder,
             sizeBytes: 0,
-            schemaVersion: SchemaVersion.current
+            schemaVersion: currentSchemaVersion
         )
         try makeManager().restore(from: entry)
 
@@ -221,7 +227,7 @@ final class StoreBackupManagerTests: XCTestCase {
             id: "2026-04-01",
             url: backupFolder,
             sizeBytes: 0,
-            schemaVersion: SchemaVersion.current
+            schemaVersion: currentSchemaVersion
         )
         try makeManager().restore(from: entry)
 
@@ -242,7 +248,7 @@ final class StoreBackupManagerTests: XCTestCase {
         try writeFakeStore(content: "current-bytes")
         let backupFolder = try makeBackupFolder("2026-04-01", content: "backup-bytes")
 
-        try makeManager().restore(from: .init(id: "2026-04-01", url: backupFolder, sizeBytes: 0, schemaVersion: SchemaVersion.current))
+        try makeManager().restore(from: .init(id: "2026-04-01", url: backupFolder, sizeBytes: 0, schemaVersion: currentSchemaVersion))
 
         let entries = try FileManager.default.contentsOfDirectory(
             at: backupRoot,
@@ -265,7 +271,7 @@ final class StoreBackupManagerTests: XCTestCase {
         let folder = backupRoot.appendingPathComponent("2026-04-01", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
 
-        let entry = StoreBackupManager.BackupEntry(id: "2026-04-01", url: folder, sizeBytes: 0, schemaVersion: SchemaVersion.current)
+        let entry = StoreBackupManager.BackupEntry(id: "2026-04-01", url: folder, sizeBytes: 0, schemaVersion: currentSchemaVersion)
 
         XCTAssertThrowsError(try makeManager().restore(from: entry)) { error in
             guard case StoreBackupManager.RestoreError.backupHasNoStoreFile = error else {
@@ -290,7 +296,7 @@ final class StoreBackupManagerTests: XCTestCase {
         try writeFakeStore(content: "original-bytes")
         let backupFolder = try makeBackupFolder("2026-04-01", content: "restored-bytes")
 
-        try makeManager().restore(from: .init(id: "2026-04-01", url: backupFolder, sizeBytes: 0, schemaVersion: SchemaVersion.current))
+        try makeManager().restore(from: .init(id: "2026-04-01", url: backupFolder, sizeBytes: 0, schemaVersion: currentSchemaVersion))
 
         // Find the pre-restore snapshot manually.
         let entries = try FileManager.default.contentsOfDirectory(
@@ -348,7 +354,7 @@ final class StoreBackupManagerTests: XCTestCase {
                 return
             }
             XCTAssertEqual(backup, 999)
-            XCTAssertEqual(current, SchemaVersion.current)
+            XCTAssertEqual(current, currentSchemaVersion)
         }
         // Live store untouched.
         XCTAssertEqual(try String(contentsOf: storeURL), "current")

@@ -1,5 +1,5 @@
 import XCTest
-@testable import PiWork
+@testable import PiWorkCore
 
 /// Unit tests for the pure-function helpers behind email OTP login. The
 /// network-driving parts of `EmailOTPClient` (HTML form posts, redirect

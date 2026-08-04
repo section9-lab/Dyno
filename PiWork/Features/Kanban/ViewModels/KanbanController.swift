@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(macOS 14.0, *)
 /// Stateless Kanban CRUD on `StoredKanbanTask` entities. Takes a
 /// `ModelContext` per call; reads via `@Query` happen directly in the views.
 @MainActor

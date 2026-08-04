@@ -2,6 +2,7 @@ import AppKit
 import SwiftData
 import SwiftUI
 
+@available(macOS 14.0, *)
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \StoredProject.addedAt, order: .reverse) private var projects: [StoredProject]
@@ -52,7 +53,7 @@ struct ContentView: View {
         .task {
             selectDefaultProjectIfNeeded()
         }
-        .onChange(of: projects.count) { _, _ in
+        .onChange(of: projects.count) { _ in
             selectDefaultProjectIfNeeded()
         }
         .frame(minWidth: 1040, minHeight: 760)
@@ -304,12 +305,4 @@ struct ContentView: View {
             NSWorkspace.shared.open(url)
         }
     }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: [StoredProject.self, StoredKanbanTask.self], inMemory: true)
-        .environmentObject(AuthSession.shared)
-        .environmentObject(LocalizationManager.shared)
-        .environmentObject(ThemeManager.shared)
 }

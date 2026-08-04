@@ -41,6 +41,7 @@ enum KanbanTaskPriority: String, Codable, CaseIterable, Identifiable {
 /// `linkedSessionIDs` and `labels` are comma-joined strings because SwiftData
 /// has spotty support for `[String]` value-type collections; the wrapper
 /// accessors keep callers strongly typed.
+@available(macOS 14.0, *)
 @Model
 final class StoredKanbanTask {
     @Attribute(.unique) var id: String
@@ -130,6 +131,7 @@ final class StoredKanbanTask {
 /// re-fetch on the drop side. Lives separately from `KanbanTaskSnapshot`'s
 /// own `transferRepresentation`; old call sites keep using snapshot drag
 /// until the legacy type is removed.
+@available(macOS 14.0, *)
 struct KanbanTaskDragPayload: Codable, Transferable {
     let id: String
 

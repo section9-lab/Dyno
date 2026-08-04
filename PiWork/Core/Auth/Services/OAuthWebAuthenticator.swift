@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Network
+import PiWorkCore
 
 struct OAuthWebAuthenticationRequest<Context> {
     let authorizationURL: URL

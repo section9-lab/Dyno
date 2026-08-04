@@ -26,7 +26,7 @@ struct EmailInputField: View {
                 // macOS doesn't auto-lowercase the way iOS does, but trimming
                 // accidental leading whitespace from autofill avoids a class
                 // of "looks valid but isn't" failures downstream.
-                .onChange(of: text) { _, newValue in
+                .onChange(of: text) { newValue in
                     if newValue.first?.isWhitespace == true {
                         text = String(newValue.drop(while: { $0.isWhitespace }))
                     }

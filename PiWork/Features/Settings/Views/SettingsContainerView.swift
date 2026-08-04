@@ -41,11 +41,11 @@ struct SettingsContainerView: View {
         .environment(\.locale, localization.locale)
         .id(localization.language)
         .frame(width: 800, height: 640)
-        .onChange(of: generalSettings.language) { _, newValue in
+        .onChange(of: generalSettings.language) { newValue in
             guard let language = AppLanguage(rawValue: newValue) else { return }
             localization.language = language
         }
-        .onChange(of: generalSettings.theme) { _, newValue in
+        .onChange(of: generalSettings.theme) { newValue in
             guard let theme = AppTheme(rawValue: newValue) else { return }
             themeManager.theme = theme
         }
@@ -85,7 +85,7 @@ struct SettingsContainerView: View {
                         .buttonStyle(.borderedProminent)
                 }
             }
-            .onChange(of: selectedTab) { _, tab in
+            .onChange(of: selectedTab) { tab in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     proxy.scrollTo(tab, anchor: .top)
                 }

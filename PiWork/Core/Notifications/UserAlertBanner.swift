@@ -1,4 +1,5 @@
 import SwiftUI
+import PiWorkCore
 
 /// Top-anchored banner that observes `UserAlertCenter.shared` and shows the
 /// current alert, if any. Drop into a view as `.overlay(alignment: .top) { UserAlertBanner() }`.

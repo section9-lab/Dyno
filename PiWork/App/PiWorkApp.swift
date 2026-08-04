@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import PiWorkCore
 import SwiftData
 import Combine
 struct OnboardingLoginView: View {
@@ -85,7 +86,7 @@ struct OnboardingLoginView: View {
         .frame(minWidth: 980, minHeight: 760)
         .toolbarBackground(.hidden, for: .windowToolbar)
         .background(LoginWindowConfigurator())
-        .onChange(of: authSession.isAuthenticating) { _, newValue in
+        .onChange(of: authSession.isAuthenticating) { newValue in
             if !newValue { pendingProvider = nil }
         }
         .onDisappear {
@@ -618,7 +619,51 @@ private struct PrivacyAgreementView: View {
 
 @main
 struct PiWorkApp: App {
-    var sharedModelContainer: ModelContainer = {
+    @StateObject private var localization = LocalizationManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var authSession = AuthSession.shared
+
+    var body: some Scene {
+        WindowGroup {
+            rootView
+            .environmentObject(authSession)
+            .environmentObject(localization)
+            .environmentObject(themeManager)
+            .environment(\.locale, localization.locale)
+            .preferredColorScheme(themeManager.theme.colorScheme)
+            .onAppear {
+                configureApp()
+            }
+            .task {
+                await authSession.restoreSessionOnLaunch()
+            }
+        }
+        .defaultSize(width: 1180, height: 820)
+    }
+
+    private func configureApp() {
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        let appPath = Bundle.main.bundleURL.path
+        let executablePath = Bundle.main.executableURL?.path ?? "unknown"
+
+        print("🔧 [APP] Bundle ID: \(bundleId)")
+        print("🔧 [APP] App Path: \(appPath)")
+        print("🔧 [APP] Executable Path: \(executablePath)")
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        if #available(macOS 14.0, *) {
+            PiWorkSupportedRootView()
+        } else {
+            UnsupportedSystemView()
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private enum PiWorkModelContainerProvider {
+    static let sharedModelContainer: ModelContainer = {
         StoreBackupManager.default()?.runDailyBackupIfNeeded()
 
         let schema = Schema([
@@ -633,44 +678,40 @@ struct PiWorkApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
+}
 
-    @StateObject private var localization = LocalizationManager.shared
-    @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var authSession = AuthSession.shared
+@available(macOS 14.0, *)
+private struct PiWorkSupportedRootView: View {
+    @EnvironmentObject private var authSession: AuthSession
 
-    var body: some Scene {
-        WindowGroup {
-            Group {
-                if authSession.isSignedIn {
-                    ContentView()
-                        .background(MainWindowConfigurator())
-                } else {
-                    OnboardingLoginView(authSession: authSession)
-                }
-            }
-            .environmentObject(authSession)
-            .environmentObject(localization)
-            .environmentObject(themeManager)
-            .environment(\.locale, localization.locale)
-            .preferredColorScheme(themeManager.theme.colorScheme)
-            .onAppear {
-                configureApp()
-            }
-            .task {
-                await authSession.restoreSessionOnLaunch()
+    var body: some View {
+        Group {
+            if authSession.isSignedIn {
+                ContentView()
+                    .background(MainWindowConfigurator())
+            } else {
+                OnboardingLoginView(authSession: authSession)
             }
         }
-        .defaultSize(width: 1180, height: 820)
-        .modelContainer(sharedModelContainer)
+        .modelContainer(PiWorkModelContainerProvider.sharedModelContainer)
     }
+}
 
-    private func configureApp() {
-        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
-        let appPath = Bundle.main.bundleURL.path
-        let executablePath = Bundle.main.executableURL?.path ?? "unknown"
-
-        print("🔧 [APP] Bundle ID: \(bundleId)")
-        print("🔧 [APP] App Path: \(appPath)")
-        print("🔧 [APP] Executable Path: \(executablePath)")
+private struct UnsupportedSystemView: View {
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 30))
+                .foregroundColor(.orange)
+            Text("pi-work requires macOS 14 or later")
+                .font(.system(size: 24, weight: .semibold))
+            Text("This build now has a macOS 13 deployment target so it can launch and run tests on older systems, but the SwiftData-backed board UI still requires macOS 14 at runtime.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(MainWindowConfigurator())
     }
 }

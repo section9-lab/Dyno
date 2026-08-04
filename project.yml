@@ -2,7 +2,7 @@ name: pi-work
 options:
   bundleIdPrefix: com.section9lab
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "13.0"
   xcodeVersion: "15.0"
   generateEmptyDirectories: true
 
@@ -17,7 +17,7 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
     ENABLE_HARDENED_RUNTIME: YES
   configs:
     Debug:
@@ -25,6 +25,7 @@ settings:
       CODE_SIGN_IDENTITY: "-"
       DEVELOPMENT_TEAM: ""
       PROVISIONING_PROFILE_SPECIFIER: ""
+      ENABLE_HARDENED_RUNTIME: NO
     Release:
       # Distribution build still uses the original team. Override via
       # `PI_WORK_DEVELOPMENT_TEAM` env when invoking xcodebuild on CI or
@@ -33,6 +34,16 @@ settings:
       DEVELOPMENT_TEAM: 6BWZP56JX9
 
 targets:
+  PiWorkCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: PiWorkCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.section9lab.PiWorkCore
+        GENERATE_INFOPLIST_FILE: YES
+
   PiWork:
     type: application
     platform: macOS
@@ -45,18 +56,25 @@ targets:
       - path: skills
         type: folder
         buildPhase: resources
+    dependencies:
+      - target: PiWorkCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.section9lab.PiWork
         INFOPLIST_FILE: PiWork/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: PiWork/Resources/PiWork.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -weak_framework
+          - SwiftData
       configs:
         Debug:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "-"
           DEVELOPMENT_TEAM: ""
           PROVISIONING_PROFILE_SPECIFIER: ""
+          ENABLE_HARDENED_RUNTIME: NO
         Release:
           CODE_SIGN_STYLE: Automatic
           DEVELOPMENT_TEAM: 6BWZP56JX9
@@ -76,13 +94,13 @@ targets:
     sources:
       - path: PiWorkTests
     dependencies:
-      - target: PiWork
+      - target: PiWorkCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.section9lab.PiWorkTests
+        TEST_HOST: ""
+        BUNDLE_LOADER: ""
         GENERATE_INFOPLIST_FILE: YES
-        BUNDLE_LOADER: "$(TEST_HOST)"
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/PiWork.app/Contents/MacOS/PiWork"
 
 schemes:
   PiWork:

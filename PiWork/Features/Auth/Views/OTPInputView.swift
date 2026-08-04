@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import PiWorkCore
 
 /// 6-digit one-time-code input with the standard "boxes that auto-advance"
 /// behavior. Pasting a 6-digit string anywhere in the row fills the whole
@@ -95,82 +96,6 @@ struct OTPInputView: View {
 
     private func handleSubmit() {
         if code.count == length { onComplete?(code) }
-    }
-}
-
-/// Pure-function core of the OTP field. Pulling input handling out of the
-/// SwiftUI view lets us unit-test the tricky cases (paste, mid-row typing,
-/// backspace falling back) without mounting a view hierarchy.
-enum OTPInputProcessor {
-    struct InputResult: Equatable {
-        let code: String
-        let focusedIndex: Int
-        let isComplete: Bool
-    }
-
-    struct BackspaceResult: Equatable {
-        let code: String
-        let focusedIndex: Int
-    }
-
-    static func applyInput(_ raw: String, to current: String, at index: Int, length: Int) -> InputResult {
-        let digits = raw.filter(\.isOTPDigit)
-        guard !digits.isEmpty else {
-            return InputResult(code: current, focusedIndex: index, isComplete: current.count == length)
-        }
-
-        // A paste containing the full row overwrites everything.
-        if digits.count >= length {
-            let trimmed = String(digits.prefix(length))
-            return InputResult(code: trimmed, focusedIndex: length - 1, isComplete: trimmed.count == length)
-        }
-
-        var characters = Array(current)
-        if index < characters.count {
-            characters[index] = digits.first!
-        } else {
-            while characters.count < index { characters.append(" ") }
-            characters.append(digits.first!)
-        }
-        for (offset, digit) in digits.dropFirst().enumerated() {
-            let target = index + 1 + offset
-            if target < length {
-                if target < characters.count {
-                    characters[target] = digit
-                } else {
-                    characters.append(digit)
-                }
-            }
-        }
-
-        let trimmed = String(characters.prefix(length)).trimmingCharacters(in: .whitespaces)
-        let nextIndex = min(index + digits.count, length - 1)
-        return InputResult(code: trimmed, focusedIndex: nextIndex, isComplete: trimmed.count == length)
-    }
-
-    static func applyBackspace(to current: String, at index: Int) -> BackspaceResult {
-        // Non-empty cell: delete this digit, stay on the same column so the
-        // user can immediately type a replacement.
-        if index < current.count {
-            var characters = Array(current)
-            characters.remove(at: index)
-            return BackspaceResult(code: String(characters), focusedIndex: index)
-        }
-        // Already-empty cell: jump backwards and clear the previous digit.
-        let previous = max(0, index - 1)
-        if previous < current.count {
-            var characters = Array(current)
-            characters.remove(at: previous)
-            return BackspaceResult(code: String(characters), focusedIndex: previous)
-        }
-        return BackspaceResult(code: current, focusedIndex: previous)
-    }
-}
-
-private extension Character {
-    var isOTPDigit: Bool {
-        guard let ascii = asciiValue else { return false }
-        return (0x30...0x39).contains(ascii)
     }
 }
 

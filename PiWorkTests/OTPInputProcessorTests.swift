@@ -1,5 +1,5 @@
 import XCTest
-@testable import PiWork
+@testable import PiWorkCore
 
 /// Tests for the pure-function input processor that powers `OTPInputView`.
 /// Covers the cases where naive implementations get caught: pasting a full

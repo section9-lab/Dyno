@@ -1,4 +1,5 @@
 import Foundation
+import PiWorkCore
 import Security
 
 struct AuthKeychainStore {
