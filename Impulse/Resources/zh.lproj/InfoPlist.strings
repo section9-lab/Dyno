@@ -1,3 +1,0 @@
-"NSMicrophoneUsageDescription" = "Impulse 需要访问麦克风以进行语音输入。";
-"NSSpeechRecognitionUsageDescription" = "Impulse 使用语音识别来转写你的语音输入。";
-"NSScreenCaptureUsageDescription" = "Impulse 需要屏幕捕获权限来分析屏幕内容。";
