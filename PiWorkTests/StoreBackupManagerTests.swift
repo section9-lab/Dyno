@@ -64,7 +64,7 @@ final class StoreBackupManagerTests: XCTestCase {
     }
 
     func test_walMissing_doesNotFail() throws {
-        // SwiftData may not have created -shm/-wal yet (no transactions written).
+        // The persistent store may not have created -shm/-wal yet (no transactions written).
         try writeFakeStore(suffixes: [""])
         makeManager().runDailyBackupIfNeeded()
 
@@ -335,7 +335,7 @@ final class StoreBackupManagerTests: XCTestCase {
     }
 
     /// A backup whose stamp doesn't match the current schema must be refused
-    /// outright. Restoring it would produce a SwiftData store the running
+    /// outright. Restoring it would produce a store the running
     /// app can't open; better to fail loudly than corrupt silently.
     func test_restore_rejectsSchemaMismatch() throws {
         try writeFakeStore(content: "current")

@@ -789,11 +789,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-weak_framework",
-					SwiftData,
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWork;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
@@ -852,11 +847,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-weak_framework",
-					SwiftData,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWork;
 				SDKROOT = macosx;

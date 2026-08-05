@@ -13,8 +13,8 @@ extension StoreBackupManager {
         }
         let bundleID = Bundle.main.bundleIdentifier ?? "pi-work"
         let storeURL = appSupport.appendingPathComponent("default.store", isDirectory: false)
-        // Backups live in our own subdirectory so SwiftData never tries to
-        // open them.
+        // Backups live in our own subdirectory so the persistence layer
+        // never tries to open them as a live store.
         let backupRoot = appSupport
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("store-backups", isDirectory: true)
