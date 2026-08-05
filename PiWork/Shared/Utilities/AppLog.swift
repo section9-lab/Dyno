@@ -22,8 +22,6 @@ enum AppLog {
     static let agent = Logger(subsystem: subsystem, category: "agent")
     static let persistence = Logger(subsystem: subsystem, category: "persistence")
     static let auth = Logger(subsystem: subsystem, category: "auth")
-    static let sandbox = Logger(subsystem: subsystem, category: "sandbox")
-    static let capture = Logger(subsystem: subsystem, category: "capture")
     static let ui = Logger(subsystem: subsystem, category: "ui")
     static let app = Logger(subsystem: subsystem, category: "app")
 }
