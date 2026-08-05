@@ -534,8 +534,14 @@ private func applyNativeWindowChrome(to window: NSWindow) {
     window.titlebarAppearsTransparent = true
     window.titleVisibility = .hidden
     window.isMovableByWindowBackground = true
-    window.isOpaque = false
-    window.backgroundColor = .clear
+    // The window itself must stay opaque with a normal system background.
+    // `isOpaque = false` + `.clear` made the whole content area see-through
+    // to whatever window was behind pi-work whenever a SwiftUI subview
+    // (e.g. the Kanban detail pane / empty state) didn't paint its own
+    // background - only the sidebar looked right because List(.sidebar)
+    // supplies its own opaque material regardless of window opacity.
+    window.isOpaque = true
+    window.backgroundColor = .windowBackgroundColor
     window.hasShadow = true
     window.titlebarSeparatorStyle = .none
 }
