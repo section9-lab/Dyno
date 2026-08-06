@@ -43,9 +43,20 @@ targets:
       properties:
         CFBundleDisplayName: pi-work
         CFBundleShortVersionString: 0.1.0
-        CFBundleVersion: 1
+        # Must be a string: CFNetwork builds the default User-Agent from this
+        # and calls -length on it, so a numeric value crashes on the first
+        # URLSession request.
+        CFBundleVersion: "1"
         LSMinimumSystemVersion: "13.0"
         NSHumanReadableCopyright: Copyright © section9-lab
+        # openauth issuer for Google / email-OTP sign-in. Overridable at
+        # runtime via the PI_WORK_OPENAUTH_ISSUER_URL env var or the
+        # auth.openauth.issuerURL user default.
+        OpenAuthIssuerURL: https://auth.vibevibe.cc
+        CFBundleURLTypes:
+          - CFBundleURLName: cc.vibevibe.pi-work.auth
+            CFBundleURLSchemes:
+              - pi-work
     entitlements:
       path: PiWork/Resources/PiWork.entitlements
       properties:

@@ -178,24 +178,54 @@ private struct FolderRow: View {
     }
 }
 
-/// Bottom-of-sidebar account row. Placeholder avatar/name until auth is
-/// reintroduced in this rewrite (see the auth-login-guide.md notes carried
-/// over from the previous implementation).
+/// Bottom-of-sidebar account row. Shows the signed-in user and opens the
+/// account popover (settings / help / sign out).
 private struct UserFooterView: View {
+    @ObservedObject private var authSession = AuthSession.shared
+    @State private var isPopoverPresented = false
+
+    private var displayName: String {
+        authSession.user?.displayName ?? "pi-work"
+    }
+
+    private var initial: String {
+        authSession.user?.avatarInitial ?? "p"
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(Color(red: 0.95, green: 0.23, blue: 0.42))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Text("p")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.white)
+        Button {
+            isPopoverPresented.toggle()
+        } label: {
+            HStack(spacing: 10) {
+                AccountAvatarImage(
+                    url: authSession.user?.avatarURL,
+                    fallbackInitial: initial,
+                    fallbackFontSize: 15
                 )
-            Text("pi-work")
-                .font(.system(size: 14))
-                .foregroundStyle(Color.primary.opacity(0.85))
-            Spacer(minLength: 0)
+                .frame(width: 30, height: 30)
+                Text(displayName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.primary.opacity(0.85))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isPopoverPresented, arrowEdge: .top) {
+            UserAccountPopover(
+                isPresented: $isPopoverPresented,
+                accountName: displayName,
+                accountSubtitle: authSession.provider.accountSubtitle,
+                accountInitial: initial,
+                accountAvatarURL: authSession.user?.avatarURL,
+                onSettings: { isPopoverPresented = false },
+                onHelp: { isPopoverPresented = false },
+                onLogout: {
+                    isPopoverPresented = false
+                    authSession.signOut()
+                }
+            )
         }
     }
 }
