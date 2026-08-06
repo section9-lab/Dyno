@@ -69,13 +69,25 @@ targets:
           fi
           SRC="$SRCROOT/PiWork/Resources/PiAgent/$PI_ARCH"
           DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/PiAgent/$PI_ARCH"
-          if [ -x "$SRC/pi" ]; then
-            mkdir -p "$DEST"
-            cp -R "$SRC/." "$DEST/"
-            echo "Staged pi agent binary ($PI_ARCH) into app bundle."
-          else
-            echo "warning: pi agent binary not found at $SRC — run scripts/fetch-pi-binary.sh"
+
+          # The agent binary is gitignored (~80MB), so a fresh clone has none.
+          # Fetch it on demand instead of shipping an app whose agent can never
+          # start — a missing binary only surfaces at runtime otherwise.
+          if [ ! -x "$SRC/pi" ]; then
+            echo "pi agent binary missing for $PI_ARCH - fetching..."
+            # Don't let set -e abort here: fall through so the check below can
+            # print an actionable message instead of a bare non-zero exit.
+            PI_ARCHS="$PI_ARCH" "$SRCROOT/scripts/fetch-pi-binary.sh" || true
           fi
+
+          if [ ! -x "$SRC/pi" ]; then
+            echo "error: could not obtain the pi agent binary for $PI_ARCH. Run scripts/fetch-pi-binary.sh manually (needs network), then rebuild."
+            exit 1
+          fi
+
+          mkdir -p "$DEST"
+          cp -R "$SRC/." "$DEST/"
+          echo "Staged pi agent binary ($PI_ARCH) into app bundle."
 
   PiWorkTests:
     type: bundle.unit-test
