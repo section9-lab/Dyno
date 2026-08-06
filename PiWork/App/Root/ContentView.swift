@@ -8,14 +8,22 @@ struct ContentView: View {
     private var projects: FetchedResults<StoredProject>
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredKanbanTask.updatedAt, ascending: false)])
     private var allTasks: FetchedResults<StoredKanbanTask>
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredSession.updatedAt, ascending: false)])
+    private var allSessions: FetchedResults<StoredSession>
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredSessionEntry.createdAt, ascending: true)])
+    private var allSessionEntries: FetchedResults<StoredSessionEntry>
     @EnvironmentObject private var authSession: AuthSession
 
     @State private var selectedProjectPath: String?
+    @State private var selectedSessionID: String?
+    @State private var expandedProjectPaths: Set<String> = []
     @State private var showSettingsSheet = false
     @State private var showAccountPopover = false
     @State private var showRemoveProjectAlert = false
+    @State private var sessionPendingDeletion: StoredSession?
 
     private let kanban = KanbanController()
+    private let sessionController = SessionController()
 
     private var sortedTasks: [StoredKanbanTask] {
         allTasks.sorted { lhs, rhs in
@@ -29,6 +37,19 @@ struct ContentView: View {
     private var selectedProject: StoredProject? {
         guard let selectedProjectPath else { return nil }
         return projects.first(where: { $0.path == selectedProjectPath })
+    }
+
+    private var selectedSession: StoredSession? {
+        guard let selectedSessionID else { return nil }
+        return allSessions.first(where: { $0.id == selectedSessionID })
+    }
+
+    private func sessions(for project: StoredProject) -> [StoredSession] {
+        allSessions.filter { $0.projectPath == project.path }
+    }
+
+    private func entries(for session: StoredSession) -> [StoredSessionEntry] {
+        allSessionEntries.filter { $0.sessionID == session.id }
     }
 
     var body: some View {
@@ -51,6 +72,22 @@ struct ContentView: View {
         } message: {
             Text(selectedProject?.displayName ?? "")
         }
+        .alert(
+            "session.delete",
+            isPresented: Binding(
+                get: { sessionPendingDeletion != nil },
+                set: { if !$0 { sessionPendingDeletion = nil } }
+            )
+        ) {
+            Button("common.cancel", role: .cancel) {}
+            Button("common.delete", role: .destructive) {
+                if let session = sessionPendingDeletion {
+                    deleteSession(session)
+                }
+            }
+        } message: {
+            Text("session.delete.confirm_message")
+        }
         .task {
             selectDefaultProjectIfNeeded()
         }
@@ -67,13 +104,25 @@ struct ContentView: View {
                     projectRow(title: L10n.tr("project.all"), subtitle: L10n.tr("project.all.subtitle"), systemImage: "square.grid.2x2", path: nil)
 
                     ForEach(projects, id: \.path) { project in
-                        projectRow(
-                            title: project.displayName,
-                            subtitle: project.path,
-                            systemImage: project.isMissing ? "exclamationmark.triangle" : "folder",
-                            path: project.path,
-                            isDimmed: project.isMissing
-                        )
+                        VStack(alignment: .leading, spacing: 2) {
+                            projectRow(
+                                title: project.displayName,
+                                subtitle: project.path,
+                                systemImage: project.isMissing ? "exclamationmark.triangle" : "folder",
+                                path: project.path,
+                                isDimmed: project.isMissing,
+                                sessionCount: sessions(for: project).count,
+                                isExpanded: expandedProjectPaths.contains(project.path),
+                                onToggleExpand: { toggleExpanded(project) }
+                            )
+
+                            if expandedProjectPaths.contains(project.path) {
+                                ForEach(sessions(for: project), id: \.id) { session in
+                                    sessionRow(session)
+                                }
+                                newSessionButton(for: project)
+                            }
+                        }
                     }
                 } header: {
                     Text("project.sidebar")
@@ -98,6 +147,57 @@ struct ContentView: View {
             userAvatarSection
         }
         .frame(minWidth: 240)
+    }
+
+    private func sessionRow(_ session: StoredSession) -> some View {
+        Button {
+            selectedProjectPath = session.projectPath
+            selectedSessionID = session.id
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 11))
+                    .foregroundColor(session.id == selectedSessionID ? .accentColor : .secondary)
+                    .frame(width: 14)
+                Text(session.title)
+                    .font(.system(size: 12))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.leading, 30)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                sessionPendingDeletion = session
+            } label: {
+                Label("session.delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private func newSessionButton(for project: StoredProject) -> some View {
+        Button {
+            createSession(for: project)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .frame(width: 14)
+                Text("session.sidebar.new")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.leading, 30)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // User & Settings entry point, restored at the bottom of the sidebar
@@ -149,6 +249,17 @@ struct ContentView: View {
                 buttonTitle: "project.add",
                 action: addProject
             )
+        } else if let session = selectedSession {
+            SessionDetailView(
+                session: session,
+                entries: entries(for: session),
+                onSend: { content in
+                    sessionController.addEntry(content: content, to: session, modelContext: viewContext)
+                },
+                onDeleteEntry: { entry in
+                    sessionController.deleteEntry(entry, modelContext: viewContext)
+                }
+            )
         } else {
             KanbanPanelView(
                 projects: Array(projects),
@@ -183,38 +294,56 @@ struct ContentView: View {
         subtitle: String,
         systemImage: String,
         path: String?,
-        isDimmed: Bool = false
+        isDimmed: Bool = false,
+        sessionCount: Int? = nil,
+        isExpanded: Bool = false,
+        onToggleExpand: (() -> Void)? = nil
     ) -> some View {
-        Button {
-            selectedProjectPath = path
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .foregroundColor(path == selectedProjectPath ? .accentColor : .secondary)
-                    .frame(width: 16)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        HStack(spacing: 4) {
+            Button {
+                selectedProjectPath = path
+                selectedSessionID = nil
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: systemImage)
+                        .foregroundColor(path == selectedProjectPath && selectedSessionID == nil ? .accentColor : .secondary)
+                        .frame(width: 16)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                        Text(subtitle)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    if path == selectedProjectPath && selectedSessionID == nil {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.accentColor)
+                    }
                 }
-                Spacer()
-                if path == selectedProjectPath {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.accentColor)
-                }
+                .padding(.vertical, 4)
+                .opacity(isDimmed ? 0.7 : 1)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 4)
-            .opacity(isDimmed ? 0.7 : 1)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            if let onToggleExpand, let sessionCount {
+                Button(action: onToggleExpand) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(sessionCount > 0 ? "\(sessionCount)" : "")
+            }
         }
-        .buttonStyle(.plain)
     }
 
     private func emptyState(
@@ -294,12 +423,47 @@ struct ContentView: View {
             viewContext.delete(task)
         }
 
+        let projectSessionIDs = Set(allSessions.filter { $0.projectPath == selectedProjectPath }.map(\.id))
+        for entry in allSessionEntries.filter({ projectSessionIDs.contains($0.sessionID) }) {
+            viewContext.delete(entry)
+        }
+        for session in allSessions.filter({ $0.projectPath == selectedProjectPath }) {
+            viewContext.delete(session)
+        }
+
         for project in projects.filter({ $0.path == selectedProjectPath }) {
             viewContext.delete(project)
         }
         try? viewContext.save()
 
+        expandedProjectPaths.remove(selectedProjectPath)
+        selectedSessionID = nil
         self.selectedProjectPath = projects.first(where: { $0.path != selectedProjectPath })?.path
+    }
+
+    private func toggleExpanded(_ project: StoredProject) {
+        if expandedProjectPaths.contains(project.path) {
+            expandedProjectPaths.remove(project.path)
+        } else {
+            expandedProjectPaths.insert(project.path)
+        }
+    }
+
+    private func createSession(for project: StoredProject) {
+        let ordinal = sessions(for: project).count + 1
+        let title = L10n.tr("session.default_title_format", ordinal)
+        let session = sessionController.createSession(title: title, projectPath: project.path, modelContext: viewContext)
+        expandedProjectPaths.insert(project.path)
+        selectedProjectPath = project.path
+        selectedSessionID = session.id
+    }
+
+    private func deleteSession(_ session: StoredSession) {
+        sessionController.deleteSession(session, entries: entries(for: session), modelContext: viewContext)
+        if selectedSessionID == session.id {
+            selectedSessionID = nil
+        }
+        sessionPendingDeletion = nil
     }
 
     private func openHelp() {

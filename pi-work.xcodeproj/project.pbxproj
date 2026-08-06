@@ -45,6 +45,9 @@
 		EC016F3A5ECC089A4CF5AF28 /* AuthError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970A0883A1E3AA367D2C40DB /* AuthError.swift */; };
 		EC3AFC3CDEB880ABCD5E8370 /* EmailOTPValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2976EDBAC259624E62C21B4 /* EmailOTPValidation.swift */; };
 		EE688C05B1E14B0A09EC371B /* KanbanController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760B8408440DA2B0AA73CC9 /* KanbanController.swift */; };
+		29BD5675CED89EED2DB8033C /* StoredSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3144811BBDEBDE568F15A8EB /* StoredSession.swift */; };
+		762B7420E8E51F10260301BA /* SessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6D18ABC9917A7B5552A49A /* SessionController.swift */; };
+		36BB626A5416629BBA7E5687 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E6D1F3F6777967095FDA8B /* SessionDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +116,9 @@
 		774C1DDC7094896A81D62909 /* OpenAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAuthClient.swift; sourceTree = "<group>"; };
 		7EDE22A4C20E67E0CC23AC5E /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		8780852757BA484FEBDE6341 /* StoredKanbanTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredKanbanTask.swift; sourceTree = "<group>"; };
+		3144811BBDEBDE568F15A8EB /* StoredSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredSession.swift; sourceTree = "<group>"; };
+		ED6D18ABC9917A7B5552A49A /* SessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionController.swift; sourceTree = "<group>"; };
+		44E6D1F3F6777967095FDA8B /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		8837E67AD21C69230536C204 /* AuthTokenSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthTokenSet.swift; sourceTree = "<group>"; };
 		88F90F780E3700D33C11EF9D /* UserAlertBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAlertBanner.swift; sourceTree = "<group>"; };
 		8970284DE618DC03F9B724BC /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -207,6 +213,7 @@
 			children = (
 				6F7AE65BC1F04E03593FBF89 /* Auth */,
 				58C503D85299485D180619E5 /* Kanban */,
+				8AC7582EC0AFC4D745B716B4 /* Sessions */,
 				8DB38DD0CA9C80EEFE9DC3A7 /* Settings */,
 			);
 			name = Features;
@@ -287,6 +294,31 @@
 				DFB61037F5C158643B6177FA /* Views */,
 			);
 			path = Kanban;
+			sourceTree = "<group>";
+		};
+		8AC7582EC0AFC4D745B716B4 /* Sessions */ = {
+			isa = PBXGroup;
+			children = (
+				E91F3F40C360B95937A2E5E6 /* ViewModels */,
+				BBD39285E42706DBD9AA5D6D /* Views */,
+			);
+			path = Sessions;
+			sourceTree = "<group>";
+		};
+		E91F3F40C360B95937A2E5E6 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				ED6D18ABC9917A7B5552A49A /* SessionController.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		BBD39285E42706DBD9AA5D6D /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				44E6D1F3F6777967095FDA8B /* SessionDetailView.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 		5C118FC367E706595A46542C /* Core */ = {
@@ -429,6 +461,7 @@
 			children = (
 				7EDE22A4C20E67E0CC23AC5E /* Item.swift */,
 				8780852757BA484FEBDE6341 /* StoredKanbanTask.swift */,
+				3144811BBDEBDE568F15A8EB /* StoredSession.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -634,6 +667,9 @@
 				7E1AEB018307D184FDC79017 /* SettingsCard.swift in Sources */,
 				20234AF0170017401EA6D796 /* SettingsContainerView.swift in Sources */,
 				BC53C77A570F8451C556C4EA /* StoredKanbanTask.swift in Sources */,
+				29BD5675CED89EED2DB8033C /* StoredSession.swift in Sources */,
+				762B7420E8E51F10260301BA /* SessionController.swift in Sources */,
+				36BB626A5416629BBA7E5687 /* SessionDetailView.swift in Sources */,
 				8C257BA2BC5513C291D7AAF4 /* StringExtensions.swift in Sources */,
 				4770C77DF2156A4F2BE40459 /* UserAccountPopover.swift in Sources */,
 				5F0349F24F9484D5F7376B1E /* UserAlertBanner.swift in Sources */,

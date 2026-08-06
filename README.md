@@ -7,17 +7,18 @@
 
 [![License](https://img.shields.io/github/license/section9-lab/pi-work?style=flat-square&color=000)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/section9-lab/pi-work?style=flat-square&color=000)](https://github.com/section9-lab/pi-work/releases/latest)
-[![macOS](https://img.shields.io/badge/macOS-14.0%2B-000?style=flat-square)](https://www.apple.com/macos/)
+[![macOS](https://img.shields.io/badge/macOS-13.0%2B-000?style=flat-square)](https://www.apple.com/macos/)
 </div>
 
 ## What it is
 
-pi-work is a native SwiftUI + SwiftData macOS app for organizing project folders and Kanban tasks locally. It keeps project metadata on-device and offers lightweight account sign-in.
+pi-work is a native SwiftUI + Core Data macOS app for organizing project folders and Kanban tasks locally. It keeps project metadata on-device and offers lightweight account sign-in.
 
 ## Features
 
 - Project-scoped Kanban board
-- Local SwiftData persistence
+- Per-project sessions — a lightweight local scratchpad/journal with an input box, no AI involved
+- Local Core Data persistence
 - Theme and language settings
 - Google or email sign-in for account access
 
@@ -36,7 +37,7 @@ xcodebuild test -project pi-work.xcodeproj   -scheme PiWork   -destination "plat
 
 ## System requirements
 
-- macOS 14.0 or later
+- macOS 13.0 or later
 - Xcode 15.0 or later for local development
 
 ## License

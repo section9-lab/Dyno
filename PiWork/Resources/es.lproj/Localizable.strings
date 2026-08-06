@@ -59,6 +59,14 @@
 "kanban.tasks" = "Tareas";
 
 
+"session.sidebar.new" = "Nueva sesión";
+"session.default_title_format" = "Sesión %d";
+"session.empty" = "Aún no hay notas. Escribe abajo para añadir la primera.";
+"session.entry.placeholder" = "Escribe una nota…";
+"session.delete" = "Eliminar sesión";
+"session.delete.confirm_message" = "Esto eliminará la sesión y todas sus notas.";
+
+
 
 "auth.error.alipay_unavailable" = "El inicio con Alipay aún no está disponible. Usa Google para continuar.";
 "auth.error.authorization_failed" = "El inicio con Google falló: %@";

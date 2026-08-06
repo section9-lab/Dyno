@@ -59,6 +59,14 @@
 "kanban.tasks" = "タスク";
 
 
+"session.sidebar.new" = "新しいセッション";
+"session.default_title_format" = "セッション %d";
+"session.empty" = "まだメモがありません。下の入力欄に最初のメモを書いてください。";
+"session.entry.placeholder" = "メモを書く…";
+"session.delete" = "セッションを削除";
+"session.delete.confirm_message" = "セッションとそのすべてのメモが削除されます。";
+
+
 
 "auth.error.alipay_unavailable" = "Alipay サインインはまだ利用できません。Google で続けてください。";
 "auth.error.authorization_failed" = "Google サインインに失敗しました: %@";

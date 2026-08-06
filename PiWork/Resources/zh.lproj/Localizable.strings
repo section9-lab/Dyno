@@ -65,6 +65,14 @@
 "kanban.tasks" = "任务";
 
 
+"session.sidebar.new" = "新建会话";
+"session.default_title_format" = "会话 %d";
+"session.empty" = "还没有内容，在下方输入框写下第一条记录吧。";
+"session.entry.placeholder" = "写点什么…";
+"session.delete" = "删除会话";
+"session.delete.confirm_message" = "这会删除该会话及其中的所有记录。";
+
+
 
 “agent.max_steps_reached” = “我已经执行到步骤上限（%d 次工具调用），还差最后收敛。你可以回复”继续”，我会基于当前上下文接着完成。”;
 

@@ -59,6 +59,14 @@
 "kanban.tasks" = "Tâches";
 
 
+"session.sidebar.new" = "Nouvelle session";
+"session.default_title_format" = "Session %d";
+"session.empty" = "Aucune note pour le moment. Écrivez ci-dessous pour ajouter la première.";
+"session.entry.placeholder" = "Écrire une note…";
+"session.delete" = "Supprimer la session";
+"session.delete.confirm_message" = "Cela supprimera la session et toutes ses notes.";
+
+
 
 "auth.error.alipay_unavailable" = "La connexion avec Alipay n'est pas encore disponible. Utilisez Google pour continuer.";
 "auth.error.authorization_failed" = "La connexion Google a échoué : %@";
