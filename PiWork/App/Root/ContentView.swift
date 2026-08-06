@@ -15,17 +15,17 @@ struct ContentView: View {
                     SidebarView(
                         projectStore: projectStore,
                         selectedProject: $selectedProject,
-                        onAddFolder: pickFolder,
-                        onToggleSidebar: { withAnimation(.easeInOut(duration: 0.2)) { sidebarCollapsed = true } }
+                        onAddFolder: pickFolder
                     )
                     .transition(.move(edge: .leading))
+                    .background(Color.white.opacity(0.3))
 
                     Rectangle()
                         .fill(Color.black.opacity(0.06))
                         .frame(width: 1)
                 }
 
-                ZStack(alignment: .topTrailing) {
+                ZStack(alignment: .top) {
                     Group {
                         if let project = selectedProject {
                             ChatView(project: project)
@@ -36,29 +36,39 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if sidebarCollapsed {
+                    // The reference puts the sidebar toggle in the content
+                    // area's top-left corner (not inside the sidebar), where
+                    // it stays put whether the sidebar is open or collapsed.
+                    HStack {
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { sidebarCollapsed = false }
+                            withAnimation(.easeInOut(duration: 0.22)) { sidebarCollapsed.toggle() }
                         } label: {
                             Image(systemName: "sidebar.left")
-                                .font(.system(size: 13, weight: .medium))
-                                .frame(width: 28, height: 28)
-                                .background(Color(.controlBackgroundColor))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundStyle(Color.primary.opacity(0.75))
+                                .frame(width: 32, height: 32)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9)
+                                        .fill(Color.white)
+                                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                                )
                         }
                         .buttonStyle(.plain)
-                        .padding(.leading, 12)
-                        .padding(.top, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
-                    BetaBadge()
-                        .padding(.top, 12)
-                        .padding(.trailing, 16)
+                        Spacer(minLength: 0)
+
+                        BetaBadge()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
                 }
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        // The design is a fixed light-themed gradient, so pin the color
+        // scheme — otherwise system dark mode flips Color.primary to white
+        // and the text disappears against the light background.
+        .preferredColorScheme(.light)
     }
 
     private func pickFolder() {
@@ -78,18 +88,18 @@ struct ContentView: View {
 /// reference design. Purely decorative for now.
 private struct BetaBadge: View {
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Text("Beta 版")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color(.controlBackgroundColor))
-                .clipShape(Capsule())
+                .font(.system(size: 12))
+                .foregroundStyle(Color.primary.opacity(0.6))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.white.opacity(0.85)))
 
             Rectangle()
-                .fill(Color.primary.opacity(0.1))
-                .frame(width: 1, height: 16)
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: 2, height: 22)
+                .clipShape(Capsule())
         }
     }
 }

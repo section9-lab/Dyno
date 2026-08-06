@@ -1,106 +1,180 @@
 import SwiftUI
 
-/// Left sidebar: navigation (mostly placeholder for now — this rewrite's
-/// first milestone is wiring up the real `pi` agent, see AGENTS.md), the
-/// list of linked project folders (the working feature), and the user
-/// footer. Layout follows the reference design (nav list + "linked
-/// folders" section + bottom-anchored user row).
+/// Left sidebar: a segmented tab header, navigation items (placeholders
+/// for now — this rewrite's first milestone is wiring up the real `pi`
+/// agent), the list of linked project folders (the working feature), and
+/// a bottom-anchored account row. Layout mirrors the reference design.
 struct SidebarView: View {
     @ObservedObject var projectStore: ProjectStore
     @Binding var selectedProject: PiProject?
     var onAddFolder: () -> Void
-    var onToggleSidebar: () -> Void
-
-    private let placeholderNavItems: [(icon: String, title: String)] = [
-        ("square.and.pencil", "任务"),
-        ("clock", "排程"),
-        ("doc.text", "技能"),
-        ("cloud", "关联的应用")
-    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SidebarTopBar(onToggleSidebar: onToggleSidebar)
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
+            SidebarTabHeader()
+                .padding(.horizontal, 10)
+                .padding(.top, 14)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Label(placeholderNavItems[0].title, systemImage: placeholderNavItems[0].icon)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
+            NavRow(icon: "square.and.pencil", title: "任务")
+                .padding(.top, 18)
 
-                Text("自定义")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
-                    .padding(.horizontal, 12)
+            SectionLabel("自定义")
+                .padding(.top, 18)
 
-                ForEach(placeholderNavItems.dropFirst(), id: \.title) { item in
-                    Label(item.title, systemImage: item.icon)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 12)
-                }
-            }
-            .padding(.top, 12)
+            NavRow(icon: "clock", title: "排程")
+            NavRow(icon: "doc.text", title: "技能")
+            NavRow(icon: "puzzlepiece.extension", title: "关联的应用")
 
-            HStack {
-                Text("已关联的文件夹")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 20)
+            SectionLabel("已关联的文件夹")
+                .padding(.top, 22)
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     ForEach(projectStore.projects) { project in
-                        Button {
+                        FolderRow(
+                            project: project,
+                            isSelected: selectedProject?.id == project.id
+                        ) {
                             selectedProject = project
-                        } label: {
-                            HStack {
-                                Image(systemName: "folder.fill")
-                                    .foregroundStyle(.blue)
-                                Text(project.name)
-                                    .font(.system(size: 13))
-                                    .lineLimit(1)
-                                Spacer()
-                            }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 12)
-                            .background(
-                                selectedProject?.id == project.id
-                                    ? Color.accentColor.opacity(0.15)
-                                    : Color.clear
-                            )
-                            .cornerRadius(6)
                         }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 4)
                     }
+
+                    Button(action: onAddFolder) {
+                        HStack(spacing: 11) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .regular))
+                                .frame(width: 18)
+                            Text("添加 Mac 文件夹")
+                                .font(.system(size: 14))
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(Color.primary.opacity(0.75))
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
                 }
             }
+            .padding(.top, 8)
 
-            Button(action: onAddFolder) {
-                Label("添加 Mac 文件夹", systemImage: "plus")
-                    .font(.system(size: 13))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-
-            Spacer()
+            Spacer(minLength: 0)
 
             UserFooterView()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 15)
+                .padding(.bottom, 18)
         }
-        .frame(minWidth: 240, idealWidth: 260, maxWidth: 300)
+        .frame(width: 248)
+    }
+}
+
+// MARK: - Pieces
+
+/// Full-width segmented control at the top of the sidebar. Decorative for
+/// now: there is only one surface today, so the tabs are a placeholder for
+/// a future split between chat history and the project workspace.
+private struct SidebarTabHeader: View {
+    @State private var selectedTab = 1
+
+    var body: some View {
+        HStack(spacing: 0) {
+            tab(title: "对话", index: 0)
+            tab(title: "pi-work", badge: "Beta 版", index: 1)
+        }
+        .padding(3)
+        .background(Color.black.opacity(0.05))
+        .clipShape(Capsule())
+    }
+
+    private func tab(title: String, badge: String? = nil, index: Int) -> some View {
+        let isSelected = selectedTab == index
+        return Button {
+            selectedTab = index
+        } label: {
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(Color.primary.opacity(isSelected ? 0.9 : 0.6))
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.primary.opacity(0.5))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.white : Color.clear)
+                    .shadow(color: .black.opacity(isSelected ? 0.08 : 0), radius: 2, y: 1)
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct NavRow: View {
+    let icon: String
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .regular))
+                .frame(width: 18)
+            Text(title)
+                .font(.system(size: 14))
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color.primary.opacity(0.78))
+        .padding(.horizontal, 15)
+        .padding(.vertical, 7)
+    }
+}
+
+private struct SectionLabel: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13))
+            .foregroundStyle(Color.primary.opacity(0.42))
+            .padding(.horizontal, 15)
+            .padding(.bottom, 4)
+    }
+}
+
+private struct FolderRow: View {
+    let project: PiProject
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                Image(systemName: "folder")
+                    .font(.system(size: 14))
+                    .frame(width: 18)
+                Text(project.name)
+                    .font(.system(size: 14))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Color.primary.opacity(0.78))
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.white.opacity(0.75) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
     }
 }
 
@@ -109,65 +183,19 @@ struct SidebarView: View {
 /// over from the previous implementation).
 private struct UserFooterView: View {
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Circle()
-                .fill(Color.pink)
-                .frame(width: 28, height: 28)
-                .overlay(Text("P").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white))
+                .fill(Color(red: 0.95, green: 0.23, blue: 0.42))
+                .frame(width: 30, height: 30)
+                .overlay(
+                    Text("p")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white)
+                )
             Text("pi-work")
-                .font(.system(size: 13))
-            Spacer()
+                .font(.system(size: 14))
+                .foregroundStyle(Color.primary.opacity(0.85))
+            Spacer(minLength: 0)
         }
-    }
-}
-
-/// Top row of the sidebar: a sidebar-collapse toggle and a segmented
-/// "对话 / pi-work Beta 版" tab, matching the reference design's top bar.
-/// The tab control is currently decorative (single surface today); it's a
-/// placeholder for a future distinction between chat history and the
-/// project workspace itself.
-private struct SidebarTopBar: View {
-    var onToggleSidebar: () -> Void
-    @State private var selectedTab = 0
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button(action: onToggleSidebar) {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 28, height: 28)
-                    .background(Color(.controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-
-            HStack(spacing: 0) {
-                tabButton(title: "对话", index: 0)
-                tabButton(title: "pi-work", badge: "Beta 版", index: 1)
-            }
-            .padding(2)
-            .background(Color(.controlBackgroundColor))
-            .clipShape(Capsule())
-        }
-    }
-
-    private func tabButton(title: String, badge: String? = nil, index: Int) -> some View {
-        Button {
-            selectedTab = index
-        } label: {
-            HStack(spacing: 4) {
-                Text(title).font(.system(size: 12, weight: .medium))
-                if let badge {
-                    Text(badge)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(selectedTab == index ? Color(.windowBackgroundColor) : Color.clear)
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 }

@@ -1,35 +1,43 @@
 import SwiftUI
 
-/// Shown when no project is selected — a centered hero prompt input plus
-/// suggested tasks, matching the reference design's welcome screen.
+/// Shown when no project is selected — the hero prompt input plus suggested
+/// tasks. Content is anchored toward the top of the pane (not vertically
+/// centered) and constrained to a fixed-width column, matching the
+/// reference design.
 struct WelcomeHeroView: View {
     var onPickFolder: () -> Void
 
+    private let columnWidth: CGFloat = 640
+
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        VStack(spacing: 0) {
+            Spacer(minLength: 0).frame(height: 92)
 
             Text("让 pi 为你服务")
-                .font(.system(size: 40, weight: .light))
+                .font(.system(size: 34, weight: .regular))
+                .foregroundStyle(Color.primary.opacity(0.85))
 
             HeroInputBar(onPickFolder: onPickFolder)
-                .frame(maxWidth: 640)
+                .frame(maxWidth: columnWidth)
+                .padding(.top, 46)
 
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 26) {
                 Text("热门")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.primary.opacity(0.55))
+                    .padding(.bottom, 2)
 
                 ForEach(suggestions, id: \.title) { suggestion in
                     SuggestionRow(title: suggestion.title, subtitle: suggestion.subtitle)
                 }
             }
-            .frame(maxWidth: 640, alignment: .leading)
+            .frame(maxWidth: columnWidth, alignment: .leading)
+            .padding(.top, 52)
 
-            Spacer()
-            Spacer()
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 40)
     }
 
     private var suggestions: [(title: String, subtitle: String)] {
@@ -46,17 +54,25 @@ private struct SuggestionRow: View {
     let subtitle: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Rectangle()
-                .fill(Color.accentColor)
+        HStack(alignment: .center, spacing: 14) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color(red: 0.56, green: 0.69, blue: 0.92))
                 .frame(width: 3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.85))
                 Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Color.primary.opacity(0.55))
             }
+
+            Spacer(minLength: 0)
         }
+        // Without this the leading bar is greedy and stretches to fill all
+        // the height the parent offers instead of hugging the two text lines.
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -69,24 +85,30 @@ private struct HeroInputBar: View {
     @State private var text = ""
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             Button(action: onPickFolder) {
                 Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(Color.primary.opacity(0.75))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .padding(.trailing, 16)
 
             TextField("描述任务", text: $text)
                 .textFieldStyle(.plain)
+                .font(.system(size: 15))
                 .onSubmit(onPickFolder)
 
             Image(systemName: "mic")
-                .foregroundStyle(.secondary)
+                .font(.system(size: 16))
+                .foregroundStyle(Color.primary.opacity(0.7))
+                .padding(.leading, 16)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color(.textBackgroundColor))
+        .padding(.horizontal, 22)
+        .padding(.vertical, 15)
+        .background(Color.white)
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.black.opacity(0.06)))
-        .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+        .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
     }
 }
