@@ -47,8 +47,6 @@ struct SidebarView: View {
             }
             .padding(.top, 12)
 
-            Divider().padding(.vertical, 8)
-
             HStack {
                 Text("已关联的文件夹")
                     .font(.system(size: 12, weight: .semibold))
@@ -56,6 +54,7 @@ struct SidebarView: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
+            .padding(.top, 20)
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
@@ -97,20 +96,11 @@ struct SidebarView: View {
 
             Spacer()
 
-            Divider()
-
             UserFooterView()
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
         }
         .frame(minWidth: 240, idealWidth: 260, maxWidth: 300)
-        .background(
-            LinearGradient(
-                colors: [Color(.windowBackgroundColor), Color.blue.opacity(0.08)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
     }
 }
 

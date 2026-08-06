@@ -30,13 +30,6 @@ struct WelcomeHeroView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(
-                colors: [Color(.windowBackgroundColor), Color.blue.opacity(0.12)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
     }
 
     private var suggestions: [(title: String, subtitle: String)] {
