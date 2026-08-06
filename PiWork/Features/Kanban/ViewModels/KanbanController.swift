@@ -1,9 +1,9 @@
 import Foundation
-import SwiftData
+import CoreData
 
-@available(macOS 14.0, *)
-/// Stateless Kanban CRUD on `StoredKanbanTask` entities. Takes a
-/// `ModelContext` per call; reads via `@Query` happen directly in the views.
+/// Stateless Kanban CRUD on `StoredKanbanTask` entities. Takes an
+/// `NSManagedObjectContext` per call; reads via `@FetchRequest` happen
+/// directly in the views.
 @MainActor
 struct KanbanController {
 
@@ -13,33 +13,37 @@ struct KanbanController {
         status: KanbanTaskStatus,
         labels: [String] = [],
         projectPath: String?,
-        modelContext: ModelContext
+        modelContext: NSManagedObjectContext
     ) {
         guard let projectPath else { return }
         let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
 
-        let task = StoredKanbanTask(
+        _ = StoredKanbanTask(
+            context: modelContext,
             projectPath: projectPath,
             title: title,
             status: status,
             priority: priority,
             labels: labels
         )
-        modelContext.insert(task)
+        try? modelContext.save()
     }
 
     func setLabels(_ task: StoredKanbanTask, labels: [String]) {
         task.labels = labels
         task.updatedAt = Date()
+        try? task.managedObjectContext?.save()
     }
 
     func moveTask(_ task: StoredKanbanTask, to status: KanbanTaskStatus) {
         task.status = status
         task.updatedAt = Date()
+        try? task.managedObjectContext?.save()
     }
 
-    func deleteTask(_ task: StoredKanbanTask, modelContext: ModelContext) {
+    func deleteTask(_ task: StoredKanbanTask, modelContext: NSManagedObjectContext) {
         modelContext.delete(task)
+        try? modelContext.save()
     }
 }

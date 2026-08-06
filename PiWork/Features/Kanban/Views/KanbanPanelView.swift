@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-@available(macOS 14.0, *)
 struct KanbanPanelView: View {
     let projects: [StoredProject]
     @Binding var selectedProjectPath: String?
@@ -263,7 +262,6 @@ struct KanbanPanelView: View {
     }
 }
 
-@available(macOS 14.0, *)
 private struct KanbanColumnView: View {
     let status: KanbanTaskStatus
     let tasks: [StoredKanbanTask]
@@ -358,7 +356,6 @@ private struct KanbanColumnView: View {
     private func findTask(byID id: String) -> StoredKanbanTask? { nil }
 }
 
-@available(macOS 14.0, *)
 private struct KanbanColumnComposerView: View {
     let status: KanbanTaskStatus
     let availableProjects: [StoredProject]
@@ -650,7 +647,6 @@ private struct KanbanColumnComposerView: View {
     }
 }
 
-@available(macOS 14.0, *)
 private struct KanbanTaskCardView: View {
     let task: StoredKanbanTask
     let projectName: String?
@@ -841,7 +837,6 @@ private struct KanbanTaskCardView: View {
     }
 }
 
-@available(macOS 14.0, *)
 private extension KanbanTaskStatus {
     var localizedTitle: String {
         switch self {
@@ -860,7 +855,6 @@ private extension KanbanTaskStatus {
     }
 }
 
-@available(macOS 14.0, *)
 private extension KanbanTaskPriority {
     var localizedTitle: String {
         switch self {
