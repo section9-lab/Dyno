@@ -1,0 +1,106 @@
+name: pi-work
+options:
+  bundleIdPrefix: cc.vibevibe
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+  configs:
+    Debug:
+      CODE_SIGN_STYLE: Manual
+      CODE_SIGN_IDENTITY: "-"
+      DEVELOPMENT_TEAM: ""
+      PROVISIONING_PROFILE_SPECIFIER: ""
+      ENABLE_HARDENED_RUNTIME: NO
+      ENABLE_TESTABILITY: YES
+    Release:
+      # Distribution builds should use a real Developer ID team so the app
+      # can be notarized. Override DEVELOPMENT_TEAM for CI/release builds.
+      CODE_SIGN_STYLE: Automatic
+      ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  PiWork:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: PiWork
+        excludes:
+          - "Resources/PiAgent/arm64/**"
+          - "Resources/PiAgent/x64/**"
+    resources:
+      - path: PiWork/Resources
+        excludes:
+          - "PiAgent/arm64/**"
+          - "PiAgent/x64/**"
+    info:
+      path: PiWork/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: pi-work
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: 1
+        LSMinimumSystemVersion: "13.0"
+        NSHumanReadableCopyright: Copyright © section9-lab
+    entitlements:
+      path: PiWork/Resources/PiWork.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.vibevibe.pi-work
+        PRODUCT_NAME: PiWork
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: 0.1.0
+    postCompileScripts:
+      - name: "Stage bundled pi agent binary"
+        script: |
+          set -e
+          ARCH="$(uname -m)"
+          if [ "$ARCH" = "arm64" ]; then
+            PI_ARCH="arm64"
+          else
+            PI_ARCH="x64"
+          fi
+          SRC="$SRCROOT/PiWork/Resources/PiAgent/$PI_ARCH"
+          DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/PiAgent/$PI_ARCH"
+          if [ -x "$SRC/pi" ]; then
+            mkdir -p "$DEST"
+            cp -R "$SRC/." "$DEST/"
+            echo "Staged pi agent binary ($PI_ARCH) into app bundle."
+          else
+            echo "warning: pi agent binary not found at $SRC — run scripts/fetch-pi-binary.sh"
+          fi
+
+  PiWorkTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: PiWorkTests
+    dependencies:
+      - target: PiWork
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.vibevibe.pi-work.tests
+        PRODUCT_NAME: PiWorkTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/PiWork.app/Contents/MacOS/PiWork"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  PiWork:
+    build:
+      targets:
+        PiWork: all
+        PiWorkTests: [test]
+    test:
+      targets:
+        - PiWorkTests
+    run:
+      config: Debug
