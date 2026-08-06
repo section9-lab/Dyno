@@ -34,7 +34,13 @@ fetch_arch() {
   echo "==> Staged $(file "$dest/pi" | sed 's/^[^:]*: //') at $dest/pi"
 }
 
-fetch_arch "arm64"
-fetch_arch "x64"
+# Which architectures to fetch. Defaults to both, so a manual run prepares a
+# tree ready for either machine; the Xcode build phase overrides this to fetch
+# only the architecture it is currently building for.
+PI_ARCHS="${PI_ARCHS:-arm64 x64}"
+
+for arch in $PI_ARCHS; do
+  fetch_arch "$arch"
+done
 
 echo "==> Done. Re-run 'xcodegen generate' if this is the first fetch (Resources folder membership is picked up by xcodegen)."
