@@ -65,6 +65,14 @@
 "kanban.tasks" = "Tasks";
 
 
+"session.sidebar.new" = "New Session";
+"session.default_title_format" = "Session %d";
+"session.empty" = "No entries yet. Type below to add your first note.";
+"session.entry.placeholder" = "Write a note…";
+"session.delete" = "Delete Session";
+"session.delete.confirm_message" = "This will delete the session and all its notes.";
+
+
 
 
 

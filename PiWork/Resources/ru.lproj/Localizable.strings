@@ -59,6 +59,14 @@
 "kanban.tasks" = "Задачи";
 
 
+"session.sidebar.new" = "Новая сессия";
+"session.default_title_format" = "Сессия %d";
+"session.empty" = "Пока нет записей. Введите текст ниже, чтобы добавить первую.";
+"session.entry.placeholder" = "Напишите заметку…";
+"session.delete" = "Удалить сессию";
+"session.delete.confirm_message" = "Это удалит сессию и все её записи.";
+
+
 
 "auth.error.alipay_unavailable" = "Вход через Alipay пока недоступен. Используйте Google, чтобы продолжить.";
 "auth.error.authorization_failed" = "Не удалось войти через Google: %@";

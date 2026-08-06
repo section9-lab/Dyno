@@ -2,23 +2,24 @@
 
 ## Project Overview
 
-pi-work is a native macOS project board built with SwiftUI and SwiftData. The app is local-first: it stores project folders and Kanban tasks on-device and keeps lightweight account/auth state locally.
+pi-work is a native macOS project board built with SwiftUI and Core Data. The app is local-first: it stores project folders, Kanban tasks, and per-project sessions on-device and keeps lightweight account/auth state locally.
 
 ## Architecture & Data Flow
 
-- Entry point: `PiWork/App/PiWorkApp.swift` builds the SwiftData container and routes signed-in users to `ContentView`.
-- Main shell: `PiWork/App/Root/ContentView.swift` manages project selection, Kanban presentation, settings, and project CRUD.
-- Persistence model: `PiWork/Core/Data/Models/Item.swift` stores `StoredProject`; `PiWork/Core/Data/Models/StoredKanbanTask.swift` stores Kanban cards.
+- Entry point: `PiWork/App/PiWorkApp.swift` builds the Core Data stack (`NSPersistentContainer` with a programmatic `NSManagedObjectModel`) and routes signed-in users to `ContentView`.
+- Main shell: `PiWork/App/Root/ContentView.swift` manages project selection, Kanban presentation, sessions, settings, and project CRUD.
+- Persistence model: `PiWork/Core/Data/Models/Item.swift` stores `StoredProject`; `PiWork/Core/Data/Models/StoredKanbanTask.swift` stores Kanban cards; `PiWork/Core/Data/Models/StoredSession.swift` stores `StoredSession`/`StoredSessionEntry` — a purely local, per-project scratchpad/journal (no AI involved).
 - Auth: `PiWork/Core/Auth/` contains sign-in/session management and OpenAuth integration.
 
 ## Key Directories
 
 - `PiWork/App/` — app entry point and root shell
 - `PiWork/Core/Auth/` — auth models, services, session manager
-- `PiWork/Core/Data/` — SwiftData models
+- `PiWork/Core/Data/` — Core Data models
 - `PiWork/Core/Notifications/` — user banner notifications
 - `PiWork/Features/Auth/` — onboarding and account UI
 - `PiWork/Features/Kanban/` — board views and controller
+- `PiWork/Features/Sessions/` — per-project session/journal views and controller
 - `PiWork/Features/Settings/` — general settings
 - `PiWork/Resources/` — Info.plist, entitlements, assets, localized strings
 - `PiWorkTests/` — XCTest coverage

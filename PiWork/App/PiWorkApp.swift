@@ -750,7 +750,42 @@ private enum PiWorkPersistenceController {
             taskAssigneeName, taskNotes, taskCreatedAt, taskUpdatedAt,
         ]
 
-        model.entities = [project, task]
+        let session = NSEntityDescription()
+        session.name = "StoredSession"
+        session.managedObjectClassName = NSStringFromClass(StoredSession.self)
+
+        let sessionID = stringAttribute("id")
+        let sessionProjectPath = stringAttribute("projectPath")
+        let sessionTitle = stringAttribute("title")
+
+        let sessionCreatedAt = NSAttributeDescription()
+        sessionCreatedAt.name = "createdAt"
+        sessionCreatedAt.attributeType = .dateAttributeType
+        sessionCreatedAt.isOptional = false
+
+        let sessionUpdatedAt = NSAttributeDescription()
+        sessionUpdatedAt.name = "updatedAt"
+        sessionUpdatedAt.attributeType = .dateAttributeType
+        sessionUpdatedAt.isOptional = false
+
+        session.properties = [sessionID, sessionProjectPath, sessionTitle, sessionCreatedAt, sessionUpdatedAt]
+
+        let sessionEntry = NSEntityDescription()
+        sessionEntry.name = "StoredSessionEntry"
+        sessionEntry.managedObjectClassName = NSStringFromClass(StoredSessionEntry.self)
+
+        let entryID = stringAttribute("id")
+        let entrySessionID = stringAttribute("sessionID")
+        let entryContent = stringAttribute("content")
+
+        let entryCreatedAt = NSAttributeDescription()
+        entryCreatedAt.name = "createdAt"
+        entryCreatedAt.attributeType = .dateAttributeType
+        entryCreatedAt.isOptional = false
+
+        sessionEntry.properties = [entryID, entrySessionID, entryContent, entryCreatedAt]
+
+        model.entities = [project, task, session, sessionEntry]
         return model
     }
 }
