@@ -664,8 +664,6 @@ struct PiWorkApp: App {
 @available(macOS 14.0, *)
 private enum PiWorkModelContainerProvider {
     static let sharedModelContainer: ModelContainer = {
-        StoreBackupManager.default()?.runDailyBackupIfNeeded()
-
         let schema = Schema([
             StoredProject.self,
             StoredKanbanTask.self,

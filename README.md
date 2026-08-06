@@ -12,13 +12,12 @@
 
 ## What it is
 
-pi-work is a native SwiftUI + SwiftData macOS app for organizing project folders and Kanban tasks locally. It keeps project metadata on-device, offers lightweight account sign-in, and ships with built-in local backup and restore tools.
+pi-work is a native SwiftUI + SwiftData macOS app for organizing project folders and Kanban tasks locally. It keeps project metadata on-device and offers lightweight account sign-in.
 
 ## Features
 
 - Project-scoped Kanban board
 - Local SwiftData persistence
-- Diagnostics page with restoreable backups
 - Theme and language settings
 - Google or email sign-in for account access
 
