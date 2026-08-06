@@ -1,0 +1,26 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.build/
+
+# XcodeGen — pi-work.xcodeproj is generated from project.yml, do not commit
+# manual edits; regenerate with `xcodegen generate`.
+*.xcodeproj
+
+# The pi coding-agent binary is fetched by scripts/fetch-pi-binary.sh, not
+# committed to git (tens of MB, per-architecture, versioned separately from
+# app source). See PiWork/Resources/PiAgent/README.md.
+PiWork/Resources/PiAgent/arm64/
+PiWork/Resources/PiAgent/x64/
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+
+# Local secrets / API keys — never commit
+.env
+.env.*
