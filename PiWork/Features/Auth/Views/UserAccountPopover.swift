@@ -72,7 +72,7 @@ struct UserAccountPopover: View {
         }
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            adaptiveRoundedShape(cornerRadius: 14)
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
         )
@@ -192,7 +192,7 @@ private struct MenuItem: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                adaptiveRoundedShape(cornerRadius: 8)
                     .fill(isHovered ? Color.primary.opacity(0.055) : Color.clear)
             )
         }

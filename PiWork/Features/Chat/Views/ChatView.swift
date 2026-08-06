@@ -98,7 +98,7 @@ struct ChatView: View {
         .padding(.horizontal, 22)
         .padding(.vertical, 14)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .adaptiveCornerRadius(26)
         .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
     }
 
@@ -121,7 +121,7 @@ private struct ChatMessageRow: View {
                     .font(.system(size: 14))
                     .padding(.horizontal, 14).padding(.vertical, 9)
                     .background(Color.white.opacity(0.9))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .adaptiveCornerRadius(14)
                     .shadow(color: .black.opacity(0.05), radius: 4, y: 1)
             }
         case .assistant:

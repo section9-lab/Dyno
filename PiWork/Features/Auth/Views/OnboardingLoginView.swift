@@ -127,7 +127,7 @@ struct OnboardingLoginView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .adaptiveCornerRadius(12)
                 .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
             }
             .buttonStyle(.plain)
@@ -153,7 +153,7 @@ struct OnboardingLoginView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(Color.white.opacity(0.55))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .adaptiveCornerRadius(12)
             }
             .buttonStyle(.plain)
             .disabled(authSession.isAuthenticating)
@@ -235,7 +235,7 @@ struct OnboardingLoginView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(enabled ? Color.accentColor : Color.accentColor.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .adaptiveCornerRadius(12)
         }
         .buttonStyle(.plain)
         .disabled(!enabled || authSession.isAuthenticating)

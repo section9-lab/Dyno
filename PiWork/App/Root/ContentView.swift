@@ -60,7 +60,7 @@ struct ContentView: View {
                                 .foregroundStyle(Color.primary.opacity(0.75))
                                 .frame(width: 32, height: 32)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 9)
+                                    adaptiveRoundedShape(cornerRadius: 9)
                                         .fill(Color.white)
                                         .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
                                 )

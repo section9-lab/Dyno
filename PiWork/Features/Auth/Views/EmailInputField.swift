@@ -37,10 +37,10 @@ struct EmailInputField: View {
         .background(.ultraThinMaterial)
         .background(fieldTint)
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            adaptiveRoundedShape(cornerRadius: 10)
                 .stroke(borderColor, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .adaptiveCornerRadius(10)
         .onAppear { isFocused = true }
     }
 

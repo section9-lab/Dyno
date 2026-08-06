@@ -37,10 +37,10 @@ struct OTPInputView: View {
         let isFocused = focusedIndex == index
 
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            adaptiveRoundedShape(cornerRadius: 8)
                 .fill(fieldBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    adaptiveRoundedShape(cornerRadius: 8)
                         .stroke(isFocused ? Color.accentColor.opacity(0.7) : fieldBorder,
                                 lineWidth: isFocused ? 1.5 : 1)
                 )

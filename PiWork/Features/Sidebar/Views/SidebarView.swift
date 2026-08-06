@@ -168,7 +168,7 @@ private struct FolderRow: View {
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                adaptiveRoundedShape(cornerRadius: 8)
                     .fill(isSelected ? Color.white.opacity(0.75) : Color.clear)
             )
             .contentShape(Rectangle())
