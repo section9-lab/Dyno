@@ -92,8 +92,52 @@ struct ContentView: View {
                     .padding(.vertical, 10)
             }
             .buttonStyle(.plain)
+
+            Divider()
+
+            userAvatarSection
         }
         .frame(minWidth: 240)
+    }
+
+    // User & Settings entry point, restored at the bottom of the sidebar
+    // (its original location before the chat/agent sidebar was removed).
+    private var userAvatarSection: some View {
+        Button {
+            showAccountPopover.toggle()
+        } label: {
+            HStack(spacing: 10) {
+                AccountAvatarImage(
+                    url: authSession.user?.avatarURL,
+                    fallbackInitial: authSession.user?.avatarInitial ?? "U",
+                    fallbackFontSize: 13
+                )
+                .frame(width: 28, height: 28)
+
+                Text(authSession.user?.displayName ?? L10n.tr("account.google_user"))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showAccountPopover, arrowEdge: .top) {
+            UserAccountPopover(
+                isPresented: $showAccountPopover,
+                accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
+                accountSubtitle: authSession.provider.accountTitleKey,
+                accountInitial: authSession.user?.avatarInitial ?? "U",
+                accountAvatarURL: authSession.user?.avatarURL,
+                onSettings: { showSettingsSheet = true },
+                onHelp: openHelp,
+                onLogout: { authSession.signOut() }
+            )
+        }
     }
 
     @ViewBuilder
@@ -196,6 +240,8 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // Account/Settings now live in the sidebar footer (userAvatarSection);
+    // only project actions remain in the top toolbar.
     @ToolbarContentBuilder
     private var mainToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
@@ -211,44 +257,6 @@ struct ContentView: View {
                 Label("project.remove", systemImage: "trash")
             }
             .disabled(selectedProject == nil)
-
-            Button {
-                showSettingsSheet = true
-            } label: {
-                Label("settings.title", systemImage: "gearshape")
-            }
-
-            Button {
-                openHelp()
-            } label: {
-                Label("common.help", systemImage: "questionmark.circle")
-            }
-        }
-
-        ToolbarItem(placement: .automatic) {
-            Button {
-                showAccountPopover.toggle()
-            } label: {
-                AccountAvatarImage(
-                    url: authSession.user?.avatarURL,
-                    fallbackInitial: authSession.user?.avatarInitial ?? "U",
-                    fallbackFontSize: 13
-                )
-                .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showAccountPopover, arrowEdge: .top) {
-                UserAccountPopover(
-                    isPresented: $showAccountPopover,
-                    accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
-                    accountSubtitle: authSession.provider.accountTitleKey,
-                    accountInitial: authSession.user?.avatarInitial ?? "U",
-                    accountAvatarURL: authSession.user?.avatarURL,
-                    onSettings: { showSettingsSheet = true },
-                    onHelp: openHelp,
-                    onLogout: { authSession.signOut() }
-                )
-            }
         }
     }
 
