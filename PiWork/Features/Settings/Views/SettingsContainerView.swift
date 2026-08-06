@@ -13,21 +13,18 @@ struct SettingsContainerView: View {
 
     enum SettingsTab: CaseIterable, Identifiable {
         case general
-        case diagnostics
 
         var id: Self { self }
 
         var titleKey: LocalizedStringKey {
             switch self {
             case .general: return "settings.tab.general"
-            case .diagnostics: return "settings.tab.diagnostics"
             }
         }
 
         var icon: String {
             switch self {
             case .general: return "gear"
-            case .diagnostics: return "stethoscope"
             }
         }
     }
@@ -66,10 +63,6 @@ struct SettingsContainerView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     sectionContainer(.general, title: "settings.general.title") {
                         GeneralSettingsView(viewModel: generalSettings)
-                    }
-
-                    sectionContainer(.diagnostics, title: "settings.diagnostics.title") {
-                        DiagnosticsSettingsView()
                     }
                 }
                 .padding(20)

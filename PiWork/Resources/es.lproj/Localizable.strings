@@ -76,28 +76,11 @@
 "auth.error.web_authentication_failed" = "La ventana de inicio se cerró antes de que Google devolviera una respuesta: %@";
 
 "alert.projects_load_failed.title" = "No se pudieron cargar los proyectos";
-"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted.";
 "alert.projects_save_failed.title" = "No se pudieron guardar los proyectos";
 "alert.projects_save_failed.detail" = "Los cambios recientes podrían perderse al reiniciar la aplicación.";
 
-"settings.tab.diagnostics" = "Diagnóstico";
-"settings.diagnostics.title" = "Diagnóstico";
-"settings.diagnostics.backups" = "Copias del almacén";
-"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
-"settings.diagnostics.no_backups" = "No hay copias aún — se crean en el primer arranque del día.";
-"settings.diagnostics.restore" = "Restaurar";
-"settings.diagnostics.reveal_in_finder" = "Mostrar en Finder";
-"settings.diagnostics.restoring" = "Restaurando…";
-"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
-"settings.diagnostics.restore_succeeded" = "Copia de %@ restaurada.";
-"settings.diagnostics.confirm_restore.title" = "¿Restaurar esta copia?";
-"settings.diagnostics.confirm_restore.message" = "Reemplazará tu historial actual con la copia de %@. Los datos actuales se guardan automáticamente primero, así que esto se puede deshacer.";
 
-"settings.diagnostics.current_schema" = "Esquema actual: v%d";
-"settings.diagnostics.schema_label" = "v%d";
-"settings.diagnostics.schema_unknown" = "Esquema desconocido";
-"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
-"settings.diagnostics.confirm_restore.message_unknown_schema" = "La copia de %@ no tiene metadatos de esquema. Puede haber sido creada por una versión anterior y podría no cargar. ¿Continuar?";
 
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "settings.storage_root" = "Raíz de almacenamiento";
