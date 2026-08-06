@@ -1,0 +1,151 @@
+"common.add" = "Add";
+"common.cancel" = "Cancel";
+"common.close" = "Close";
+"common.delete" = "Delete";
+"common.edit" = "Edit";
+"common.help" = "Help";
+"common.test" = "Test";
+"common.not_selected" = "Not selected";
+"common.rename" = "Rename";
+"common.save" = "Save";
+
+"account.logout" = "Sign Out";
+"account.alipay_user" = "Alipay Account";
+"account.email_user" = "Email Account";
+"account.google_user" = "Google Account";
+"account.personal" = "Personal Account";
+
+"onboarding.title" = "Welcome to pi-work";
+"onboarding.subtitle" = "Sign in to keep your projects and boards ready for focused macOS work.";
+"onboarding.continue_alipay" = "Continue with Alipay";
+"onboarding.continue_email" = "Continue with Email";
+"onboarding.continue_google" = "Continue with Google";
+"onboarding.privacy_link" = "Privacy Agreement";
+"onboarding.privacy_prefix" = "I have read and agree to the";
+"onboarding.privacy_sheet_title" = "Privacy Agreement";
+"onboarding.privacy_sheet_updated" = "Updated for Google sign-in";
+
+"settings.title" = "Settings";
+"settings.tab.general" = "General";
+"settings.general.title" = "General Settings";
+"settings.general.language" = "Language";
+"settings.general.theme" = "Theme";
+"settings.general.theme.auto" = "Auto";
+"settings.general.theme.light" = "Light";
+"settings.general.theme.dark" = "Dark";
+
+
+"kanban.add_task" = "Add Task";
+"kanban.add_task_placeholder" = "Add a task for this project";
+"kanban.add_label" = "Add label";
+"kanban.delete_task" = "Delete Task";
+"kanban.drop_task_here" = "Drop task here";
+"kanban.select_project" = "Select project…";
+"kanban.all_projects" = "All Projects";
+"kanban.priority" = "Priority";
+"kanban.priority.high" = "High";
+"kanban.priority.low" = "Low";
+"kanban.priority.medium" = "Medium";
+"kanban.project_board" = "Project Board";
+"kanban.status.done" = "Done";
+"kanban.status.done.empty_hint" = "Drop finished tasks here to keep the board tidy.";
+"kanban.status.done.subtitle" = "Completed work kept for reference.";
+"kanban.status.plan" = "Plan";
+"kanban.status.plan.empty_hint" = "New project tasks start here.";
+"kanban.status.plan.subtitle" = "Scoped and ready to pick up.";
+"kanban.status.in_progress" = "In Progress";
+"kanban.status.in_progress.empty_hint" = "Move active tasks here while they are underway.";
+"kanban.status.in_progress.subtitle" = "Work currently moving forward.";
+"kanban.settings" = "Board Settings";
+"kanban.filter_by_project" = "Filter by Project";
+"kanban.filter_by_labels" = "Filter by Labels";
+"kanban.no_labels_yet" = "No labels yet. Add labels to your tasks to filter.";
+"kanban.clear_filter" = "Clear Filter";
+"kanban.add_label_placeholder" = "Add label";
+"kanban.tasks" = "Tasks";
+
+
+
+
+
+
+"auth.error.alipay_unavailable" = "Alipay sign-in is not available yet. Use Google to continue.";
+"auth.error.authorization_failed" = "Google sign-in failed: %@";
+"auth.error.invalid_access_token" = "Your saved sign-in expired. Sign in with Google again.";
+"auth.error.invalid_authorization_url" = "We couldn't create the Google sign-in link. Check the authentication server URL.";
+"auth.error.invalid_callback" = "Google did not return a valid sign-in response. Try again.";
+"auth.error.invalid_email" = "Enter a valid email address.";
+"auth.error.invalid_email_code" = "That code is not valid. Check your inbox and try again.";
+"auth.error.invalid_server_response" = "The authentication server returned a response pi-work could not read. Try again.";
+"auth.error.invalid_state" = "This sign-in attempt expired. Start Google sign-in again.";
+"auth.error.keychain" = "pi-work could not save your sign-in in Keychain (%d). Check Keychain access and try again.";
+"auth.error.missing_issuer" = "Google sign-in is not configured for this build. Set the authentication server URL and try again.";
+"auth.error.random" = "pi-work could not create a secure sign-in challenge (%d). Restart the app and try again.";
+"auth.error.token_exchange_failed" = "pi-work could not finish Google sign-in: %@";
+"auth.error.web_authentication_failed" = "The sign-in window closed before Google returned a response: %@";
+
+"alert.projects_load_failed.title" = "Couldn't load your projects";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_save_failed.title" = "Couldn't save your projects";
+"alert.projects_save_failed.detail" = "Recent changes may be lost the next time the app is restarted.";
+
+"settings.tab.diagnostics" = "Diagnostics";
+"settings.diagnostics.title" = "Diagnostics";
+"settings.diagnostics.backups" = "Store Backups";
+"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
+"settings.diagnostics.no_backups" = "No backups available yet — they're created on each new launch day.";
+"settings.diagnostics.restore" = "Restore";
+"settings.diagnostics.reveal_in_finder" = "Reveal in Finder";
+"settings.diagnostics.restoring" = "Restoring backup…";
+"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
+"settings.diagnostics.restore_succeeded" = "Restored backup from %@.";
+"settings.diagnostics.confirm_restore.title" = "Restore this backup?";
+"settings.diagnostics.confirm_restore.message" = "This will replace your current chat history with the backup from %@. Your current data is automatically snapshotted first so this can be reversed.";
+
+"settings.diagnostics.current_schema" = "Current data schema: v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "Unknown schema";
+"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "This backup from %@ has no schema metadata. It may have been created by an older version of pi-work and could fail to load. Continue anyway?";
+
+/* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
+"settings.storage_root" = "Storage Root";
+"settings.active_project" = "Active Project";
+
+"email.title" = "Sign in with email";
+"email.code_title" = "Enter the code";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "Send verification code";
+"email.code_sent_to" = "Code sent to %@";
+"email.verify" = "Verify and continue";
+"email.resend" = "Resend code";
+"email.resend_in" = "Resend available in %ds";
+"email.error.invalid_email" = "Invalid email address";
+"email.error.invalid_code" = "Wrong code, please try again";
+"email.error.rate_limited" = "Please wait a moment before requesting another code";
+"email.error.code_expired" = "The code expired. Please request a new one";
+"email.error.too_many_attempts" = "Too many attempts. Please request a new code";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "Todos: %1$d/%2$d";
+"todo.indicator.help_with_active" = "Todos: %1$d/%2$d — %3$@";
+"todo.popover.title" = "Progress";
+"todo.popover.project_files.empty" = "No files yet.";
+"todo.popover.project_files.no_project" = "No project selected.";
+"todo.popover.project_files.error" = "Cannot read project folder.";
+"ask.banner.title" = "Agent question";
+"ask.banner.recommended" = "Recommended";
+"ask.banner.other" = "Other (type your own)";
+"ask.banner.other_placeholder" = "Type your answer";
+"ask.banner.submit" = "Submit";
+"ask.banner.cancel" = "Cancel";
+"ask.banner.required_hint" = "Pick one option per question to submit.";
+"project.sidebar" = "Projects";
+"project.all" = "All Projects";
+"project.all.subtitle" = "Show every project board";
+"project.add" = "Add Project";
+"project.add.message" = "Choose a local directory as a project.";
+"project.remove" = "Remove Project";
+"project.remove.title" = "Remove project?";
+"project.empty.title" = "Add your first project";
+"project.empty.subtitle" = "Choose a local folder to start organizing work in pi-work.";

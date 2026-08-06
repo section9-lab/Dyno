@@ -1,0 +1,138 @@
+"common.add" = "Añadir";
+"common.cancel" = "Cancelar";
+"common.close" = "Cerrar";
+"common.delete" = "Eliminar";
+"common.edit" = "Editar";
+"common.help" = "Ayuda";
+"common.test" = "Probar";
+"common.not_selected" = "No seleccionado";
+"common.rename" = "Renombrar";
+"common.save" = "Guardar";
+"account.logout" = "Salir";
+"account.alipay_user" = "Cuenta de Alipay";
+"account.email_user" = "Cuenta de email";
+"account.google_user" = "Cuenta de Google";
+"account.personal" = "Cuenta personal";
+"onboarding.title" = "Welcome to pi-work";
+"onboarding.subtitle" = "Sign in to keep your projects and boards ready for focused macOS work.";
+"onboarding.continue_alipay" = "Continuar con Alipay";
+"onboarding.continue_email" = "Continuar con email";
+"onboarding.continue_google" = "Continuar con Google";
+"onboarding.privacy_link" = "acuerdo de privacidad";
+"onboarding.privacy_prefix" = "He leído y acepto el";
+"onboarding.privacy_sheet_title" = "Acuerdo de privacidad";
+"onboarding.privacy_sheet_updated" = "Actualizado para el inicio de sesión con Google";
+"settings.title" = "Ajustes";
+"settings.tab.general" = "General";
+"settings.general.title" = "General Settings";
+"settings.general.language" = "Idioma";
+"settings.general.theme" = "Tema";
+"settings.general.theme.auto" = "Automático";
+"settings.general.theme.light" = "Claro";
+"settings.general.theme.dark" = "Oscuro";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+/* TODO(i18n): translations below are auto-drafted; please have a native
+   speaker review terminology and consistency with the rest of the file. */
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"kanban.add_task" = "Añadir tarea";
+"kanban.add_task_placeholder" = "Añade una tarea para este proyecto";
+"kanban.add_label" = "Añadir etiqueta";
+"kanban.delete_task" = "Eliminar tarea";
+"kanban.drop_task_here" = "Suelta la tarea aquí";
+"kanban.select_project" = "Seleccionar proyecto…";
+"kanban.all_projects" = "Todos los proyectos";
+"kanban.priority" = "Prioridad";
+"kanban.priority.high" = "Alta";
+"kanban.priority.low" = "Baja";
+"kanban.priority.medium" = "Media";
+"kanban.project_board" = "Tablero del proyecto";
+"kanban.status.done" = "Hecho";
+"kanban.status.done.empty_hint" = "Suelta aquí las tareas terminadas para mantener el tablero ordenado.";
+"kanban.status.done.subtitle" = "Trabajo completado guardado como referencia.";
+"kanban.status.plan" = "Plan";
+"kanban.status.plan.empty_hint" = "Las nuevas tareas del proyecto empiezan aquí.";
+"kanban.status.plan.subtitle" = "Definido y listo para empezar.";
+"kanban.status.progress" = "En progreso";
+"kanban.status.progress.empty_hint" = "Mueve aquí las tareas activas mientras avanzan.";
+"kanban.status.progress.subtitle" = "Trabajo actualmente en marcha.";
+"kanban.filter_by_project" = "Filtrar por proyecto";
+"kanban.tasks" = "Tareas";
+
+
+
+"auth.error.alipay_unavailable" = "El inicio con Alipay aún no está disponible. Usa Google para continuar.";
+"auth.error.authorization_failed" = "El inicio con Google falló: %@";
+"auth.error.invalid_access_token" = "Tu inicio guardado caducó. Vuelve a iniciar sesión con Google.";
+"auth.error.invalid_authorization_url" = "No pudimos crear el enlace de inicio con Google. Revisa la URL del servidor de autenticación.";
+"auth.error.invalid_callback" = "Google no devolvió una respuesta de inicio válida. Inténtalo de nuevo.";
+"auth.error.invalid_email" = "Introduce una dirección de correo válida.";
+"auth.error.invalid_email_code" = "Ese código no es válido. Revisa tu bandeja de entrada y vuelve a intentarlo.";
+"auth.error.invalid_server_response" = "The authentication server returned a response pi-work could not read. Try again.";
+"auth.error.invalid_state" = "Este intento de inicio caducó. Inicia sesión con Google otra vez.";
+"auth.error.keychain" = "pi-work could not save your sign-in in Keychain (%d). Check Keychain access and try again.";
+"auth.error.missing_issuer" = "El inicio con Google no está configurado en esta compilación. Define la URL del servidor de autenticación e inténtalo de nuevo.";
+"auth.error.random" = "pi-work could not create a secure sign-in challenge (%d). Restart the app and try again.";
+"auth.error.token_exchange_failed" = "pi-work could not finish Google sign-in: %@";
+"auth.error.web_authentication_failed" = "La ventana de inicio se cerró antes de que Google devolviera una respuesta: %@";
+
+"alert.projects_load_failed.title" = "No se pudieron cargar los proyectos";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_save_failed.title" = "No se pudieron guardar los proyectos";
+"alert.projects_save_failed.detail" = "Los cambios recientes podrían perderse al reiniciar la aplicación.";
+
+"settings.tab.diagnostics" = "Diagnóstico";
+"settings.diagnostics.title" = "Diagnóstico";
+"settings.diagnostics.backups" = "Copias del almacén";
+"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
+"settings.diagnostics.no_backups" = "No hay copias aún — se crean en el primer arranque del día.";
+"settings.diagnostics.restore" = "Restaurar";
+"settings.diagnostics.reveal_in_finder" = "Mostrar en Finder";
+"settings.diagnostics.restoring" = "Restaurando…";
+"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
+"settings.diagnostics.restore_succeeded" = "Copia de %@ restaurada.";
+"settings.diagnostics.confirm_restore.title" = "¿Restaurar esta copia?";
+"settings.diagnostics.confirm_restore.message" = "Reemplazará tu historial actual con la copia de %@. Los datos actuales se guardan automáticamente primero, así que esto se puede deshacer.";
+
+"settings.diagnostics.current_schema" = "Esquema actual: v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "Esquema desconocido";
+"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "La copia de %@ no tiene metadatos de esquema. Puede haber sido creada por una versión anterior y podría no cargar. ¿Continuar?";
+
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"settings.storage_root" = "Raíz de almacenamiento";
+"settings.active_project" = "Proyecto activo";
+
+"email.title" = "Iniciar con email";
+"email.code_title" = "Introduce el código";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "Enviar código";
+"email.code_sent_to" = "Código enviado a %@";
+"email.verify" = "Verificar y continuar";
+"email.resend" = "Reenviar código";
+"email.resend_in" = "Reenviar en %ds";
+"email.error.invalid_email" = "Email inválido";
+"email.error.invalid_code" = "Código incorrecto, inténtalo de nuevo";
+"email.error.rate_limited" = "Demasiados intentos, espera un momento";
+"email.error.code_expired" = "El código ha caducado. Solicita uno nuevo";
+"email.error.too_many_attempts" = "Demasiados intentos. Solicita un código nuevo";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "Tareas: %1$d/%2$d";
+"todo.indicator.help_with_active" = "Tareas: %1$d/%2$d — %3$@";
+"ask.banner.title" = "Pregunta del agente";
+"ask.banner.recommended" = "Recomendado";
+"ask.banner.other" = "Otro (escribe tu propia opción)";
+"ask.banner.other_placeholder" = "Escribe tu respuesta";
+"ask.banner.submit" = "Enviar";
+"ask.banner.cancel" = "Cancelar";
+"ask.banner.required_hint" = "Elige una opción para cada pregunta antes de enviar.";
+"project.sidebar" = "Projects";
+"project.all" = "All Projects";
+"project.all.subtitle" = "Show every project board";
+"project.add" = "Add Project";
+"project.add.message" = "Choose a local directory as a project.";
+"project.remove" = "Remove Project";
+"project.remove.title" = "Remove project?";
+"project.empty.title" = "Add your first project";
+"project.empty.subtitle" = "Choose a local folder to start organizing work in pi-work.";

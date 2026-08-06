@@ -1,0 +1,997 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		15B14DE5EC133E4022FF3A24 /* OTPInputProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C87505622C142407FA6E5CFB /* OTPInputProcessor.swift */; };
+		170C62B83591AA84289347BD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAC6EAF65E6768F888F08A65 /* Assets.xcassets */; };
+		1935EC03B8FF79B0737A93BC /* StoreBackupManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE48CD01C14B58EFFD412BE /* StoreBackupManagerTests.swift */; };
+		1DDCF58C78C39643D3D3088A /* UserAlertCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F88235E2352EA569701CD9D /* UserAlertCenterTests.swift */; };
+		20234AF0170017401EA6D796 /* SettingsContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F92BB9D9326EB2A0E1B4DF /* SettingsContainerView.swift */; };
+		27CE9335C3A5BD8F208592F1 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D92A4B93684412C671F9DD7 /* AppLog.swift */; };
+		2D46D4DA2C8F164320827BAD /* EmailInputField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5BF51C028FA5CF6A86C7E0 /* EmailInputField.swift */; };
+		2FA29608E69B585D9550F45E /* GeneralSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8A73BE68BBB9E0B8257F97 /* GeneralSettingsViewModel.swift */; };
+		35F24D15E4A650B1778858EB /* OAuthWebAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90B4E77183C8BB9CA3FE9C2 /* OAuthWebAuthenticator.swift */; };
+		36632A1B6BA51875B227DD84 /* OTPInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387BFF79F59DA6E7077F6B74 /* OTPInputView.swift */; };
+		42997426F76841AA0AAC2B1B /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76625503E956E412EB07DA34 /* AuthSession.swift */; };
+		4316FA7BCABE1E694950B1A4 /* SchemaVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A329044535072CB22BAE47A9 /* SchemaVersion.swift */; };
+		4770C77DF2156A4F2BE40459 /* UserAccountPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D5F299FBF2A3638A696F6B /* UserAccountPopover.swift */; };
+		4FFD8054D9E71B0259EC70BA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADC9EB16E4687A586B03FC2 /* ContentView.swift */; };
+		555B62C0BAEACE898E15CEB5 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E53FB1C87F79F08DF211A73 /* AppLanguage.swift */; };
+		58B229852566C3B4E8F9EF05 /* PiWorkCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E537B9402E4003D39A17AFB /* PiWorkCore.framework */; };
+		5AA08E78574A255997683B46 /* EmailOTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22412C900B265881816B495D /* EmailOTPClient.swift */; };
+		5AB39CE2051FFD023A17F333 /* StoreBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F2F3C2E668D7CB18865BD6 /* StoreBackupManager.swift */; };
+		5B3212E2A7F6184F1604753C /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CB039484DE390CDF681073 /* GeneralSettingsView.swift */; };
+		5F0349F24F9484D5F7376B1E /* UserAlertBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88F90F780E3700D33C11EF9D /* UserAlertBanner.swift */; };
+		60BD93AB56803884A557293F /* AuthUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F09523DBB21CCC0C0E4E080 /* AuthUser.swift */; };
+		6B1C3175CD4F4B4C7F4D37AD /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B7A90A51AAE879E2C0D1E8B6 /* AppIcon.icon */; };
+		7109EB3F67CD1F45136B3A06 /* PiWorkCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6E537B9402E4003D39A17AFB /* PiWorkCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		7E1AEB018307D184FDC79017 /* SettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053169D77527CB22DAFF8D5A /* SettingsCard.swift */; };
+		8340F24BD66409971D3491E7 /* PiWorkCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6E537B9402E4003D39A17AFB /* PiWorkCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		8C257BA2BC5513C291D7AAF4 /* StringExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B548B04F2F16993F4D074A07 /* StringExtensions.swift */; };
+		A1BAA8EDB6DCED1969AF9D11 /* PiWorkCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E537B9402E4003D39A17AFB /* PiWorkCore.framework */; };
+		A4ADC80AFD0C0A3C8A50E916 /* DiagnosticsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44679A0D173DF990C8CEA13A /* DiagnosticsSettingsView.swift */; };
+		A8F2399B94F6DF37FEFF5967 /* PiWorkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 388263045632278B8C7D3599 /* PiWorkApp.swift */; };
+		BC53C77A570F8451C556C4EA /* StoredKanbanTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8780852757BA484FEBDE6341 /* StoredKanbanTask.swift */; };
+		BF951202CBE4B921E558B463 /* UserAlertCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B25C67BD643DB97F7A593BB /* UserAlertCenter.swift */; };
+		C0490D64881AA6365CEDA601 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EDE22A4C20E67E0CC23AC5E /* Item.swift */; };
+		C64FC3AFA8F65576AC2FB7E2 /* StoreBackupManagerTests.swift.bak in Resources */ = {isa = PBXBuildFile; fileRef = EE349CF7BF18422870FFE9BB /* StoreBackupManagerTests.swift.bak */; };
+		C8AE39ECBC7CCF5C32144CAD /* EmailOTPValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC850F5A0F5BDFC893968DB3 /* EmailOTPValidationTests.swift */; };
+		CDE49F3EF02C25ECF616D25C /* AuthTokenSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8837E67AD21C69230536C204 /* AuthTokenSet.swift */; };
+		D77FEB59C075F596CE76EBE5 /* OpenAuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C1DDC7094896A81D62909 /* OpenAuthClient.swift */; };
+		D82A411B7CFF34300232F49F /* AuthKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCBE6A29736715D8D1A7200 /* AuthKeychainStore.swift */; };
+		DD87E47A5893C279FAF09CE9 /* KanbanPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95739A0876B4397CA4C628D /* KanbanPanelView.swift */; };
+		E349B64284B7B36335B59A39 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 349E22FCC0A5933981588FCB /* Localizable.strings */; };
+		E8DAA0421DC94E62B17783F4 /* OTPInputProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F1C09F5B69AD18F26BC3227 /* OTPInputProcessorTests.swift */; };
+		EC016F3A5ECC089A4CF5AF28 /* AuthError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 970A0883A1E3AA367D2C40DB /* AuthError.swift */; };
+		EC3AFC3CDEB880ABCD5E8370 /* EmailOTPValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2976EDBAC259624E62C21B4 /* EmailOTPValidation.swift */; };
+		EE688C05B1E14B0A09EC371B /* KanbanController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760B8408440DA2B0AA73CC9 /* KanbanController.swift */; };
+		F8A3A9C67289F77AAF1761E7 /* StoreBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C7E6E2F32D8EE58049AFA56 /* StoreBackupManager.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0C7C079D0134C3A104E69E13 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D60DFDB106AC6DA916848B71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DCF9954D30A3CFA2A118F1F1;
+			remoteInfo = PiWorkCore;
+		};
+		2FE0A9AF2E69198F0CA96E08 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D60DFDB106AC6DA916848B71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DCF9954D30A3CFA2A118F1F1;
+			remoteInfo = PiWorkCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		43C23725CEECB79D195BF72E /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				7109EB3F67CD1F45136B3A06 /* PiWorkCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5744A90C7EEEF628BE196DCE /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8340F24BD66409971D3491E7 /* PiWorkCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		053169D77527CB22DAFF8D5A /* SettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCard.swift; sourceTree = "<group>"; };
+		0760B8408440DA2B0AA73CC9 /* KanbanController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanController.swift; sourceTree = "<group>"; };
+		1B25C67BD643DB97F7A593BB /* UserAlertCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAlertCenter.swift; sourceTree = "<group>"; };
+		1DFBF3C3B943052BFDE6C395 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		1F09523DBB21CCC0C0E4E080 /* AuthUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthUser.swift; sourceTree = "<group>"; };
+		22412C900B265881816B495D /* EmailOTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailOTPClient.swift; sourceTree = "<group>"; };
+		30CB039484DE390CDF681073 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		387BFF79F59DA6E7077F6B74 /* OTPInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPInputView.swift; sourceTree = "<group>"; };
+		388263045632278B8C7D3599 /* PiWorkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiWorkApp.swift; sourceTree = "<group>"; };
+		3E5BF51C028FA5CF6A86C7E0 /* EmailInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailInputField.swift; sourceTree = "<group>"; };
+		3F88235E2352EA569701CD9D /* UserAlertCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAlertCenterTests.swift; sourceTree = "<group>"; };
+		4113ED48AB2E6606E9C0E95B /* PiWork.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PiWork.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		44679A0D173DF990C8CEA13A /* DiagnosticsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsSettingsView.swift; sourceTree = "<group>"; };
+		4D92A4B93684412C671F9DD7 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
+		5F1C09F5B69AD18F26BC3227 /* OTPInputProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPInputProcessorTests.swift; sourceTree = "<group>"; };
+		6B24F17FB1743BE5C6C5DBE8 /* PiWork.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PiWork.entitlements; sourceTree = "<group>"; };
+		6DCBE6A29736715D8D1A7200 /* AuthKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthKeychainStore.swift; sourceTree = "<group>"; };
+		6E537B9402E4003D39A17AFB /* PiWorkCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = PiWorkCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		731CDE4E5CEF1CCDE3816FB8 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		74F92BB9D9326EB2A0E1B4DF /* SettingsContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsContainerView.swift; sourceTree = "<group>"; };
+		76625503E956E412EB07DA34 /* AuthSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSession.swift; sourceTree = "<group>"; };
+		774C1DDC7094896A81D62909 /* OpenAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAuthClient.swift; sourceTree = "<group>"; };
+		7CE48CD01C14B58EFFD412BE /* StoreBackupManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreBackupManagerTests.swift; sourceTree = "<group>"; };
+		7EDE22A4C20E67E0CC23AC5E /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
+		83F2F3C2E668D7CB18865BD6 /* StoreBackupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreBackupManager.swift; sourceTree = "<group>"; };
+		8780852757BA484FEBDE6341 /* StoredKanbanTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredKanbanTask.swift; sourceTree = "<group>"; };
+		8837E67AD21C69230536C204 /* AuthTokenSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthTokenSet.swift; sourceTree = "<group>"; };
+		88F90F780E3700D33C11EF9D /* UserAlertBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAlertBanner.swift; sourceTree = "<group>"; };
+		8970284DE618DC03F9B724BC /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/Localizable.strings; sourceTree = "<group>"; };
+		8C7E6E2F32D8EE58049AFA56 /* StoreBackupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreBackupManager.swift; sourceTree = "<group>"; };
+		970A0883A1E3AA367D2C40DB /* AuthError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthError.swift; sourceTree = "<group>"; };
+		9D6E5B2825314C12CE1EE959 /* PiWorkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PiWorkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9E53FB1C87F79F08DF211A73 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		A329044535072CB22BAE47A9 /* SchemaVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaVersion.swift; sourceTree = "<group>"; };
+		A90B4E77183C8BB9CA3FE9C2 /* OAuthWebAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthWebAuthenticator.swift; sourceTree = "<group>"; };
+		B2D5F299FBF2A3638A696F6B /* UserAccountPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAccountPopover.swift; sourceTree = "<group>"; };
+		B548B04F2F16993F4D074A07 /* StringExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringExtensions.swift; sourceTree = "<group>"; };
+		B7A90A51AAE879E2C0D1E8B6 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		BADC9EB16E4687A586B03FC2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		C87505622C142407FA6E5CFB /* OTPInputProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPInputProcessor.swift; sourceTree = "<group>"; };
+		CAC6EAF65E6768F888F08A65 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CC850F5A0F5BDFC893968DB3 /* EmailOTPValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailOTPValidationTests.swift; sourceTree = "<group>"; };
+		D000221426BEAF35CAB5AE6D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D18916E8DC40D641ED6DD5C1 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		E2976EDBAC259624E62C21B4 /* EmailOTPValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailOTPValidation.swift; sourceTree = "<group>"; };
+		EE349CF7BF18422870FFE9BB /* StoreBackupManagerTests.swift.bak */ = {isa = PBXFileReference; path = StoreBackupManagerTests.swift.bak; sourceTree = "<group>"; };
+		EF8A73BE68BBB9E0B8257F97 /* GeneralSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsViewModel.swift; sourceTree = "<group>"; };
+		F15DEE81AE1A102EDABA2C62 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		F95739A0876B4397CA4C628D /* KanbanPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanPanelView.swift; sourceTree = "<group>"; };
+		FC9E3A560B4D26E268C985E7 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1AD546427BA9F4F892D58B13 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1BAA8EDB6DCED1969AF9D11 /* PiWorkCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B32949DFCAA84FFDD207DEFC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				58B229852566C3B4E8F9EF05 /* PiWorkCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		08448051D363375364E3DCFC /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C7CCFC24C31CC0F832D9DAEF /* Extensions */,
+				4D97910F66885F90478B90AA /* Localization */,
+				6CF28906264842E0E069CB2D /* Theme */,
+				4C3A2CCC75C857D25FE73B30 /* Utilities */,
+			);
+			name = Shared;
+			path = PiWork/Shared;
+			sourceTree = "<group>";
+		};
+		126DD48D7E3F66E069EC86B1 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				83F2F3C2E668D7CB18865BD6 /* StoreBackupManager.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		16436B9AD6DF1F4B10367256 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				388263045632278B8C7D3599 /* PiWorkApp.swift */,
+				811A7CCCC0964594DBD21203 /* Root */,
+			);
+			name = App;
+			path = PiWork/App;
+			sourceTree = "<group>";
+		};
+		1B9E1C7EAFAE4194275573A7 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				053169D77527CB22DAFF8D5A /* SettingsCard.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		1D712176BE2C5E4A4501A9E7 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				44679A0D173DF990C8CEA13A /* DiagnosticsSettingsView.swift */,
+				30CB039484DE390CDF681073 /* GeneralSettingsView.swift */,
+				74F92BB9D9326EB2A0E1B4DF /* SettingsContainerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		21FBF196988216EAD7D176D3 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				6F7AE65BC1F04E03593FBF89 /* Auth */,
+				58C503D85299485D180619E5 /* Kanban */,
+				8DB38DD0CA9C80EEFE9DC3A7 /* Settings */,
+			);
+			name = Features;
+			path = PiWork/Features;
+			sourceTree = "<group>";
+		};
+		2E1E21B152084CB21A64D5DD /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				88F90F780E3700D33C11EF9D /* UserAlertBanner.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		3BB39C84DE3BC105AB9FF97D /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				C1D05E1170A50C5A1574D1B2 /* Models */,
+				BC4F98CF21CB26D9B86F9745 /* Persistence */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		3C646E0B263235D8BAA7B23C /* PiWorkCore */ = {
+			isa = PBXGroup;
+			children = (
+				75C942FCB763E1823CBCE168 /* Core */,
+			);
+			path = PiWorkCore;
+			sourceTree = "<group>";
+		};
+		4C1A152C5585C28ADA4D1310 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				0760B8408440DA2B0AA73CC9 /* KanbanController.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		4C3A2CCC75C857D25FE73B30 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				4D92A4B93684412C671F9DD7 /* AppLog.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		4D97910F66885F90478B90AA /* Localization */ = {
+			isa = PBXGroup;
+			children = (
+				9E53FB1C87F79F08DF211A73 /* AppLanguage.swift */,
+			);
+			path = Localization;
+			sourceTree = "<group>";
+		};
+		53F9AF55974AFFB3228FF8B7 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				1B25C67BD643DB97F7A593BB /* UserAlertCenter.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		542F8F985A385393C56DC525 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				5FB48777AE2C3B4C5B0CE4BF /* Manager */,
+				B7FE432124AC51428F14919A /* Models */,
+				E68B939C085DCA54300D7C27 /* Services */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		58C503D85299485D180619E5 /* Kanban */ = {
+			isa = PBXGroup;
+			children = (
+				4C1A152C5585C28ADA4D1310 /* ViewModels */,
+				DFB61037F5C158643B6177FA /* Views */,
+			);
+			path = Kanban;
+			sourceTree = "<group>";
+		};
+		5C118FC367E706595A46542C /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				542F8F985A385393C56DC525 /* Auth */,
+				3BB39C84DE3BC105AB9FF97D /* Data */,
+				2E1E21B152084CB21A64D5DD /* Notifications */,
+			);
+			name = Core;
+			path = PiWork/Core;
+			sourceTree = "<group>";
+		};
+		5FB48777AE2C3B4C5B0CE4BF /* Manager */ = {
+			isa = PBXGroup;
+			children = (
+				76625503E956E412EB07DA34 /* AuthSession.swift */,
+			);
+			path = Manager;
+			sourceTree = "<group>";
+		};
+		6CF28906264842E0E069CB2D /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		6F7AE65BC1F04E03593FBF89 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B49AB73EA61499B38C73457F /* Views */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		75C942FCB763E1823CBCE168 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				9D6091CBEFBA6FB06A5994A0 /* Auth */,
+				126DD48D7E3F66E069EC86B1 /* Data */,
+				53F9AF55974AFFB3228FF8B7 /* Notifications */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		788A39C4BCA730CA1E3B6740 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B7A90A51AAE879E2C0D1E8B6 /* AppIcon.icon */,
+				CAC6EAF65E6768F888F08A65 /* Assets.xcassets */,
+				D000221426BEAF35CAB5AE6D /* Info.plist */,
+				6B24F17FB1743BE5C6C5DBE8 /* PiWork.entitlements */,
+				349E22FCC0A5933981588FCB /* Localizable.strings */,
+			);
+			name = Resources;
+			path = PiWork/Resources;
+			sourceTree = "<group>";
+		};
+		811A7CCCC0964594DBD21203 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				BADC9EB16E4687A586B03FC2 /* ContentView.swift */,
+			);
+			path = Root;
+			sourceTree = "<group>";
+		};
+		8DB38DD0CA9C80EEFE9DC3A7 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				1B9E1C7EAFAE4194275573A7 /* Components */,
+				D00B3C6634BB888DF20D1D9E /* ViewModels */,
+				1D712176BE2C5E4A4501A9E7 /* Views */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		9D6091CBEFBA6FB06A5994A0 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				970A0883A1E3AA367D2C40DB /* AuthError.swift */,
+				E2976EDBAC259624E62C21B4 /* EmailOTPValidation.swift */,
+				C87505622C142407FA6E5CFB /* OTPInputProcessor.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		A036A22861B8AA05897015AB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4113ED48AB2E6606E9C0E95B /* PiWork.app */,
+				6E537B9402E4003D39A17AFB /* PiWorkCore.framework */,
+				9D6E5B2825314C12CE1EE959 /* PiWorkTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B49AB73EA61499B38C73457F /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				3E5BF51C028FA5CF6A86C7E0 /* EmailInputField.swift */,
+				387BFF79F59DA6E7077F6B74 /* OTPInputView.swift */,
+				B2D5F299FBF2A3638A696F6B /* UserAccountPopover.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		B7FE432124AC51428F14919A /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8837E67AD21C69230536C204 /* AuthTokenSet.swift */,
+				1F09523DBB21CCC0C0E4E080 /* AuthUser.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		BC4F98CF21CB26D9B86F9745 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				8C7E6E2F32D8EE58049AFA56 /* StoreBackupManager.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		BEF329DD4275C7AC640BE9B3 = {
+			isa = PBXGroup;
+			children = (
+				16436B9AD6DF1F4B10367256 /* App */,
+				5C118FC367E706595A46542C /* Core */,
+				21FBF196988216EAD7D176D3 /* Features */,
+				3C646E0B263235D8BAA7B23C /* PiWorkCore */,
+				C4D2DBCB1AE8487C9D1BD112 /* PiWorkTests */,
+				788A39C4BCA730CA1E3B6740 /* Resources */,
+				08448051D363375364E3DCFC /* Shared */,
+				A036A22861B8AA05897015AB /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C1D05E1170A50C5A1574D1B2 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				7EDE22A4C20E67E0CC23AC5E /* Item.swift */,
+				A329044535072CB22BAE47A9 /* SchemaVersion.swift */,
+				8780852757BA484FEBDE6341 /* StoredKanbanTask.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		C4D2DBCB1AE8487C9D1BD112 /* PiWorkTests */ = {
+			isa = PBXGroup;
+			children = (
+				CC850F5A0F5BDFC893968DB3 /* EmailOTPValidationTests.swift */,
+				5F1C09F5B69AD18F26BC3227 /* OTPInputProcessorTests.swift */,
+				7CE48CD01C14B58EFFD412BE /* StoreBackupManagerTests.swift */,
+				EE349CF7BF18422870FFE9BB /* StoreBackupManagerTests.swift.bak */,
+				3F88235E2352EA569701CD9D /* UserAlertCenterTests.swift */,
+			);
+			path = PiWorkTests;
+			sourceTree = "<group>";
+		};
+		C7CCFC24C31CC0F832D9DAEF /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				B548B04F2F16993F4D074A07 /* StringExtensions.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		D00B3C6634BB888DF20D1D9E /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				EF8A73BE68BBB9E0B8257F97 /* GeneralSettingsViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		DFB61037F5C158643B6177FA /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				F95739A0876B4397CA4C628D /* KanbanPanelView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E68B939C085DCA54300D7C27 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				6DCBE6A29736715D8D1A7200 /* AuthKeychainStore.swift */,
+				22412C900B265881816B495D /* EmailOTPClient.swift */,
+				A90B4E77183C8BB9CA3FE9C2 /* OAuthWebAuthenticator.swift */,
+				774C1DDC7094896A81D62909 /* OpenAuthClient.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		14CFFB62F41835D4D2BEB4D7 /* PiWorkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 24A9CCEEB71F3844665D65EA /* Build configuration list for PBXNativeTarget "PiWorkTests" */;
+			buildPhases = (
+				F29A1B6124C563B5FAE4EF37 /* Sources */,
+				717AFAF1BB1D6FFCB8DDDE26 /* Resources */,
+				1AD546427BA9F4F892D58B13 /* Frameworks */,
+				43C23725CEECB79D195BF72E /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				87121BC7C3FAE80AD223ABA2 /* PBXTargetDependency */,
+			);
+			name = PiWorkTests;
+			packageProductDependencies = (
+			);
+			productName = PiWorkTests;
+			productReference = 9D6E5B2825314C12CE1EE959 /* PiWorkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B956AC41A8C56CE235D42E34 /* PiWork */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 15F8D020C110AE5789814FF8 /* Build configuration list for PBXNativeTarget "PiWork" */;
+			buildPhases = (
+				AF1345219AE9FC3A13BEED0E /* Sources */,
+				6FDF1D0B6992729D84AE40B6 /* Resources */,
+				B32949DFCAA84FFDD207DEFC /* Frameworks */,
+				5744A90C7EEEF628BE196DCE /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				69C8AACE3C45A0A6081BC341 /* PBXTargetDependency */,
+			);
+			name = PiWork;
+			packageProductDependencies = (
+			);
+			productName = PiWork;
+			productReference = 4113ED48AB2E6606E9C0E95B /* PiWork.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DCF9954D30A3CFA2A118F1F1 /* PiWorkCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 85A4E13F00BB9D2672C39D1B /* Build configuration list for PBXNativeTarget "PiWorkCore" */;
+			buildPhases = (
+				35B0CFEF8F5DB954ECB0B2EC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PiWorkCore;
+			packageProductDependencies = (
+			);
+			productName = PiWorkCore;
+			productReference = 6E537B9402E4003D39A17AFB /* PiWorkCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D60DFDB106AC6DA916848B71 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = A0B063ACCCEA5B67A4C7D680 /* Build configuration list for PBXProject "pi-work" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				es,
+				fr,
+				ja,
+				ru,
+				zh,
+			);
+			mainGroup = BEF329DD4275C7AC640BE9B3;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A036A22861B8AA05897015AB /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DCF9954D30A3CFA2A118F1F1 /* PiWorkCore */,
+				B956AC41A8C56CE235D42E34 /* PiWork */,
+				14CFFB62F41835D4D2BEB4D7 /* PiWorkTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		6FDF1D0B6992729D84AE40B6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B1C3175CD4F4B4C7F4D37AD /* AppIcon.icon in Resources */,
+				170C62B83591AA84289347BD /* Assets.xcassets in Resources */,
+				E349B64284B7B36335B59A39 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		717AFAF1BB1D6FFCB8DDDE26 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C64FC3AFA8F65576AC2FB7E2 /* StoreBackupManagerTests.swift.bak in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		35B0CFEF8F5DB954ECB0B2EC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EC016F3A5ECC089A4CF5AF28 /* AuthError.swift in Sources */,
+				EC3AFC3CDEB880ABCD5E8370 /* EmailOTPValidation.swift in Sources */,
+				15B14DE5EC133E4022FF3A24 /* OTPInputProcessor.swift in Sources */,
+				5AB39CE2051FFD023A17F333 /* StoreBackupManager.swift in Sources */,
+				BF951202CBE4B921E558B463 /* UserAlertCenter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AF1345219AE9FC3A13BEED0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				555B62C0BAEACE898E15CEB5 /* AppLanguage.swift in Sources */,
+				27CE9335C3A5BD8F208592F1 /* AppLog.swift in Sources */,
+				D82A411B7CFF34300232F49F /* AuthKeychainStore.swift in Sources */,
+				42997426F76841AA0AAC2B1B /* AuthSession.swift in Sources */,
+				CDE49F3EF02C25ECF616D25C /* AuthTokenSet.swift in Sources */,
+				60BD93AB56803884A557293F /* AuthUser.swift in Sources */,
+				4FFD8054D9E71B0259EC70BA /* ContentView.swift in Sources */,
+				A4ADC80AFD0C0A3C8A50E916 /* DiagnosticsSettingsView.swift in Sources */,
+				2D46D4DA2C8F164320827BAD /* EmailInputField.swift in Sources */,
+				5AA08E78574A255997683B46 /* EmailOTPClient.swift in Sources */,
+				5B3212E2A7F6184F1604753C /* GeneralSettingsView.swift in Sources */,
+				2FA29608E69B585D9550F45E /* GeneralSettingsViewModel.swift in Sources */,
+				C0490D64881AA6365CEDA601 /* Item.swift in Sources */,
+				EE688C05B1E14B0A09EC371B /* KanbanController.swift in Sources */,
+				DD87E47A5893C279FAF09CE9 /* KanbanPanelView.swift in Sources */,
+				35F24D15E4A650B1778858EB /* OAuthWebAuthenticator.swift in Sources */,
+				36632A1B6BA51875B227DD84 /* OTPInputView.swift in Sources */,
+				D77FEB59C075F596CE76EBE5 /* OpenAuthClient.swift in Sources */,
+				A8F2399B94F6DF37FEFF5967 /* PiWorkApp.swift in Sources */,
+				4316FA7BCABE1E694950B1A4 /* SchemaVersion.swift in Sources */,
+				7E1AEB018307D184FDC79017 /* SettingsCard.swift in Sources */,
+				20234AF0170017401EA6D796 /* SettingsContainerView.swift in Sources */,
+				F8A3A9C67289F77AAF1761E7 /* StoreBackupManager.swift in Sources */,
+				BC53C77A570F8451C556C4EA /* StoredKanbanTask.swift in Sources */,
+				8C257BA2BC5513C291D7AAF4 /* StringExtensions.swift in Sources */,
+				4770C77DF2156A4F2BE40459 /* UserAccountPopover.swift in Sources */,
+				5F0349F24F9484D5F7376B1E /* UserAlertBanner.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F29A1B6124C563B5FAE4EF37 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8AE39ECBC7CCF5C32144CAD /* EmailOTPValidationTests.swift in Sources */,
+				E8DAA0421DC94E62B17783F4 /* OTPInputProcessorTests.swift in Sources */,
+				1935EC03B8FF79B0737A93BC /* StoreBackupManagerTests.swift in Sources */,
+				1DDCF58C78C39643D3D3088A /* UserAlertCenterTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		69C8AACE3C45A0A6081BC341 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DCF9954D30A3CFA2A118F1F1 /* PiWorkCore */;
+			targetProxy = 0C7C079D0134C3A104E69E13 /* PBXContainerItemProxy */;
+		};
+		87121BC7C3FAE80AD223ABA2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DCF9954D30A3CFA2A118F1F1 /* PiWorkCore */;
+			targetProxy = 2FE0A9AF2E69198F0CA96E08 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		349E22FCC0A5933981588FCB /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				1DFBF3C3B943052BFDE6C395 /* en */,
+				F15DEE81AE1A102EDABA2C62 /* es */,
+				D18916E8DC40D641ED6DD5C1 /* fr */,
+				FC9E3A560B4D26E268C985E7 /* ja */,
+				731CDE4E5CEF1CCDE3816FB8 /* ru */,
+				8970284DE618DC03F9B724BC /* zh */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		1399301E8428CF5AC74E0382 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		1E23AE934A388604164E0B23 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PiWork/Resources/PiWork.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = PiWork/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWork;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		5FBA2FCAA8A3C1DBF1AC265B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWorkCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		7019495384007E934ACBEC8C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWorkTests;
+				SDKROOT = macosx;
+				TEST_HOST = "";
+			};
+			name = Debug;
+		};
+		8BA1CDDD3393A31345131B2A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PiWork/Resources/PiWork.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 6BWZP56JX9;
+				INFOPLIST_FILE = PiWork/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWork;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		8F0A6E62E5D6D5ECB0598D24 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWorkTests;
+				SDKROOT = macosx;
+				TEST_HOST = "";
+			};
+			name = Release;
+		};
+		BC97B8A4DB12674E2F515206 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 6BWZP56JX9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		E3224A50D59501F171887DEB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.section9lab.PiWorkCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		15F8D020C110AE5789814FF8 /* Build configuration list for PBXNativeTarget "PiWork" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E23AE934A388604164E0B23 /* Debug */,
+				8BA1CDDD3393A31345131B2A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		24A9CCEEB71F3844665D65EA /* Build configuration list for PBXNativeTarget "PiWorkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7019495384007E934ACBEC8C /* Debug */,
+				8F0A6E62E5D6D5ECB0598D24 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		85A4E13F00BB9D2672C39D1B /* Build configuration list for PBXNativeTarget "PiWorkCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5FBA2FCAA8A3C1DBF1AC265B /* Debug */,
+				E3224A50D59501F171887DEB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A0B063ACCCEA5B67A4C7D680 /* Build configuration list for PBXProject "pi-work" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1399301E8428CF5AC74E0382 /* Debug */,
+				BC97B8A4DB12674E2F515206 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D60DFDB106AC6DA916848B71 /* Project object */;
+}

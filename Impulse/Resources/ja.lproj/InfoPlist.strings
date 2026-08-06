@@ -1,3 +1,0 @@
-"NSMicrophoneUsageDescription" = "Impulse は音声入力のためにマイクへのアクセスが必要です。";
-"NSSpeechRecognitionUsageDescription" = "Impulse は音声入力を文字起こしするために音声認識を使用します。";
-"NSScreenCaptureUsageDescription" = "Impulse は画面上の内容を分析するために画面キャプチャへのアクセスが必要です。";

@@ -1,0 +1,161 @@
+"common.add" = "添加";
+"common.cancel" = "取消";
+"common.close" = "关闭";
+"common.delete" = "删除";
+"common.edit" = "编辑";
+"common.help" = "帮助";
+"common.test" = "测试";
+"common.not_selected" = "未选择";
+"common.rename" = "重命名";
+"common.save" = "保存";
+
+"account.logout" = "退出登录";
+"account.alipay_user" = "支付宝账户";
+"account.email_user" = "邮箱账户";
+"account.google_user" = "Google 账户";
+"account.personal" = "个人账户";
+
+"onboarding.title" = "Welcome to pi-work";
+"onboarding.subtitle" = "Sign in to keep your projects and boards ready for focused macOS work.";
+"onboarding.continue_alipay" = "支付宝登录";
+"onboarding.continue_email" = "邮箱登录";
+"onboarding.continue_google" = "Google 登录";
+"onboarding.privacy_link" = "隐私协议";
+"onboarding.privacy_prefix" = "我已阅读并同意";
+"onboarding.privacy_sheet_title" = "隐私协议";
+"onboarding.privacy_sheet_updated" = "适用于 Google 登录版本";
+
+"settings.title" = "设置";
+"settings.tab.general" = "通用";
+"settings.general.title" = "General Settings";
+"settings.general.language" = "语言";
+"settings.general.theme" = "主题";
+"settings.general.theme.auto" = "自动";
+"settings.general.theme.light" = "浅色";
+"settings.general.theme.dark" = "深色";
+
+
+"kanban.add_task" = "添加任务";
+"kanban.add_task_placeholder" = "为该项目添加任务";
+"kanban.add_label" = "添加标签";
+"kanban.delete_task" = "删除任务";
+"kanban.drop_task_here" = "将任务拖到这里";
+"kanban.select_project" = "选择项目…";
+"kanban.all_projects" = "所有项目";
+"kanban.priority" = "优先级";
+"kanban.priority.high" = "高";
+"kanban.priority.low" = "低";
+"kanban.priority.medium" = "中";
+"kanban.project_board" = "项目看板";
+"kanban.status.done" = "完成";
+"kanban.status.done.empty_hint" = "将完成的任务放在这里，保持看板整洁。";
+"kanban.status.done.subtitle" = "已完成的工作保留作参考。";
+"kanban.status.plan" = "计划";
+"kanban.status.plan.empty_hint" = "新的项目任务从这里开始。";
+"kanban.status.plan.subtitle" = "范围已明确，可以开始。";
+"kanban.status.in_progress" = "进行中";
+"kanban.status.in_progress.empty_hint" = "把正在推进的任务移到这里。";
+"kanban.status.in_progress.subtitle" = "工作正在推进中。";
+"kanban.settings" = "看板设置";
+"kanban.filter_by_project" = "按项目过滤";
+"kanban.filter_by_labels" = "按 Labels 过滤";
+"kanban.no_labels_yet" = "暂无 labels。给任务添加 label 即可使用过滤。";
+"kanban.clear_filter" = "清除过滤";
+"kanban.add_label_placeholder" = "添加 label";
+"kanban.tasks" = "任务";
+
+
+
+“agent.max_steps_reached” = “我已经执行到步骤上限（%d 次工具调用），还差最后收敛。你可以回复”继续”，我会基于当前上下文接着完成。”;
+
+“tool_approval.title” = “危险操作”;
+“tool_approval.run_once” = “执行一次”;
+“tool_approval.reject” = “拒绝”;
+
+“context.window_label” = “上下文窗口”;
+“context.used” = “已使用”;
+“context.total” = “总量”;
+“context.reserved” = “预留”;
+“context.compact” = “压缩”;
+“context.compacting” = “压缩中…”;
+
+"auth.error.alipay_unavailable" = "暂不支持支付宝登录，请使用 Google 继续。";
+"auth.error.authorization_failed" = "Google 登录失败：%@";
+"auth.error.invalid_access_token" = "已保存的登录已过期，请重新使用 Google 登录。";
+"auth.error.invalid_authorization_url" = "无法创建 Google 登录链接，请检查认证服务地址。";
+"auth.error.invalid_callback" = "Google 未返回有效的登录结果，请重试。";
+"auth.error.invalid_email" = "请输入有效的邮箱地址。";
+"auth.error.invalid_email_code" = "验证码无效，请检查邮箱后重试。";
+"auth.error.invalid_server_response" = "The authentication server returned a response pi-work could not read. Try again.";
+"auth.error.invalid_state" = "本次登录已过期，请重新开始 Google 登录。";
+"auth.error.keychain" = "pi-work could not save your sign-in in Keychain (%d). Check Keychain access and try again.";
+"auth.error.missing_issuer" = "当前构建尚未配置 Google 登录，请设置认证服务地址后重试。";
+"auth.error.random" = "pi-work could not create a secure sign-in challenge (%d). Restart the app and try again.";
+"auth.error.token_exchange_failed" = "pi-work could not finish Google sign-in: %@";
+"auth.error.web_authentication_failed" = "Google 返回结果前登录窗口已关闭：%@";
+
+"alert.projects_load_failed.title" = "无法加载项目数据";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_save_failed.title" = "无法保存项目数据";
+"alert.projects_save_failed.detail" = "重启应用后最近的修改可能会丢失。";
+
+"settings.tab.diagnostics" = "诊断";
+"settings.diagnostics.title" = "诊断";
+"settings.diagnostics.backups" = "数据备份";
+"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
+"settings.diagnostics.no_backups" = "暂无备份 —— 每天首次启动时会自动创建。";
+"settings.diagnostics.restore" = "恢复";
+"settings.diagnostics.reveal_in_finder" = "在访达中显示";
+"settings.diagnostics.restoring" = "正在恢复…";
+"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
+"settings.diagnostics.restore_succeeded" = "已恢复 %@ 的备份。";
+"settings.diagnostics.confirm_restore.title" = "确认恢复此备份？";
+"settings.diagnostics.confirm_restore.message" = "这将用 %@ 的备份替换当前会话数据。当前数据会先被自动快照，操作可撤销。";
+
+"settings.diagnostics.current_schema" = "当前数据架构版本：v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "未知架构";
+"settings.diagnostics.schema_mismatch" = "v%d（不兼容）";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ 的备份缺少架构信息，可能由旧版 pi-work 创建，恢复后可能无法启动。仍要继续？";
+
+/* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
+"settings.storage_root" = "存储根目录";
+"settings.active_project" = "当前项目";
+
+"email.title" = "邮箱登录";
+"email.code_title" = "输入验证码";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "发送验证码";
+"email.code_sent_to" = "验证码已发送至 %@";
+"email.verify" = "验证并登录";
+"email.resend" = "重新发送";
+"email.resend_in" = "%d 秒后可重新发送";
+"email.error.invalid_email" = "邮箱格式不正确";
+"email.error.invalid_code" = "验证码错误，请重新输入";
+"email.error.rate_limited" = "操作过于频繁，请稍后再试";
+"email.error.code_expired" = "验证码已过期，请重新发送";
+"email.error.too_many_attempts" = "尝试次数过多，请重新发送验证码";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "待办：%1$d/%2$d";
+"todo.indicator.help_with_active" = "待办：%1$d/%2$d — %3$@";
+"todo.popover.title" = "进度";
+"todo.popover.project_files.empty" = "暂无文件。";
+"todo.popover.project_files.no_project" = "未选择项目。";
+"todo.popover.project_files.error" = "无法读取项目目录。";
+"ask.banner.title" = "代理提问";
+"ask.banner.recommended" = "推荐";
+"ask.banner.other" = "其他（自行输入）";
+"ask.banner.other_placeholder" = "输入你的答案";
+"ask.banner.submit" = "提交";
+"ask.banner.cancel" = "取消";
+"ask.banner.required_hint" = "每个问题需选择一个选项后才能提交。";
+"project.sidebar" = "Projects";
+"project.all" = "All Projects";
+"project.all.subtitle" = "Show every project board";
+"project.add" = "Add Project";
+"project.add.message" = "Choose a local directory as a project.";
+"project.remove" = "Remove Project";
+"project.remove.title" = "Remove project?";
+"project.empty.title" = "Add your first project";
+"project.empty.subtitle" = "Choose a local folder to start organizing work in pi-work.";

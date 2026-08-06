@@ -1,0 +1,138 @@
+"common.add" = "追加";
+"common.cancel" = "キャンセル";
+"common.close" = "閉じる";
+"common.delete" = "削除";
+"common.edit" = "編集";
+"common.help" = "ヘルプ";
+"common.test" = "テスト";
+"common.not_selected" = "未選択";
+"common.rename" = "名前を変更";
+"common.save" = "保存";
+"account.logout" = "ログアウト";
+"account.alipay_user" = "Alipay アカウント";
+"account.email_user" = "メールアカウント";
+"account.google_user" = "Google アカウント";
+"account.personal" = "個人アカウント";
+"onboarding.title" = "Welcome to pi-work";
+"onboarding.subtitle" = "Sign in to keep your projects and boards ready for focused macOS work.";
+"onboarding.continue_alipay" = "Alipay で続ける";
+"onboarding.continue_email" = "メールで続ける";
+"onboarding.continue_google" = "Google で続ける";
+"onboarding.privacy_link" = "プライバシー同意書";
+"onboarding.privacy_prefix" = "読んで同意します:";
+"onboarding.privacy_sheet_title" = "プライバシー同意書";
+"onboarding.privacy_sheet_updated" = "Google サインイン向けに更新";
+"settings.title" = "設定";
+"settings.tab.general" = "一般";
+"settings.general.title" = "General Settings";
+"settings.general.language" = "言語";
+"settings.general.theme" = "テーマ";
+"settings.general.theme.auto" = "自動";
+"settings.general.theme.light" = "ライト";
+"settings.general.theme.dark" = "ダーク";
+/* TODO(i18n): translations below are auto-drafted; please review. */
+/* TODO(i18n): translations below are auto-drafted; please have a native
+   speaker review terminology and consistency with the rest of the file. */
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"kanban.add_task" = "タスクを追加";
+"kanban.add_task_placeholder" = "このプロジェクトのタスクを追加";
+"kanban.add_label" = "ラベルを追加";
+"kanban.delete_task" = "タスクを削除";
+"kanban.drop_task_here" = "ここにタスクをドロップ";
+"kanban.select_project" = "プロジェクトを選択…";
+"kanban.all_projects" = "すべてのプロジェクト";
+"kanban.priority" = "優先度";
+"kanban.priority.high" = "高";
+"kanban.priority.low" = "低";
+"kanban.priority.medium" = "中";
+"kanban.project_board" = "プロジェクトボード";
+"kanban.status.done" = "完了";
+"kanban.status.done.empty_hint" = "完了したタスクをここに置いて、ボードを整理します。";
+"kanban.status.done.subtitle" = "完了した作業を参照用に保持します。";
+"kanban.status.plan" = "計画";
+"kanban.status.plan.empty_hint" = "新しいプロジェクトタスクはここから始まります。";
+"kanban.status.plan.subtitle" = "範囲が決まり、着手できます。";
+"kanban.status.progress" = "進行中";
+"kanban.status.progress.empty_hint" = "進行中のタスクをここに移動します。";
+"kanban.status.progress.subtitle" = "作業が進行中です。";
+"kanban.filter_by_project" = "プロジェクトで絞り込む";
+"kanban.tasks" = "タスク";
+
+
+
+"auth.error.alipay_unavailable" = "Alipay サインインはまだ利用できません。Google で続けてください。";
+"auth.error.authorization_failed" = "Google サインインに失敗しました: %@";
+"auth.error.invalid_access_token" = "保存済みのサインインは期限切れです。もう一度 Google でサインインしてください。";
+"auth.error.invalid_authorization_url" = "Google サインイン用リンクを作成できません。認証サーバー URL を確認してください。";
+"auth.error.invalid_callback" = "Google から有効なサインイン応答が返りませんでした。もう一度お試しください。";
+"auth.error.invalid_email" = "有効なメールアドレスを入力してください。";
+"auth.error.invalid_email_code" = "コードが無効です。受信トレイを確認してもう一度お試しください。";
+"auth.error.invalid_server_response" = "The authentication server returned a response pi-work could not read. Try again.";
+"auth.error.invalid_state" = "このサインイン試行は期限切れです。Google サインインをやり直してください。";
+"auth.error.keychain" = "pi-work could not save your sign-in in Keychain (%d). Check Keychain access and try again.";
+"auth.error.missing_issuer" = "このビルドでは Google サインインが設定されていません。認証サーバー URL を設定してから再試行してください。";
+"auth.error.random" = "pi-work could not create a secure sign-in challenge (%d). Restart the app and try again.";
+"auth.error.token_exchange_failed" = "pi-work could not finish Google sign-in: %@";
+"auth.error.web_authentication_failed" = "Google から応答が返る前にサインインウィンドウが閉じました: %@";
+
+"alert.projects_load_failed.title" = "プロジェクトデータを読み込めません";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_save_failed.title" = "プロジェクトデータを保存できません";
+"alert.projects_save_failed.detail" = "アプリを再起動すると最近の変更が失われる可能性があります。";
+
+"settings.tab.diagnostics" = "診断";
+"settings.diagnostics.title" = "診断";
+"settings.diagnostics.backups" = "データバックアップ";
+"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
+"settings.diagnostics.no_backups" = "バックアップはまだありません — 起動日ごとに自動作成されます。";
+"settings.diagnostics.restore" = "復元";
+"settings.diagnostics.reveal_in_finder" = "Finder に表示";
+"settings.diagnostics.restoring" = "復元中…";
+"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
+"settings.diagnostics.restore_succeeded" = "%@ のバックアップを復元しました。";
+"settings.diagnostics.confirm_restore.title" = "このバックアップを復元しますか？";
+"settings.diagnostics.confirm_restore.message" = "現在のデータが %@ のバックアップに置き換えられます。現在のデータは自動的にスナップショットされ、操作は元に戻せます。";
+
+"settings.diagnostics.current_schema" = "現在のスキーマ：v%d";
+"settings.diagnostics.schema_label" = "v%d";
+"settings.diagnostics.schema_unknown" = "不明なスキーマ";
+"settings.diagnostics.schema_mismatch" = "v%d（非互換）";
+"settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ のバックアップにスキーマ情報がありません。古いバージョンの pi-work で作成された可能性があり、起動に失敗する場合があります。続行しますか？";
+
+/* TODO(i18n): translations below are auto-drafted; please review. */
+"settings.storage_root" = "ストレージルート";
+"settings.active_project" = "現在のプロジェクト";
+
+"email.title" = "メールでサインイン";
+"email.code_title" = "確認コードを入力";
+"email.placeholder" = "your@email.com";
+"email.send_code" = "確認コードを送信";
+"email.code_sent_to" = "確認コードを %@ に送信しました";
+"email.verify" = "確認してログイン";
+"email.resend" = "再送信";
+"email.resend_in" = "%d 秒後に再送信できます";
+"email.error.invalid_email" = "メールアドレスの形式が正しくありません";
+"email.error.invalid_code" = "確認コードが違います。再度入力してください";
+"email.error.rate_limited" = "操作が頻繁すぎます。しばらくしてから再試行してください";
+"email.error.code_expired" = "確認コードの有効期限が切れました。再送信してください";
+"email.error.too_many_attempts" = "試行回数が多すぎます。確認コードを再送信してください";
+
+/* ── productivity tools (todo / ask / task) ── */
+"todo.indicator.help" = "ToDo: %1$d/%2$d";
+"todo.indicator.help_with_active" = "ToDo: %1$d/%2$d — %3$@";
+"ask.banner.title" = "エージェントからの質問";
+"ask.banner.recommended" = "推奨";
+"ask.banner.other" = "その他（自由入力）";
+"ask.banner.other_placeholder" = "回答を入力してください";
+"ask.banner.submit" = "送信";
+"ask.banner.cancel" = "キャンセル";
+"ask.banner.required_hint" = "各質問に1つずつ選択肢を選んで送信してください。";
+"project.sidebar" = "Projects";
+"project.all" = "All Projects";
+"project.all.subtitle" = "Show every project board";
+"project.add" = "Add Project";
+"project.add.message" = "Choose a local directory as a project.";
+"project.remove" = "Remove Project";
+"project.remove.title" = "Remove project?";
+"project.empty.title" = "Add your first project";
+"project.empty.subtitle" = "Choose a local folder to start organizing work in pi-work.";

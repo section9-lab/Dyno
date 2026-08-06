@@ -1,3 +1,0 @@
-"NSMicrophoneUsageDescription" = "Impulse necesita acceso al micrófono para la entrada de voz.";
-"NSSpeechRecognitionUsageDescription" = "Impulse usa el reconocimiento de voz para transcribir tu entrada de voz.";
-"NSScreenCaptureUsageDescription" = "Impulse necesita acceso a la captura de pantalla para analizar lo que aparece en tu pantalla.";
