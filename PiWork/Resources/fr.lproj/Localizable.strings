@@ -76,28 +76,11 @@
 "auth.error.web_authentication_failed" = "La fenêtre de connexion s'est fermée avant la réponse de Google : %@";
 
 "alert.projects_load_failed.title" = "Impossible de charger les projets";
-"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted.";
 "alert.projects_save_failed.title" = "Impossible d'enregistrer les projets";
 "alert.projects_save_failed.detail" = "Les modifications récentes risquent d'être perdues au prochain redémarrage.";
 
-"settings.tab.diagnostics" = "Diagnostic";
-"settings.diagnostics.title" = "Diagnostic";
-"settings.diagnostics.backups" = "Sauvegardes du stockage";
-"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
-"settings.diagnostics.no_backups" = "Aucune sauvegarde pour l'instant — elles sont créées au premier lancement de chaque jour.";
-"settings.diagnostics.restore" = "Restaurer";
-"settings.diagnostics.reveal_in_finder" = "Afficher dans le Finder";
-"settings.diagnostics.restoring" = "Restauration…";
-"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
-"settings.diagnostics.restore_succeeded" = "Sauvegarde du %@ restaurée.";
-"settings.diagnostics.confirm_restore.title" = "Restaurer cette sauvegarde ?";
-"settings.diagnostics.confirm_restore.message" = "L'historique actuel sera remplacé par la sauvegarde du %@. Vos données actuelles sont d'abord automatiquement archivées, donc cela peut être annulé.";
 
-"settings.diagnostics.current_schema" = "Schéma actuel : v%d";
-"settings.diagnostics.schema_label" = "v%d";
-"settings.diagnostics.schema_unknown" = "Schéma inconnu";
-"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
-"settings.diagnostics.confirm_restore.message_unknown_schema" = "La sauvegarde du %@ n'a pas de métadonnées de schéma. Elle a peut-être été créée par une ancienne version d'pi-work et pourrait ne pas se charger. Continuer ?";
 
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "settings.storage_root" = "Racine du stockage";

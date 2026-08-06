@@ -76,28 +76,11 @@
 "auth.error.web_authentication_failed" = "Google から応答が返る前にサインインウィンドウが閉じました: %@";
 
 "alert.projects_load_failed.title" = "プロジェクトデータを読み込めません";
-"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted.";
 "alert.projects_save_failed.title" = "プロジェクトデータを保存できません";
 "alert.projects_save_failed.detail" = "アプリを再起動すると最近の変更が失われる可能性があります。";
 
-"settings.tab.diagnostics" = "診断";
-"settings.diagnostics.title" = "診断";
-"settings.diagnostics.backups" = "データバックアップ";
-"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
-"settings.diagnostics.no_backups" = "バックアップはまだありません — 起動日ごとに自動作成されます。";
-"settings.diagnostics.restore" = "復元";
-"settings.diagnostics.reveal_in_finder" = "Finder に表示";
-"settings.diagnostics.restoring" = "復元中…";
-"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
-"settings.diagnostics.restore_succeeded" = "%@ のバックアップを復元しました。";
-"settings.diagnostics.confirm_restore.title" = "このバックアップを復元しますか？";
-"settings.diagnostics.confirm_restore.message" = "現在のデータが %@ のバックアップに置き換えられます。現在のデータは自動的にスナップショットされ、操作は元に戻せます。";
 
-"settings.diagnostics.current_schema" = "現在のスキーマ：v%d";
-"settings.diagnostics.schema_label" = "v%d";
-"settings.diagnostics.schema_unknown" = "不明なスキーマ";
-"settings.diagnostics.schema_mismatch" = "v%d（非互換）";
-"settings.diagnostics.confirm_restore.message_unknown_schema" = "%@ のバックアップにスキーマ情報がありません。古いバージョンの pi-work で作成された可能性があり、起動に失敗する場合があります。続行しますか？";
 
 /* TODO(i18n): translations below are auto-drafted; please review. */
 "settings.storage_root" = "ストレージルート";

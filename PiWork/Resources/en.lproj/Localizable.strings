@@ -85,28 +85,11 @@
 "auth.error.web_authentication_failed" = "The sign-in window closed before Google returned a response: %@";
 
 "alert.projects_load_failed.title" = "Couldn't load your projects";
-"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted; check ~/Library/Application Support/pi-work/store-backups for a recent backup.";
+"alert.projects_load_failed.detail" = "Saved projects and Kanban tasks may not be visible. The disk file may be corrupted.";
 "alert.projects_save_failed.title" = "Couldn't save your projects";
 "alert.projects_save_failed.detail" = "Recent changes may be lost the next time the app is restarted.";
 
-"settings.tab.diagnostics" = "Diagnostics";
-"settings.diagnostics.title" = "Diagnostics";
-"settings.diagnostics.backups" = "Store Backups";
-"settings.diagnostics.backups.description" = "pi-work keeps the last 7 days of your project and task data on disk. If something goes wrong you can restore an earlier copy. Restoring requires you to quit and reopen pi-work afterwards.";
-"settings.diagnostics.no_backups" = "No backups available yet — they're created on each new launch day.";
-"settings.diagnostics.restore" = "Restore";
-"settings.diagnostics.reveal_in_finder" = "Reveal in Finder";
-"settings.diagnostics.restoring" = "Restoring backup…";
-"settings.diagnostics.restart_required" = "Quit and reopen pi-work to start using the restored data.";
-"settings.diagnostics.restore_succeeded" = "Restored backup from %@.";
-"settings.diagnostics.confirm_restore.title" = "Restore this backup?";
-"settings.diagnostics.confirm_restore.message" = "This will replace your current chat history with the backup from %@. Your current data is automatically snapshotted first so this can be reversed.";
 
-"settings.diagnostics.current_schema" = "Current data schema: v%d";
-"settings.diagnostics.schema_label" = "v%d";
-"settings.diagnostics.schema_unknown" = "Unknown schema";
-"settings.diagnostics.schema_mismatch" = "v%d (incompatible)";
-"settings.diagnostics.confirm_restore.message_unknown_schema" = "This backup from %@ has no schema metadata. It may have been created by an older version of pi-work and could fail to load. Continue anyway?";
 
 /* ── i18n catch-up: hardcoded strings discovered 2026-05-02 ── */
 "settings.storage_root" = "Storage Root";
