@@ -10,12 +10,12 @@ struct WelcomeHeroView: View {
             Spacer()
 
             Text("让 pi 为你服务")
-                .font(.system(size: 34, weight: .medium))
+                .font(.system(size: 40, weight: .light))
 
             HeroInputBar(onPickFolder: onPickFolder)
                 .frame(maxWidth: 640)
 
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 28) {
                 Text("热门")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -33,8 +33,8 @@ struct WelcomeHeroView: View {
         .background(
             LinearGradient(
                 colors: [Color(.windowBackgroundColor), Color.blue.opacity(0.12)],
-                startPoint: .top,
-                endPoint: .bottom
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
         )
     }

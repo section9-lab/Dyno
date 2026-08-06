@@ -9,18 +9,35 @@ struct SidebarView: View {
     @ObservedObject var projectStore: ProjectStore
     @Binding var selectedProject: PiProject?
     var onAddFolder: () -> Void
+    var onToggleSidebar: () -> Void
 
     private let placeholderNavItems: [(icon: String, title: String)] = [
-        ("checklist", "任务"),
+        ("square.and.pencil", "任务"),
         ("clock", "排程"),
-        ("puzzlepiece.extension", "技能"),
-        ("app.connected.to.app.below.fill", "关联的应用")
+        ("doc.text", "技能"),
+        ("cloud", "关联的应用")
     ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            SidebarTopBar(onToggleSidebar: onToggleSidebar)
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(placeholderNavItems, id: \.title) { item in
+                Label(placeholderNavItems[0].title, systemImage: placeholderNavItems[0].icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+
+                Text("自定义")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+                    .padding(.horizontal, 12)
+
+                ForEach(placeholderNavItems.dropFirst(), id: \.title) { item in
                     Label(item.title, systemImage: item.icon)
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
@@ -28,7 +45,7 @@ struct SidebarView: View {
                         .padding(.horizontal, 12)
                 }
             }
-            .padding(.top, 16)
+            .padding(.top, 12)
 
             Divider().padding(.vertical, 8)
 
@@ -90,8 +107,8 @@ struct SidebarView: View {
         .background(
             LinearGradient(
                 colors: [Color(.windowBackgroundColor), Color.blue.opacity(0.08)],
-                startPoint: .top,
-                endPoint: .bottom
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
         )
     }
@@ -111,5 +128,56 @@ private struct UserFooterView: View {
                 .font(.system(size: 13))
             Spacer()
         }
+    }
+}
+
+/// Top row of the sidebar: a sidebar-collapse toggle and a segmented
+/// "对话 / pi-work Beta 版" tab, matching the reference design's top bar.
+/// The tab control is currently decorative (single surface today); it's a
+/// placeholder for a future distinction between chat history and the
+/// project workspace itself.
+private struct SidebarTopBar: View {
+    var onToggleSidebar: () -> Void
+    @State private var selectedTab = 0
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onToggleSidebar) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 28, height: 28)
+                    .background(Color(.controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 0) {
+                tabButton(title: "对话", index: 0)
+                tabButton(title: "pi-work", badge: "Beta 版", index: 1)
+            }
+            .padding(2)
+            .background(Color(.controlBackgroundColor))
+            .clipShape(Capsule())
+        }
+    }
+
+    private func tabButton(title: String, badge: String? = nil, index: Int) -> some View {
+        Button {
+            selectedTab = index
+        } label: {
+            HStack(spacing: 4) {
+                Text(title).font(.system(size: 12, weight: .medium))
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(selectedTab == index ? Color(.windowBackgroundColor) : Color.clear)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
