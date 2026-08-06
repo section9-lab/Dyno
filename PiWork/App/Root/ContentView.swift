@@ -1,13 +1,12 @@
 import AppKit
-import CoreData
+import SwiftData
 import SwiftUI
 
+@available(macOS 14.0, *)
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredProject.addedAt, ascending: false)])
-    private var projects: FetchedResults<StoredProject>
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredKanbanTask.updatedAt, ascending: false)])
-    private var allTasks: FetchedResults<StoredKanbanTask>
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \StoredProject.addedAt, order: .reverse) private var projects: [StoredProject]
+    @Query(sort: \StoredKanbanTask.updatedAt, order: .reverse) private var allTasks: [StoredKanbanTask]
     @EnvironmentObject private var authSession: AuthSession
 
     @State private var selectedProjectPath: String?
@@ -92,52 +91,8 @@ struct ContentView: View {
                     .padding(.vertical, 10)
             }
             .buttonStyle(.plain)
-
-            Divider()
-
-            userAvatarSection
         }
         .frame(minWidth: 240)
-    }
-
-    // User & Settings entry point, restored at the bottom of the sidebar
-    // (its original location before the chat/agent sidebar was removed).
-    private var userAvatarSection: some View {
-        Button {
-            showAccountPopover.toggle()
-        } label: {
-            HStack(spacing: 10) {
-                AccountAvatarImage(
-                    url: authSession.user?.avatarURL,
-                    fallbackInitial: authSession.user?.avatarInitial ?? "U",
-                    fallbackFontSize: 13
-                )
-                .frame(width: 28, height: 28)
-
-                Text(authSession.user?.displayName ?? L10n.tr("account.google_user"))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showAccountPopover, arrowEdge: .top) {
-            UserAccountPopover(
-                isPresented: $showAccountPopover,
-                accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
-                accountSubtitle: authSession.provider.accountTitleKey,
-                accountInitial: authSession.user?.avatarInitial ?? "U",
-                accountAvatarURL: authSession.user?.avatarURL,
-                onSettings: { showSettingsSheet = true },
-                onHelp: openHelp,
-                onLogout: { authSession.signOut() }
-            )
-        }
     }
 
     @ViewBuilder
@@ -151,7 +106,7 @@ struct ContentView: View {
             )
         } else {
             KanbanPanelView(
-                projects: Array(projects),
+                projects: projects,
                 selectedProjectPath: $selectedProjectPath,
                 tasks: sortedTasks,
                 onCreateTask: { projectPath, title, priority, status, labels in
@@ -161,14 +116,14 @@ struct ContentView: View {
                         status: status,
                         labels: labels,
                         projectPath: projectPath,
-                        modelContext: viewContext
+                        modelContext: modelContext
                     )
                 },
                 onMoveTask: { task, status in
                     kanban.moveTask(task, to: status)
                 },
                 onDeleteTask: { task in
-                    kanban.deleteTask(task, modelContext: viewContext)
+                    kanban.deleteTask(task, modelContext: modelContext)
                 },
                 onUpdateLabels: { task, labels in
                     kanban.setLabels(task, labels: labels)
@@ -240,8 +195,6 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // Account/Settings now live in the sidebar footer (userAvatarSection);
-    // only project actions remain in the top toolbar.
     @ToolbarContentBuilder
     private var mainToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
@@ -257,6 +210,44 @@ struct ContentView: View {
                 Label("project.remove", systemImage: "trash")
             }
             .disabled(selectedProject == nil)
+
+            Button {
+                showSettingsSheet = true
+            } label: {
+                Label("settings.title", systemImage: "gearshape")
+            }
+
+            Button {
+                openHelp()
+            } label: {
+                Label("common.help", systemImage: "questionmark.circle")
+            }
+        }
+
+        ToolbarItem(placement: .automatic) {
+            Button {
+                showAccountPopover.toggle()
+            } label: {
+                AccountAvatarImage(
+                    url: authSession.user?.avatarURL,
+                    fallbackInitial: authSession.user?.avatarInitial ?? "U",
+                    fallbackFontSize: 13
+                )
+                .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showAccountPopover, arrowEdge: .top) {
+                UserAccountPopover(
+                    isPresented: $showAccountPopover,
+                    accountName: authSession.user?.displayName ?? L10n.tr("account.google_user"),
+                    accountSubtitle: authSession.provider.accountTitleKey,
+                    accountInitial: authSession.user?.avatarInitial ?? "U",
+                    accountAvatarURL: authSession.user?.avatarURL,
+                    onSettings: { showSettingsSheet = true },
+                    onHelp: openHelp,
+                    onLogout: { authSession.signOut() }
+                )
+            }
         }
     }
 
@@ -280,9 +271,11 @@ struct ContentView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let path = url.standardizedFileURL.path
 
-        if !projects.contains(where: { $0.path == path }) {
-            _ = StoredProject(context: viewContext, path: path)
-            try? viewContext.save()
+        let descriptor = FetchDescriptor<StoredProject>(
+            predicate: #Predicate { $0.path == path }
+        )
+        if (try? modelContext.fetch(descriptor))?.first == nil {
+            modelContext.insert(StoredProject(path: path))
         }
         selectedProjectPath = path
     }
@@ -290,13 +283,19 @@ struct ContentView: View {
     private func removeSelectedProject() {
         guard let selectedProjectPath else { return }
 
-        for task in allTasks.filter({ $0.projectPath == selectedProjectPath }) {
-            viewContext.delete(task)
+        let tasksDescriptor = FetchDescriptor<StoredKanbanTask>(
+            predicate: #Predicate { $0.projectPath == selectedProjectPath }
+        )
+        for task in (try? modelContext.fetch(tasksDescriptor)) ?? [] {
+            modelContext.delete(task)
         }
-        for project in projects.filter({ $0.path == selectedProjectPath }) {
-            viewContext.delete(project)
+
+        let projectDescriptor = FetchDescriptor<StoredProject>(
+            predicate: #Predicate { $0.path == selectedProjectPath }
+        )
+        for project in (try? modelContext.fetch(projectDescriptor)) ?? [] {
+            modelContext.delete(project)
         }
-        try? viewContext.save()
 
         self.selectedProjectPath = projects.first(where: { $0.path != selectedProjectPath })?.path
     }

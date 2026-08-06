@@ -1,6 +1,6 @@
 import Foundation
 import CoreTransferable
-import CoreData
+import SwiftData
 
 enum KanbanTaskStatus: String, Codable, CaseIterable, Identifiable {
     /// Raw value stays "todo" to keep existing stored tasks loadable after
@@ -38,33 +38,32 @@ enum KanbanTaskPriority: String, Codable, CaseIterable, Identifiable {
 
 /// A Kanban card. Path-keyed against a `StoredProject` with legacy string link fields preserved for compatibility.
 ///
-/// `linkedSessionIDs` and `labels` are comma-joined strings because the
-/// original SwiftData layout had spotty support for `[String]` value-type
-/// collections; the wrapper accessors keep callers strongly typed and the
-/// on-disk representation unchanged after the move to Core Data.
-@objc(StoredKanbanTask)
-final class StoredKanbanTask: NSManagedObject, Identifiable {
-    @NSManaged var id: String
-    @NSManaged var projectPath: String
-    @NSManaged var title: String
+/// `linkedSessionIDs` and `labels` are comma-joined strings because SwiftData
+/// has spotty support for `[String]` value-type collections; the wrapper
+/// accessors keep callers strongly typed.
+@available(macOS 14.0, *)
+@Model
+final class StoredKanbanTask {
+    @Attribute(.unique) var id: String
+    var projectPath: String
+    var title: String
     /// Stored as the raw value of `KanbanTaskStatus`; access via `status`.
-    @NSManaged var statusRaw: String
+    var statusRaw: String
     /// Stored as the raw value of `KanbanTaskPriority`; access via `priority`.
-    @NSManaged var priorityRaw: String
-    @NSManaged var primarySessionID: String?
+    var priorityRaw: String
+    var primarySessionID: String?
     /// Comma-joined session ids. Empty string == no links. Use
     /// `linkedSessionIDs` for typed access.
-    @NSManaged var linkedSessionIDsRaw: String
+    var linkedSessionIDsRaw: String
     /// Comma-joined free-form label strings. Empty string == no labels. Use
     /// `labels` for typed access.
-    @NSManaged var labelsRaw: String
-    @NSManaged var assigneeName: String
-    @NSManaged var notes: String
-    @NSManaged var createdAt: Date
-    @NSManaged var updatedAt: Date
+    var labelsRaw: String = ""
+    var assigneeName: String
+    var notes: String
+    var createdAt: Date
+    var updatedAt: Date
 
-    convenience init(
-        context: NSManagedObjectContext,
+    init(
         id: String = UUID().uuidString,
         projectPath: String,
         title: String,
@@ -78,7 +77,6 @@ final class StoredKanbanTask: NSManagedObject, Identifiable {
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
-        self.init(context: context)
         self.id = id
         self.projectPath = projectPath
         self.title = title
@@ -128,11 +126,12 @@ final class StoredKanbanTask: NSManagedObject, Identifiable {
     }
 }
 
-/// Transferable wrapper used for Kanban drag & drop. Core Data entities
+/// Transferable wrapper used for Kanban drag & drop. SwiftData entities
 /// can't directly conform to `Transferable`, so we transfer just the id and
 /// re-fetch on the drop side. Lives separately from `KanbanTaskSnapshot`'s
 /// own `transferRepresentation`; old call sites keep using snapshot drag
 /// until the legacy type is removed.
+@available(macOS 14.0, *)
 struct KanbanTaskDragPayload: Codable, Transferable {
     let id: String
 
