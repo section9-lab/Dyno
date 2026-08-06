@@ -1,12 +1,13 @@
 import AppKit
-import SwiftData
+import CoreData
 import SwiftUI
 
-@available(macOS 14.0, *)
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \StoredProject.addedAt, order: .reverse) private var projects: [StoredProject]
-    @Query(sort: \StoredKanbanTask.updatedAt, order: .reverse) private var allTasks: [StoredKanbanTask]
+    @Environment(\.managedObjectContext) private var viewContext
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredProject.addedAt, ascending: false)])
+    private var projects: FetchedResults<StoredProject>
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \StoredKanbanTask.updatedAt, ascending: false)])
+    private var allTasks: FetchedResults<StoredKanbanTask>
     @EnvironmentObject private var authSession: AuthSession
 
     @State private var selectedProjectPath: String?
@@ -106,7 +107,7 @@ struct ContentView: View {
             )
         } else {
             KanbanPanelView(
-                projects: projects,
+                projects: Array(projects),
                 selectedProjectPath: $selectedProjectPath,
                 tasks: sortedTasks,
                 onCreateTask: { projectPath, title, priority, status, labels in
@@ -116,14 +117,14 @@ struct ContentView: View {
                         status: status,
                         labels: labels,
                         projectPath: projectPath,
-                        modelContext: modelContext
+                        modelContext: viewContext
                     )
                 },
                 onMoveTask: { task, status in
                     kanban.moveTask(task, to: status)
                 },
                 onDeleteTask: { task in
-                    kanban.deleteTask(task, modelContext: modelContext)
+                    kanban.deleteTask(task, modelContext: viewContext)
                 },
                 onUpdateLabels: { task, labels in
                     kanban.setLabels(task, labels: labels)
@@ -271,11 +272,9 @@ struct ContentView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let path = url.standardizedFileURL.path
 
-        let descriptor = FetchDescriptor<StoredProject>(
-            predicate: #Predicate { $0.path == path }
-        )
-        if (try? modelContext.fetch(descriptor))?.first == nil {
-            modelContext.insert(StoredProject(path: path))
+        if !projects.contains(where: { $0.path == path }) {
+            _ = StoredProject(context: viewContext, path: path)
+            try? viewContext.save()
         }
         selectedProjectPath = path
     }
@@ -283,19 +282,14 @@ struct ContentView: View {
     private func removeSelectedProject() {
         guard let selectedProjectPath else { return }
 
-        let tasksDescriptor = FetchDescriptor<StoredKanbanTask>(
-            predicate: #Predicate { $0.projectPath == selectedProjectPath }
-        )
-        for task in (try? modelContext.fetch(tasksDescriptor)) ?? [] {
-            modelContext.delete(task)
+        for task in allTasks.filter({ $0.projectPath == selectedProjectPath }) {
+            viewContext.delete(task)
         }
 
-        let projectDescriptor = FetchDescriptor<StoredProject>(
-            predicate: #Predicate { $0.path == selectedProjectPath }
-        )
-        for project in (try? modelContext.fetch(projectDescriptor)) ?? [] {
-            modelContext.delete(project)
+        for project in projects.filter({ $0.path == selectedProjectPath }) {
+            viewContext.delete(project)
         }
+        try? viewContext.save()
 
         self.selectedProjectPath = projects.first(where: { $0.path != selectedProjectPath })?.path
     }
