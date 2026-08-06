@@ -15,17 +15,18 @@ struct ChatView: View {
         VStack(spacing: 0) {
             header
 
-            Divider()
-
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(viewModel.messages) { message in
                             ChatMessageRow(message: message)
                                 .id(message.id)
                         }
                     }
-                    .padding(16)
+                    .frame(maxWidth: 720, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
                 }
                 .onChange(of: viewModel.messages.count) { _ in
                     if let last = viewModel.messages.last {
@@ -38,50 +39,67 @@ struct ChatView: View {
                 Text(error)
                     .font(.system(size: 12))
                     .foregroundStyle(.red)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
+                    .frame(maxWidth: 720, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 6)
             }
 
-            Divider()
-
             inputBar
+                .frame(maxWidth: 720)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 22)
         }
         .onAppear { viewModel.ensureStarted() }
         .onDisappear { viewModel.stop() }
     }
 
     private var header: some View {
-        HStack {
-            Image(systemName: "folder.fill").foregroundStyle(.blue)
-            Text(viewModel.project.name).font(.system(size: 14, weight: .semibold))
-            Spacer()
+        HStack(spacing: 9) {
+            Image(systemName: "folder")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.primary.opacity(0.65))
+            Text(viewModel.project.name)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.85))
+
             if viewModel.isAgentBusy {
-                ProgressView().controlSize(.small)
+                ProgressView().controlSize(.small).scaleEffect(0.7)
             }
-            Circle()
-                .fill(viewModel.isRunning ? Color.green : Color.gray)
-                .frame(width: 8, height: 8)
+
+            Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 24)
+        // Clears the floating sidebar-toggle / Beta badge row above.
+        .padding(.top, 58)
+        .padding(.bottom, 8)
     }
 
     private var inputBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             TextField("向 pi 描述你想做的事…", text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
+                .font(.system(size: 15))
                 .lineLimit(1...6)
                 .onSubmit(send)
 
             Button(action: send) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 22))
+                    .foregroundStyle(
+                        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? Color.primary.opacity(0.25)
+                            : Color.accentColor
+                    )
             }
             .buttonStyle(.plain)
+            .padding(.leading, 12)
             .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
     }
 
     private func send() {
@@ -98,28 +116,29 @@ private struct ChatMessageRow: View {
         switch message.role {
         case .user:
             HStack {
-                Spacer(minLength: 40)
+                Spacer(minLength: 60)
                 Text(message.text)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.15))
-                    .cornerRadius(10)
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(Color.white.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .shadow(color: .black.opacity(0.05), radius: 4, y: 1)
             }
         case .assistant:
             HStack(alignment: .top) {
                 Text(message.text.isEmpty ? "…" : message.text)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color(.textBackgroundColor))
-                    .cornerRadius(10)
-                Spacer(minLength: 40)
+                    .font(.system(size: 14))
+                    .textSelection(.enabled)
+                Spacer(minLength: 60)
             }
         case .tool:
             Text(message.text)
                 .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.primary.opacity(0.5))
         case .system:
             Text(message.text)
                 .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.primary.opacity(0.5))
         }
     }
 }

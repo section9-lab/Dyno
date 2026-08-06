@@ -54,10 +54,10 @@ struct SidebarView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 6)
+                    .padding(.top, 1)
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
 
             Spacer(minLength: 0)
 
@@ -65,7 +65,7 @@ struct SidebarView: View {
                 .padding(.horizontal, 15)
                 .padding(.bottom, 18)
         }
-        .frame(width: 248)
+        .frame(width: 232)
     }
 }
 

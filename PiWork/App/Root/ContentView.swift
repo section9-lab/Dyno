@@ -18,10 +18,22 @@ struct ContentView: View {
                         onAddFolder: pickFolder
                     )
                     .transition(.move(edge: .leading))
-                    .background(Color.white.opacity(0.3))
+                    // The reference sidebar reads as its own panel: a light
+                    // gray at the top washing into a pale blue at the bottom,
+                    // lighter than the content area at the same height.
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.957, green: 0.961, blue: 0.965),
+                                Color(red: 0.855, green: 0.933, blue: 0.984)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
 
                     Rectangle()
-                        .fill(Color.black.opacity(0.06))
+                        .fill(Color.black.opacity(0.04))
                         .frame(width: 1)
                 }
 
@@ -104,22 +116,25 @@ private struct BetaBadge: View {
     }
 }
 
-/// Single window-spanning diagonal gradient (near-white top-leading to a
-/// vivid sky blue bottom-trailing) drawn once behind the sidebar + content
-/// split, so the two panels share one continuous background instead of each
-/// drawing its own — matching the reference design's unified backdrop.
-/// Uses fixed (non-dynamic) colors since the reference is always light-
-/// themed regardless of system appearance.
+/// Single window-spanning gradient (near-white at the top, deepening to a
+/// sky blue toward the bottom-trailing corner) drawn once behind the
+/// sidebar + content split, so the two panels share one continuous
+/// background instead of each drawing its own — matching the reference
+/// design's unified backdrop. The axis is mostly vertical with a slight
+/// trailing bias, which keeps both top corners near-white and concentrates
+/// the blue in the lower half, as in the reference. Uses fixed
+/// (non-dynamic) colors since the design is always light-themed.
 struct AppBackgroundGradient: View {
     var body: some View {
         LinearGradient(
-            colors: [
-                Color(red: 0.97, green: 0.97, blue: 0.98),
-                Color(red: 0.90, green: 0.93, blue: 0.99),
-                Color(red: 0.62, green: 0.79, blue: 0.98)
+            stops: [
+                .init(color: Color(red: 0.965, green: 0.972, blue: 0.980), location: 0.00),
+                .init(color: Color(red: 0.930, green: 0.950, blue: 0.980), location: 0.35),
+                .init(color: Color(red: 0.790, green: 0.870, blue: 0.960), location: 0.70),
+                .init(color: Color(red: 0.490, green: 0.700, blue: 0.910), location: 1.00)
             ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            startPoint: UnitPoint(x: 0.15, y: 0.0),
+            endPoint: UnitPoint(x: 0.95, y: 1.0)
         )
         .ignoresSafeArea()
     }
