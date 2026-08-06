@@ -8,7 +8,7 @@
 import SwiftUI
 import AppKit
 import PiWorkCore
-import CoreData
+import SwiftData
 import Combine
 struct OnboardingLoginView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -534,14 +534,8 @@ private func applyNativeWindowChrome(to window: NSWindow) {
     window.titlebarAppearsTransparent = true
     window.titleVisibility = .hidden
     window.isMovableByWindowBackground = true
-    // The window itself must stay opaque with a normal system background.
-    // `isOpaque = false` + `.clear` made the whole content area see-through
-    // to whatever window was behind pi-work whenever a SwiftUI subview
-    // (e.g. the Kanban detail pane / empty state) didn't paint its own
-    // background - only the sidebar looked right because List(.sidebar)
-    // supplies its own opaque material regardless of window opacity.
-    window.isOpaque = true
-    window.backgroundColor = .windowBackgroundColor
+    window.isOpaque = false
+    window.backgroundColor = .clear
     window.hasShadow = true
     window.titlebarSeparatorStyle = .none
 }
@@ -631,12 +625,11 @@ struct PiWorkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            PiWorkRootView()
+            rootView
             .environmentObject(authSession)
             .environmentObject(localization)
             .environmentObject(themeManager)
             .environment(\.locale, localization.locale)
-            .environment(\.managedObjectContext, PiWorkPersistenceController.shared.viewContext)
             .preferredColorScheme(themeManager.theme.colorScheme)
             .onAppear {
                 configureApp()
@@ -657,113 +650,38 @@ struct PiWorkApp: App {
         print("🔧 [APP] App Path: \(appPath)")
         print("🔧 [APP] Executable Path: \(executablePath)")
     }
+
+    @ViewBuilder
+    private var rootView: some View {
+        if #available(macOS 14.0, *) {
+            PiWorkSupportedRootView()
+        } else {
+            UnsupportedSystemView()
+        }
+    }
 }
 
-/// Builds the Core Data stack backing `StoredProject`/`StoredKanbanTask`.
-/// The model is defined in code (rather than an `.xcdatamodeld` resource) so
-/// no extra Xcode project resource wiring is required. Core Data has shipped
-/// since macOS 10.4, so unlike the previous SwiftData-based store this works
-/// unconditionally at the project's macOS 13.0 deployment target.
-private enum PiWorkPersistenceController {
-    static let shared = makeContainer()
-
-    static var viewContext: NSManagedObjectContext {
-        shared.viewContext
-    }
-
-    private static func makeContainer() -> NSPersistentContainer {
+@available(macOS 14.0, *)
+private enum PiWorkModelContainerProvider {
+    static let sharedModelContainer: ModelContainer = {
         StoreBackupManager.default()?.runDailyBackupIfNeeded()
 
-        let model = makeManagedObjectModel()
-        let container = NSPersistentContainer(name: "PiWork", managedObjectModel: model)
+        let schema = Schema([
+            StoredProject.self,
+            StoredKanbanTask.self,
+        ])
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
-        if let appSupport = try? FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ) {
-            let storeURL = appSupport.appendingPathComponent("default.store", isDirectory: false)
-            let description = NSPersistentStoreDescription(url: storeURL)
-            description.shouldMigrateStoreAutomatically = true
-            description.shouldInferMappingModelAutomatically = true
-            container.persistentStoreDescriptions = [description]
+        do {
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+        } catch {
+            fatalError("Could not create ModelContainer: \(error)")
         }
-
-        container.loadPersistentStores { _, error in
-            if let error {
-                fatalError("Could not load Core Data store: \(error)")
-            }
-        }
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        return container
-    }
-
-    private static func makeManagedObjectModel() -> NSManagedObjectModel {
-        let model = NSManagedObjectModel()
-
-        let project = NSEntityDescription()
-        project.name = "StoredProject"
-        project.managedObjectClassName = NSStringFromClass(StoredProject.self)
-
-        let projectPath = NSAttributeDescription()
-        projectPath.name = "path"
-        projectPath.attributeType = .stringAttributeType
-        projectPath.isOptional = false
-
-        let projectAddedAt = NSAttributeDescription()
-        projectAddedAt.name = "addedAt"
-        projectAddedAt.attributeType = .dateAttributeType
-        projectAddedAt.isOptional = false
-
-        project.properties = [projectPath, projectAddedAt]
-
-        let task = NSEntityDescription()
-        task.name = "StoredKanbanTask"
-        task.managedObjectClassName = NSStringFromClass(StoredKanbanTask.self)
-
-        func stringAttribute(_ name: String, optional: Bool = false) -> NSAttributeDescription {
-            let attribute = NSAttributeDescription()
-            attribute.name = name
-            attribute.attributeType = .stringAttributeType
-            attribute.isOptional = optional
-            return attribute
-        }
-
-        let taskID = stringAttribute("id")
-        let taskProjectPath = stringAttribute("projectPath")
-        let taskTitle = stringAttribute("title")
-        let taskStatusRaw = stringAttribute("statusRaw")
-        let taskPriorityRaw = stringAttribute("priorityRaw")
-        let taskPrimarySessionID = stringAttribute("primarySessionID", optional: true)
-        let taskLinkedSessionIDsRaw = stringAttribute("linkedSessionIDsRaw")
-        let taskLabelsRaw = stringAttribute("labelsRaw")
-        let taskAssigneeName = stringAttribute("assigneeName")
-        let taskNotes = stringAttribute("notes")
-
-        let taskCreatedAt = NSAttributeDescription()
-        taskCreatedAt.name = "createdAt"
-        taskCreatedAt.attributeType = .dateAttributeType
-        taskCreatedAt.isOptional = false
-
-        let taskUpdatedAt = NSAttributeDescription()
-        taskUpdatedAt.name = "updatedAt"
-        taskUpdatedAt.attributeType = .dateAttributeType
-        taskUpdatedAt.isOptional = false
-
-        task.properties = [
-            taskID, taskProjectPath, taskTitle, taskStatusRaw, taskPriorityRaw,
-            taskPrimarySessionID, taskLinkedSessionIDsRaw, taskLabelsRaw,
-            taskAssigneeName, taskNotes, taskCreatedAt, taskUpdatedAt,
-        ]
-
-        model.entities = [project, task]
-        return model
-    }
+    }()
 }
 
-private struct PiWorkRootView: View {
+@available(macOS 14.0, *)
+private struct PiWorkSupportedRootView: View {
     @EnvironmentObject private var authSession: AuthSession
 
     var body: some View {
@@ -775,5 +693,25 @@ private struct PiWorkRootView: View {
                 OnboardingLoginView(authSession: authSession)
             }
         }
+        .modelContainer(PiWorkModelContainerProvider.sharedModelContainer)
+    }
+}
+
+private struct UnsupportedSystemView: View {
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 30))
+                .foregroundColor(.orange)
+            Text("pi-work requires macOS 14 or later")
+                .font(.system(size: 24, weight: .semibold))
+            Text("This build now has a macOS 13 deployment target so it can launch and run tests on older systems, but the SwiftData-backed board UI still requires macOS 14 at runtime.")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(MainWindowConfigurator())
     }
 }
