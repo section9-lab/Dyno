@@ -155,15 +155,17 @@ private struct SidebarToggleButton: View {
     }
 }
 
-/// Small "Beta 版" pill shown in the top-right corner, matching the
-/// reference design. Purely decorative for now.
+/// Small "BETA" pill shown in the top-right corner, matching the reference
+/// design. Shares the tab header badge's type so the two never drift apart.
+/// Purely decorative for now.
 private struct BetaBadge: View {
     var body: some View {
         HStack(spacing: 10) {
-            Text("Beta 版")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.primary.opacity(0.6))
-                .padding(.horizontal, 12)
+            Text("BETA")
+                .font(.system(size: 9, weight: .medium))
+                .kerning(0.4)
+                .foregroundStyle(Color.primary.opacity(0.5))
+                .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(Capsule().fill(AppPalette.translucentSurface))
 

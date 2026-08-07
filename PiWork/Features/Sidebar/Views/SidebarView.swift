@@ -74,7 +74,7 @@ private struct SidebarTabHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             tab(title: "对话", index: 0)
-            tab(title: "pi-work", badge: "Beta 版", index: 1)
+            tab(title: "work", badge: "BETA", index: 1)
         }
         .padding(3)
         .background(AppPalette.segmentedTrack)
@@ -86,14 +86,15 @@ private struct SidebarTabHeader: View {
         return Button {
             selectedTab = index
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text(title)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(Color.primary.opacity(isSelected ? 0.9 : 0.6))
                 if let badge {
                     Text(badge)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.primary.opacity(0.5))
+                        .font(.system(size: 9, weight: .medium))
+                        .kerning(0.4)
+                        .foregroundStyle(Color.primary.opacity(0.45))
                 }
             }
             .frame(maxWidth: .infinity)
