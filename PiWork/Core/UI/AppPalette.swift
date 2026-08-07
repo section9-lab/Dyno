@@ -59,6 +59,14 @@ enum AppPalette {
         dark: 0xFFFFFF, darkAlpha: 0.10
     )
 
+    /// Fill behind a hovered (not selected) sidebar row — a lighter step
+    /// below `selectedRowFill` so hover and selected read as two distinct
+    /// states rather than the same highlight.
+    static let hoverRowFill = dynamic(
+        light: 0xFFFFFF, lightAlpha: 0.40,
+        dark: 0xFFFFFF, darkAlpha: 0.06
+    )
+
     /// Track behind the sidebar's segmented tab control.
     static let segmentedTrack = dynamic(
         light: 0x000000, lightAlpha: 0.05,

@@ -46,6 +46,7 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
+        .background(SidebarSelectionFix())
         .safeAreaInset(edge: .top, spacing: 0) {
             SidebarTabHeader()
                 .padding(.horizontal, 10)
@@ -148,6 +149,7 @@ private struct SectionLabel: View {
 private struct FolderRow: View {
     let project: PiProject
     let isSelected: Bool
+    @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 11) {
@@ -164,9 +166,10 @@ private struct FolderRow: View {
         .padding(.vertical, 7)
         .background(
             adaptiveRoundedShape(cornerRadius: 8)
-                .fill(isSelected ? AppPalette.selectedRowFill : Color.clear)
+                .fill(isSelected ? AppPalette.selectedRowFill : (isHovering ? AppPalette.hoverRowFill : Color.clear))
         )
         .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
         .padding(.horizontal, 4)
         .compositingGroup()
         .listRowInsets(EdgeInsets())
