@@ -2,7 +2,7 @@ import Foundation
 
 /// A user-linked project folder — the working directory a `pi` agent
 /// subprocess runs in for that project's sessions/tasks.
-struct PiProject: Identifiable, Codable, Equatable {
+struct PiProject: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     var name: String
     var path: String

@@ -4,68 +4,62 @@ import SwiftUI
 /// for now — this rewrite's first milestone is wiring up the real `pi`
 /// agent), the list of linked project folders (the working feature), and
 /// a bottom-anchored account row. Layout mirrors the reference design.
+///
+/// The scrollable/selectable portion is a real system sidebar list
+/// (`List(selection:)` + `.listStyle(.sidebar)`), not a hand-rolled
+/// `ScrollView`/`VStack` — this gets keyboard navigation, hover states, and
+/// accessibility for free from AppKit, while row content still renders our
+/// own custom look via `.listRowBackground(Color.clear)` +
+/// `.listRowInsets(EdgeInsets())`.
 struct SidebarView: View {
     @ObservedObject var projectStore: ProjectStore
     @Binding var selectedProject: PiProject?
     var onAddFolder: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        List(selection: $selectedProject) {
+            Section {
+                NavRow(icon: "square.and.pencil", title: "任务")
+            }
+
+            Section {
+                NavRow(icon: "clock", title: "排程")
+                NavRow(icon: "doc.text", title: "技能")
+                NavRow(icon: "puzzlepiece.extension", title: "关联的应用")
+            } header: {
+                SectionLabel("自定义")
+            }
+
+            Section {
+                ForEach(projectStore.projects) { project in
+                    FolderRow(
+                        project: project,
+                        isSelected: selectedProject?.id == project.id
+                    )
+                    .tag(project)
+                }
+
+                AddFolderRow(action: onAddFolder)
+            } header: {
+                SectionLabel("已关联的文件夹")
+            }
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .top, spacing: 0) {
             SidebarTabHeader()
                 .padding(.horizontal, 10)
                 .padding(.top, 14)
-
-            NavRow(icon: "square.and.pencil", title: "任务")
-                .padding(.top, 18)
-
-            SectionLabel("自定义")
-                .padding(.top, 18)
-
-            NavRow(icon: "clock", title: "排程")
-            NavRow(icon: "doc.text", title: "技能")
-            NavRow(icon: "puzzlepiece.extension", title: "关联的应用")
-
-            SectionLabel("已关联的文件夹")
-                .padding(.top, 22)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(projectStore.projects) { project in
-                        FolderRow(
-                            project: project,
-                            isSelected: selectedProject?.id == project.id
-                        ) {
-                            selectedProject = project
-                        }
-                    }
-
-                    Button(action: onAddFolder) {
-                        HStack(spacing: 11) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .regular))
-                                .frame(width: 18)
-                            Text("添加 Mac 文件夹")
-                                .font(.system(size: 14))
-                            Spacer(minLength: 0)
-                        }
-                        .foregroundStyle(Color.primary.opacity(0.75))
-                        .padding(.horizontal, 15)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 1)
-                }
-            }
-            .padding(.top, 4)
-
-            Spacer(minLength: 0)
-
+                .padding(.bottom, 6)
+                .compositingGroup()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             UserFooterView()
                 .padding(.horizontal, 15)
+                .padding(.top, 8)
                 .padding(.bottom, 18)
+                .compositingGroup()
         }
-        .frame(width: 232)
     }
 }
 
@@ -131,6 +125,9 @@ private struct NavRow: View {
         .foregroundStyle(Color.primary.opacity(0.78))
         .padding(.horizontal, 15)
         .padding(.vertical, 7)
+        .compositingGroup()
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
     }
 }
 
@@ -143,38 +140,64 @@ private struct SectionLabel: View {
         Text(text)
             .font(.system(size: 13))
             .foregroundStyle(Color.primary.opacity(0.42))
-            .padding(.horizontal, 15)
-            .padding(.bottom, 4)
+            .compositingGroup()
     }
 }
 
 private struct FolderRow: View {
     let project: PiProject
     let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Image(systemName: "folder")
+                .font(.system(size: 14))
+                .frame(width: 18)
+            Text(project.name)
+                .font(.system(size: 14))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color.primary.opacity(0.78))
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 8)
+                .fill(isSelected ? Color.white.opacity(0.75) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .padding(.horizontal, 4)
+        .compositingGroup()
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+    }
+}
+
+/// "添加 Mac 文件夹" row. Kept as a plain button (not a taggable/selectable
+/// list row) since it triggers the folder picker rather than selecting a
+/// project.
+private struct AddFolderRow: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 11) {
-                Image(systemName: "folder")
-                    .font(.system(size: 14))
+                Image(systemName: "plus")
+                    .font(.system(size: 14, weight: .regular))
                     .frame(width: 18)
-                Text(project.name)
+                Text("添加 Mac 文件夹")
                     .font(.system(size: 14))
-                    .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(Color.primary.opacity(0.78))
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .background(
-                adaptiveRoundedShape(cornerRadius: 8)
-                    .fill(isSelected ? Color.white.opacity(0.75) : Color.clear)
-            )
+            .foregroundStyle(Color.primary.opacity(0.75))
+            .padding(.horizontal, 15)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 4)
+        .compositingGroup()
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
     }
 }
 
