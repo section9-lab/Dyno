@@ -51,6 +51,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .background(TrafficLightPositioner(offset: SidebarPanelMetrics.trafficLightOffset))
     }
 
     private func pickFolder() {
@@ -75,6 +76,16 @@ private enum SidebarPanelMetrics {
     static let cornerRadius: CGFloat = 16
     static let contentWidth: CGFloat = 236
     static var columnWidth: CGFloat { contentWidth + inset * 2 }
+
+    /// The traffic lights belong to the window, so AppKit parks them in the
+    /// window's own corner — which lands them on the panel's rounded corner
+    /// once the panel is inset. Nudging them inward gives them roughly equal
+    /// clearance from the panel's top and left edges, matching the reference.
+    static let trafficLightOffset = CGSize(width: 17, height: 19)
+
+    /// Clearance the sidebar's own content keeps below the traffic lights so
+    /// the tab header doesn't crowd them.
+    static let contentTopInset: CGFloat = 15
 
     static let surface = AppPalette.sidebarSurface
 }
@@ -114,6 +125,7 @@ private struct SidebarPanel<Content: View>: View {
 
             content
                 .padding(.horizontal, SidebarPanelMetrics.inset)
+                .padding(.top, SidebarPanelMetrics.contentTopInset)
                 .padding(.bottom, SidebarPanelMetrics.inset)
         }
         .frame(width: SidebarPanelMetrics.columnWidth)
