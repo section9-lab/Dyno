@@ -73,8 +73,8 @@ private struct SidebarTabHeader: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tab(title: "对话", index: 0)
-            tab(title: "work", badge: "BETA", index: 1)
+            tab(title: "Chat", index: 0)
+            tab(title: "Work", badge: "BETA", index: 1)
         }
         .padding(3)
         .background(AppPalette.segmentedTrack)
