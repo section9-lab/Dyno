@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Left sidebar: a segmented tab header, navigation items (placeholders
-/// for now — this rewrite's first milestone is wiring up the real `pi`
-/// agent), the list of linked project folders (the working feature), and
-/// a bottom-anchored account row. Layout mirrors the reference design.
+/// Left sidebar: a segmented tab header, and — depending on which tab is
+/// selected — either the "Chat" conversation-history list or the "Work"
+/// folder workspace (nav placeholders + linked project folders), plus a
+/// bottom-anchored account row. Layout mirrors the reference design.
 ///
 /// The scrollable/selectable portion is a real system sidebar list
 /// (`List(selection:)` + `.listStyle(.sidebar)`), not a hand-rolled
@@ -11,44 +11,72 @@ import SwiftUI
 /// accessibility for free from AppKit, while row content still renders our
 /// own custom look via `.listRowBackground(Color.clear)` +
 /// `.listRowInsets(EdgeInsets())`.
+
+/// Which of the two sidebar surfaces is currently shown below the tab
+/// header. `.chat` is conversation history (one row per project you've
+/// talked to, framed as a session); `.work` is the folder-management view
+/// (nav placeholders + the linked-folder list + "add folder").
+enum SidebarTab: Int {
+    case chat = 0
+    case work = 1
+}
+
 struct SidebarView: View {
     @ObservedObject var projectStore: ProjectStore
     @Binding var selectedProject: PiProject?
     var onAddFolder: () -> Void
 
+    @State private var selectedTab: SidebarTab = .work
+
     var body: some View {
         List(selection: $selectedProject) {
-            Section {
-                NavRow(icon: "square.and.pencil", title: "任务")
-            }
-
-            Section {
-                NavRow(icon: "clock", title: "排程")
-                NavRow(icon: "doc.text", title: "技能")
-                NavRow(icon: "puzzlepiece.extension", title: "关联的应用")
-            } header: {
-                SectionLabel("自定义")
-            }
-
-            Section {
-                ForEach(projectStore.projects) { project in
-                    FolderRow(
-                        project: project,
-                        isSelected: selectedProject?.id == project.id
-                    )
-                    .tag(project)
+            switch selectedTab {
+            case .chat:
+                Section {
+                    ForEach(projectStore.projects) { project in
+                        SessionRow(
+                            project: project,
+                            isSelected: selectedProject?.id == project.id
+                        )
+                        .tag(project)
+                    }
+                } header: {
+                    SectionLabel("会话记录")
                 }
 
-                AddFolderRow(action: onAddFolder)
-            } header: {
-                SectionLabel("已关联的文件夹")
+            case .work:
+                Section {
+                    NavRow(icon: "square.and.pencil", title: "任务")
+                }
+
+                Section {
+                    NavRow(icon: "clock", title: "排程")
+                    NavRow(icon: "doc.text", title: "技能")
+                    NavRow(icon: "puzzlepiece.extension", title: "关联的应用")
+                } header: {
+                    SectionLabel("自定义")
+                }
+
+                Section {
+                    ForEach(projectStore.projects) { project in
+                        FolderRow(
+                            project: project,
+                            isSelected: selectedProject?.id == project.id
+                        )
+                        .tag(project)
+                    }
+
+                    AddFolderRow(action: onAddFolder)
+                } header: {
+                    SectionLabel("已关联的文件夹")
+                }
             }
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .background(SidebarSelectionFix())
         .safeAreaInset(edge: .top, spacing: 0) {
-            SidebarTabHeader()
+            SidebarTabHeader(selectedTab: $selectedTab)
                 .padding(.horizontal, 10)
                 .padding(.top, 14)
                 .padding(.bottom, 6)
@@ -66,26 +94,26 @@ struct SidebarView: View {
 
 // MARK: - Pieces
 
-/// Full-width segmented control at the top of the sidebar. Decorative for
-/// now: there is only one surface today, so the tabs are a placeholder for
-/// a future split between chat history and the project workspace.
+/// Full-width segmented control at the top of the sidebar. Switches
+/// `selectedTab` between conversation history ("Chat") and the folder
+/// workspace ("Work"), which drives what the `List` below shows.
 private struct SidebarTabHeader: View {
-    @State private var selectedTab = 1
+    @Binding var selectedTab: SidebarTab
 
     var body: some View {
         HStack(spacing: 0) {
-            tab(title: "Chat", index: 0)
-            tab(title: "Work", badge: "BETA", index: 1)
+            tab(title: "Chat", tab: .chat)
+            tab(title: "Work", badge: "BETA", tab: .work)
         }
         .padding(3)
         .background(AppPalette.segmentedTrack)
         .clipShape(Capsule())
     }
 
-    private func tab(title: String, badge: String? = nil, index: Int) -> some View {
-        let isSelected = selectedTab == index
+    private func tab(title: String, badge: String? = nil, tab: SidebarTab) -> some View {
+        let isSelected = selectedTab == tab
         return Button {
-            selectedTab = index
+            selectedTab = tab
         } label: {
             HStack(spacing: 6) {
                 Text(title)
@@ -154,6 +182,41 @@ private struct FolderRow: View {
     var body: some View {
         HStack(spacing: 11) {
             Image(systemName: "folder")
+                .font(.system(size: 14))
+                .frame(width: 18)
+            Text(project.name)
+                .font(.system(size: 14))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color.primary.opacity(0.78))
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 8)
+                .fill(isSelected ? AppPalette.selectedRowFill : (isHovering ? AppPalette.hoverRowFill : Color.clear))
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        .padding(.horizontal, 4)
+        .compositingGroup()
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+    }
+}
+
+/// A row in the Chat tab's "会话记录" list — same look as `FolderRow`, but
+/// framed as a conversation (bubble icon) rather than a folder. Each
+/// project has exactly one ongoing chat today, so this reuses the same
+/// `PiProject` data and selection binding as the Work tab's folder list.
+private struct SessionRow: View {
+    let project: PiProject
+    let isSelected: Bool
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 14))
                 .frame(width: 18)
             Text(project.name)
