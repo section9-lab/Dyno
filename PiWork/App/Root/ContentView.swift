@@ -51,10 +51,6 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
-        // The design is a fixed light-themed gradient, so pin the color
-        // scheme — otherwise system dark mode flips Color.primary to white
-        // and the text disappears against the light background.
-        .preferredColorScheme(.light)
     }
 
     private func pickFolder() {
@@ -80,14 +76,7 @@ private enum SidebarPanelMetrics {
     static let contentWidth: CGFloat = 236
     static var columnWidth: CGFloat { contentWidth + inset * 2 }
 
-    static let surface = LinearGradient(
-        colors: [
-            Color(red: 0.972, green: 0.976, blue: 0.980),
-            Color(red: 0.870, green: 0.938, blue: 0.984)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
+    static let surface = AppPalette.sidebarSurface
 }
 
 /// The reference design's sidebar is a rounded card inset from every window
@@ -117,9 +106,9 @@ private struct SidebarPanel<Content: View>: View {
                 .fill(SidebarPanelMetrics.surface)
                 .overlay(
                     adaptiveRoundedShape(cornerRadius: SidebarPanelMetrics.cornerRadius)
-                        .stroke(Color.white.opacity(0.55), lineWidth: 0.5)
+                        .stroke(AppPalette.panelBorder, lineWidth: 0.5)
                 )
-                .shadow(color: .black.opacity(0.09), radius: 9, y: 2)
+                .shadow(color: AppPalette.raisedShadow, radius: 9, y: 2)
                 .padding(SidebarPanelMetrics.inset)
                 .ignoresSafeArea()
 
@@ -145,8 +134,8 @@ private struct SidebarToggleButton: View {
                 .frame(width: 32, height: 32)
                 .background(
                     adaptiveRoundedShape(cornerRadius: 9)
-                        .fill(Color.white)
-                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                        .fill(AppPalette.raisedSurface)
+                        .shadow(color: AppPalette.subtleShadow, radius: 3, y: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -163,7 +152,7 @@ private struct BetaBadge: View {
                 .foregroundStyle(Color.primary.opacity(0.6))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(Color.white.opacity(0.85)))
+                .background(Capsule().fill(AppPalette.translucentSurface))
 
             Rectangle()
                 .fill(Color.primary.opacity(0.12))
@@ -173,27 +162,14 @@ private struct BetaBadge: View {
     }
 }
 
-/// Single window-spanning gradient (near-white at the top, deepening to a
-/// sky blue toward the bottom-trailing corner) drawn once behind the
-/// sidebar + content split, so the two panels share one continuous
-/// background instead of each drawing its own — matching the reference
-/// design's unified backdrop. The axis is mostly vertical with a slight
-/// trailing bias, which keeps both top corners near-white and concentrates
-/// the blue in the lower half, as in the reference. Uses fixed
-/// (non-dynamic) colors since the design is always light-themed.
+/// Single window-spanning gradient drawn once behind the sidebar + content
+/// split, so the two panels share one continuous background instead of each
+/// drawing its own — matching the reference design's unified backdrop.
+/// See `AppPalette.windowGradient` for the light/dark stops.
 struct AppBackgroundGradient: View {
     var body: some View {
-        LinearGradient(
-            stops: [
-                .init(color: Color(red: 0.965, green: 0.972, blue: 0.980), location: 0.00),
-                .init(color: Color(red: 0.930, green: 0.950, blue: 0.980), location: 0.35),
-                .init(color: Color(red: 0.790, green: 0.870, blue: 0.960), location: 0.70),
-                .init(color: Color(red: 0.490, green: 0.700, blue: 0.910), location: 1.00)
-            ],
-            startPoint: UnitPoint(x: 0.15, y: 0.0),
-            endPoint: UnitPoint(x: 0.95, y: 1.0)
-        )
-        .ignoresSafeArea()
+        AppPalette.windowGradient
+            .ignoresSafeArea()
     }
 }
 

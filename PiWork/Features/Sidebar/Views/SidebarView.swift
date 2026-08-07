@@ -77,7 +77,7 @@ private struct SidebarTabHeader: View {
             tab(title: "pi-work", badge: "Beta 版", index: 1)
         }
         .padding(3)
-        .background(Color.black.opacity(0.05))
+        .background(AppPalette.segmentedTrack)
         .clipShape(Capsule())
     }
 
@@ -100,8 +100,8 @@ private struct SidebarTabHeader: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color.white : Color.clear)
-                    .shadow(color: .black.opacity(isSelected ? 0.08 : 0), radius: 2, y: 1)
+                    .fill(isSelected ? AppPalette.raisedSurface : Color.clear)
+                    .shadow(color: isSelected ? AppPalette.subtleShadow : .clear, radius: 2, y: 1)
             )
             .contentShape(Capsule())
         }
@@ -163,7 +163,7 @@ private struct FolderRow: View {
         .padding(.vertical, 7)
         .background(
             adaptiveRoundedShape(cornerRadius: 8)
-                .fill(isSelected ? Color.white.opacity(0.75) : Color.clear)
+                .fill(isSelected ? AppPalette.selectedRowFill : Color.clear)
         )
         .contentShape(Rectangle())
         .padding(.horizontal, 4)

@@ -56,7 +56,7 @@ private struct SuggestionRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(Color(red: 0.56, green: 0.69, blue: 0.92))
+                .fill(AppPalette.accentBar)
                 .frame(width: 3)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -107,8 +107,8 @@ private struct HeroInputBar: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 15)
-        .background(Color.white)
+        .background(AppPalette.raisedSurface)
         .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
+        .shadow(color: AppPalette.raisedShadow, radius: 14, y: 4)
     }
 }

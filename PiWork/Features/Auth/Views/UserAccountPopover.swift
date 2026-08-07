@@ -57,6 +57,11 @@ struct UserAccountPopover: View {
             Divider()
                 .padding(.horizontal, contentInset)
 
+            ThemeMenuItem()
+
+            Divider()
+                .padding(.horizontal, contentInset)
+
             MenuItem(icon: "questionmark.circle", title: "帮助", hasChevron: true, action: {
                 isPresented = false
                 onHelp()
@@ -158,6 +163,152 @@ struct AccountAvatarImage: View {
     }
 }
 
+/// Shared row chrome for the popover's menu entries, so the theme submenu
+/// (which has to be a `Menu` rather than a `Button`) stays pixel-identical
+/// to the plain items around it.
+private struct MenuItemLabel: View {
+    let icon: String
+    let title: String
+    var hasChevron: Bool = false
+    var isDestructive: Bool = false
+    let isHovered: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .frame(width: 20)
+                .foregroundColor(isDestructive ? .red : .primary)
+
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundColor(isDestructive ? .red : .primary)
+
+            Spacer()
+
+            if hasChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 8)
+                .fill(isHovered ? Color.primary.opacity(0.055) : Color.clear)
+        )
+    }
+}
+
+/// Appearance picker. The reference design shows an icon *and* a checkmark on
+/// each option, flying out to the side — a native `Menu` can't do that, since
+/// an `NSMenuItem` has a single image slot that the checkmark takes over, and
+/// it would open downward over the account panel. So the flyout is a nested
+/// popover anchored to this row's trailing edge.
+private struct ThemeMenuItem: View {
+    @ObservedObject private var themeStore = ThemeStore.shared
+    @State private var isHovered = false
+    @State private var isFlyoutPresented = false
+
+    var body: some View {
+        Button {
+            isFlyoutPresented.toggle()
+        } label: {
+            MenuItemLabel(
+                icon: "paintpalette",
+                title: "主题",
+                hasChevron: true,
+                // Keep the row lit while its flyout is up, so the trail back
+                // to the parent menu stays obvious.
+                isHovered: isHovered || isFlyoutPresented
+            )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .padding(.horizontal, 12)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.1)) {
+                isHovered = hovering
+            }
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .popover(
+            isPresented: $isFlyoutPresented,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .trailing
+        ) {
+            VStack(spacing: 2) {
+                ForEach(AppTheme.allCases) { theme in
+                    ThemeOptionRow(
+                        theme: theme,
+                        isSelected: themeStore.theme == theme
+                    ) {
+                        themeStore.theme = theme
+                        isFlyoutPresented = false
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .frame(width: 184)
+        }
+    }
+}
+
+private struct ThemeOptionRow: View {
+    let theme: AppTheme
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                // Reserved gutter rather than a conditional view, so the
+                // labels stay aligned as the selection moves.
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 12)
+                    .opacity(isSelected ? 1 : 0)
+
+                Image(systemName: theme.icon)
+                    .font(.system(size: 15))
+                    .frame(width: 20)
+
+                Text(theme.title)
+                    .font(.system(size: 14))
+
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                adaptiveRoundedShape(cornerRadius: 7)
+                    .fill(isHovered ? Color.primary.opacity(0.055) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .padding(.horizontal, 8)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.1)) {
+                isHovered = hovering
+            }
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+}
+
 private struct MenuItem: View {
     let icon: String
     let title: String
@@ -171,29 +322,12 @@ private struct MenuItem: View {
         Button {
             action?()
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .frame(width: 20)
-                    .foregroundColor(isDestructive ? .red : .primary)
-
-                Text(title)
-                    .font(.system(size: 14))
-                    .foregroundColor(isDestructive ? .red : .primary)
-
-                Spacer()
-
-                if hasChevron {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .background(
-                adaptiveRoundedShape(cornerRadius: 8)
-                    .fill(isHovered ? Color.primary.opacity(0.055) : Color.clear)
+            MenuItemLabel(
+                icon: icon,
+                title: title,
+                hasChevron: hasChevron,
+                isDestructive: isDestructive,
+                isHovered: isHovered
             )
         }
         .buttonStyle(.plain)

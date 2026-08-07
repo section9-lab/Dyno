@@ -18,6 +18,7 @@ struct PiWorkApp: App {
 /// silently refreshes an expired access token when it can.
 private struct RootView: View {
     @ObservedObject var authSession: AuthSession
+    @ObservedObject private var themeStore = ThemeStore.shared
     @State private var didRestore = false
 
     var body: some View {
@@ -28,6 +29,9 @@ private struct RootView: View {
                 OnboardingLoginView(authSession: authSession)
             }
         }
+        // Applied at the root so onboarding follows the choice too. `nil`
+        // means "follow the system", which is the default.
+        .preferredColorScheme(themeStore.theme.colorScheme)
         .task {
             guard !didRestore else { return }
             didRestore = true
