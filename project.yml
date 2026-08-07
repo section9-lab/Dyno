@@ -72,33 +72,45 @@ targets:
       - name: "Stage bundled pi agent binary"
         script: |
           set -e
-          ARCH="$(uname -m)"
-          if [ "$ARCH" = "arm64" ]; then
-            PI_ARCH="arm64"
-          else
-            PI_ARCH="x64"
-          fi
-          SRC="$SRCROOT/PiWork/Resources/PiAgent/$PI_ARCH"
-          DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/PiAgent/$PI_ARCH"
 
-          # The agent binary is gitignored (~80MB), so a fresh clone has none.
-          # Fetch it on demand instead of shipping an app whose agent can never
-          # start — a missing binary only surfaces at runtime otherwise.
-          if [ ! -x "$SRC/pi" ]; then
-            echo "pi agent binary missing for $PI_ARCH - fetching..."
-            # Don't let set -e abort here: fall through so the check below can
-            # print an actionable message instead of a bare non-zero exit.
-            PI_ARCHS="$PI_ARCH" "$SRCROOT/scripts/fetch-pi-binary.sh" || true
-          fi
+          # Map the architectures Xcode is actually building to the pi
+          # release's naming. Keying off `uname -m` instead would bundle only
+          # the build machine's agent, so a universal app would throw
+          # binaryNotFound on the other architecture — PiAgentProcess resolves
+          # PiAgent/<arch>/pi per slice via `#if arch(...)`, and that only
+          # surfaces at runtime on someone else's Mac.
+          PI_AGENT_ARCHS=""
+          for ARCH in $ARCHS; do
+            case "$ARCH" in
+              arm64)  PI_AGENT_ARCHS="$PI_AGENT_ARCHS arm64" ;;
+              x86_64) PI_AGENT_ARCHS="$PI_AGENT_ARCHS x64" ;;
+              *)      echo "warning: no pi agent release for architecture $ARCH" ;;
+            esac
+          done
 
-          if [ ! -x "$SRC/pi" ]; then
-            echo "error: could not obtain the pi agent binary for $PI_ARCH. Run scripts/fetch-pi-binary.sh manually (needs network), then rebuild."
-            exit 1
-          fi
+          for PI_ARCH in $PI_AGENT_ARCHS; do
+            SRC="$SRCROOT/PiWork/Resources/PiAgent/$PI_ARCH"
 
-          mkdir -p "$DEST"
-          cp -R "$SRC/." "$DEST/"
-          echo "Staged pi agent binary ($PI_ARCH) into app bundle."
+            # The agent binary is gitignored (~80MB), so a fresh clone has none.
+            # Fetch it on demand instead of shipping an app whose agent can never
+            # start — a missing binary only surfaces at runtime otherwise.
+            if [ ! -x "$SRC/pi" ]; then
+              echo "pi agent binary missing for $PI_ARCH - fetching..."
+              # Don't let set -e abort here: fall through so the check below can
+              # print an actionable message instead of a bare non-zero exit.
+              PI_ARCHS="$PI_ARCH" "$SRCROOT/scripts/fetch-pi-binary.sh" || true
+            fi
+
+            if [ ! -x "$SRC/pi" ]; then
+              echo "error: could not obtain the pi agent binary for $PI_ARCH. Run scripts/fetch-pi-binary.sh manually (needs network), then rebuild."
+              exit 1
+            fi
+
+            DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/PiAgent/$PI_ARCH"
+            mkdir -p "$DEST"
+            cp -R "$SRC/." "$DEST/"
+            echo "Staged pi agent binary ($PI_ARCH) into app bundle."
+          done
 
   PiWorkTests:
     type: bundle.unit-test
