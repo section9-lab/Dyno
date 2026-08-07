@@ -1,15 +1,23 @@
 import AppKit
 import SwiftUI
 
-/// Moves the window's traffic lights inward so they sit inside the floating
+/// Nudges the window's traffic lights inward so they sit inside the floating
 /// sidebar panel instead of hugging the window's own corner.
 ///
 /// There is no SwiftUI API for this. The buttons are plain `NSButton`s that
 /// AppKit lays out inside the title bar, and it re-runs that layout whenever
 /// the window resizes or leaves full screen, so the offset has to be
 /// re-applied rather than set once.
+///
+/// The nudge is deliberately kept inside the title bar's existing bounds. A
+/// button pushed past them draws clipped and stops receiving clicks, and
+/// resizing the title bar to make room costs the window its full-size content
+/// layout — AppKit then shrinks the content view away from the top edge,
+/// leaving a transparent strip across the window. So the offset is clamped
+/// instead, and `maximumOffset` reports the ceiling.
 struct TrafficLightPositioner: NSViewRepresentable {
     /// How far to move the buttons right and down from AppKit's own layout.
+    /// Clamped to whatever the title bar can actually contain.
     var offset: CGSize
 
     func makeNSView(context: Context) -> NSView {
@@ -28,19 +36,9 @@ private final class TrafficLightAnchorView: NSView {
         didSet { applyOffset() }
     }
 
-    /// AppKit's own geometry, captured before the first nudge so repeated
+    /// AppKit's own origins, captured before the first nudge so repeated
     /// applications stay absolute instead of compounding.
-    private struct DefaultLayout {
-        /// Button centers as distances from the window's top-left corner.
-        /// Anchoring to the window rather than to the title bar's own
-        /// coordinate space keeps the math correct no matter how AppKit
-        /// re-lays out the views in between.
-        var centersFromTopLeft: [CGPoint]
-        var titleBarHeight: CGFloat
-        var containerFrame: CGRect
-    }
-
-    private var defaults: DefaultLayout?
+    private var defaultOrigins: [CGPoint] = []
     private var observers: [NSObjectProtocol] = []
 
     override func viewDidMoveToWindow() {
@@ -74,52 +72,34 @@ private final class TrafficLightAnchorView: NSView {
         guard let window else { return }
         let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
             .compactMap { window.standardWindowButton($0) }
-        guard buttons.count == 3,
-              let titleBar = buttons[0].superview,
-              let container = titleBar.superview
-        else { return }
+        guard buttons.count == 3, let titleBar = buttons[0].superview else { return }
 
-        let windowHeight = window.frame.height
         let isFullScreen = window.styleMask.contains(.fullScreen)
 
-        if defaults == nil, !isFullScreen {
-            defaults = DefaultLayout(
-                centersFromTopLeft: buttons.map { button in
-                    let inWindow = titleBar.convert(button.frame, to: nil)
-                    return CGPoint(x: inWindow.midX, y: windowHeight - inWindow.midY)
-                },
-                titleBarHeight: titleBar.frame.height,
-                containerFrame: container.frame
-            )
+        if defaultOrigins.count != buttons.count, !isFullScreen {
+            defaultOrigins = buttons.map { $0.frame.origin }
         }
-        guard let defaults else { return }
+        guard defaultOrigins.count == buttons.count else { return }
 
         // Full screen drops the panel chrome entirely, so hand the layout back.
-        guard !isFullScreen else {
-            container.frame = defaults.containerFrame
-            return
-        }
+        let requested = isFullScreen ? .zero : offset
 
-        // A lowered button would otherwise fall outside the title bar's
-        // bounds, where it draws clipped and stops receiving clicks, so the
-        // title bar has to grow to keep containing it.
-        var grownContainer = defaults.containerFrame
-        grownContainer.origin.y -= offset.height
-        grownContainer.size.height += offset.height
-        container.frame = grownContainer
-        titleBar.frame = CGRect(origin: .zero, size: grownContainer.size)
-
-        for (button, center) in zip(buttons, defaults.centersFromTopLeft) {
-            let targetInWindow = CGPoint(
-                x: center.x + offset.width,
-                y: windowHeight - (center.y + offset.height)
-            )
-            let target = titleBar.convert(targetInWindow, from: nil)
-            button.setFrameOrigin(
-                CGPoint(x: target.x - button.frame.width / 2,
-                        y: target.y - button.frame.height / 2)
+        // The title bar's coordinates are bottom-up, so moving a button down
+        // eats into the gap below it — that gap is the whole budget.
+        let headroom = zip(buttons, defaultOrigins).reduce(CGSize(width: CGFloat.infinity, height: CGFloat.infinity)) { limit, pair in
+            let (button, origin) = pair
+            return CGSize(
+                width: min(limit.width, titleBar.bounds.maxX - (origin.x + button.frame.width)),
+                height: min(limit.height, origin.y)
             )
         }
+        let delta = CGSize(
+            width: max(0, min(requested.width, headroom.width)),
+            height: max(0, min(requested.height, headroom.height))
+        )
 
+        for (button, origin) in zip(buttons, defaultOrigins) {
+            button.setFrameOrigin(CGPoint(x: origin.x + delta.width, y: origin.y - delta.height))
+        }
     }
 }

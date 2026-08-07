@@ -79,13 +79,14 @@ private enum SidebarPanelMetrics {
 
     /// The traffic lights belong to the window, so AppKit parks them in the
     /// window's own corner — which lands them on the panel's rounded corner
-    /// once the panel is inset. Nudging them inward gives them roughly equal
-    /// clearance from the panel's top and left edges, matching the reference.
-    static let trafficLightOffset = CGSize(width: 17, height: 19)
+    /// once the panel is inset. The downward nudge is capped by the title
+    /// bar's own height (see `TrafficLightPositioner`), so the horizontal
+    /// nudge is kept modest too, to stay visually balanced.
+    static let trafficLightOffset = CGSize(width: 10, height: 6)
 
     /// Clearance the sidebar's own content keeps below the traffic lights so
     /// the tab header doesn't crowd them.
-    static let contentTopInset: CGFloat = 15
+    static let contentTopInset: CGFloat = 6
 
     static let surface = AppPalette.sidebarSurface
 }
