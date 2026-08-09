@@ -44,7 +44,7 @@ final class OAuthWebAuthenticator {
 
     private func openAuthorizationURL(_ url: URL) throws {
         guard NSWorkspace.shared.open(url) else {
-            throw AuthError.webAuthenticationFailed("Unable to open the default browser.")
+            throw AuthError.webAuthenticationFailed(L10n.string("oauth.error.open_browser"))
         }
     }
 }
@@ -93,7 +93,7 @@ private final class OAuthLoopbackCallbackServer: @unchecked Sendable {
             group.addTask { try await self.waitForCallback() }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                throw AuthError.webAuthenticationFailed("Timed out waiting for browser callback.")
+                throw AuthError.webAuthenticationFailed(L10n.string("oauth.error.timeout"))
             }
 
             guard let callbackURL = try await group.next() else {
@@ -124,7 +124,9 @@ private final class OAuthLoopbackCallbackServer: @unchecked Sendable {
             }
         }
 
-        throw AuthError.webAuthenticationFailed(lastError?.localizedDescription ?? "Unable to create a local callback port.")
+        throw AuthError.webAuthenticationFailed(
+            lastError?.localizedDescription ?? L10n.string("oauth.error.callback_port")
+        )
     }
 
     private func waitForCallback() async throws -> URL {
@@ -151,13 +153,13 @@ private final class OAuthLoopbackCallbackServer: @unchecked Sendable {
 
     private func handleRequest(data: Data?, error: NWError?, connection: NWConnection) {
         if let error {
-            sendResponse(.serverError("Unable to read OAuth callback."), on: connection)
+            sendResponse(.serverError(L10n.string("oauth.error.read_callback")), on: connection)
             finish(.failure(AuthError.webAuthenticationFailed(error.localizedDescription)))
             return
         }
 
         guard let callbackURL = callbackURL(from: data) else {
-            sendResponse(.badRequest("Invalid OAuth callback."), on: connection)
+            sendResponse(.badRequest(L10n.string("oauth.error.invalid_callback")), on: connection)
             finish(.failure(AuthError.invalidCallback))
             return
         }
@@ -212,12 +214,13 @@ private final class OAuthLoopbackCallbackServer: @unchecked Sendable {
         })
     }
 
-    private static let successHTML = """
+    private static var successHTML: String {
+        """
     <!doctype html>
-    <html lang="zh-CN">
+    <html lang="\(L10n.currentLanguage.rawValue)">
       <head>
         <meta charset="utf-8">
-        <title>pi-work 登录完成</title>
+        <title>\(L10n.string("oauth.success.title"))</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 48px; color: #202124; }
           main { max-width: 520px; margin: 0 auto; }
@@ -227,12 +230,13 @@ private final class OAuthLoopbackCallbackServer: @unchecked Sendable {
       </head>
       <body>
         <main>
-          <h1>pi-work 登录完成</h1>
-          <p>可以关闭这个浏览器窗口并返回 pi-work。</p>
+          <h1>\(L10n.string("oauth.success.title"))</h1>
+          <p>\(L10n.string("oauth.success.message"))</p>
         </main>
       </body>
     </html>
     """
+    }
 }
 
 private struct HTTPResponse {
@@ -252,11 +256,13 @@ private struct HTTPResponse {
         HTTPResponse(status: "500 Internal Server Error", body: body, contentType: "text/plain; charset=utf-8")
     }
 
-    static let notFound = HTTPResponse(
-        status: "404 Not Found",
-        body: "Not found.",
-        contentType: "text/plain; charset=utf-8"
-    )
+    static var notFound: HTTPResponse {
+        HTTPResponse(
+            status: "404 Not Found",
+            body: L10n.string("oauth.error.not_found"),
+            contentType: "text/plain; charset=utf-8"
+        )
+    }
 
     var data: Data {
         let bodyData = Data(body.utf8)

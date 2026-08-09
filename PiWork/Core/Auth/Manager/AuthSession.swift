@@ -5,31 +5,31 @@ extension AuthError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingOpenAuthIssuer:
-            return "未配置登录服务器地址，请检查 Info.plist 中的 OpenAuthIssuerURL。"
+            return L10n.string("auth.error.missing_issuer")
         case .invalidAuthorizationURL:
-            return "登录地址无效，请稍后重试。"
+            return L10n.string("auth.error.invalid_url")
         case .invalidCallback, .missingAuthorizationCode:
-            return "登录回调无效，请重新登录。"
+            return L10n.string("auth.error.invalid_callback")
         case .invalidState:
-            return "登录校验失败（state 不匹配），请重新登录。"
+            return L10n.string("auth.error.state_mismatch")
         case .authorizationFailed(let message):
-            return "授权失败：\(message)"
+            return L10n.format("auth.error.authorization_failed", message)
         case .tokenExchangeFailed(let message):
-            return "获取登录凭证失败：\(message)"
+            return L10n.format("auth.error.token_exchange_failed", message)
         case .invalidServerResponse:
-            return "服务器返回内容无法识别，请稍后重试。"
+            return L10n.string("auth.error.invalid_response")
         case .invalidAccessToken:
-            return "登录凭证无效，请重新登录。"
+            return L10n.string("auth.error.invalid_credentials")
         case .keychainFailure(let status):
-            return "钥匙串访问失败（错误码 \(Int(status))）。"
+            return L10n.format("auth.error.keychain", Int(status))
         case .randomGenerationFailed(let status):
-            return "安全随机数生成失败（错误码 \(Int(status))）。"
+            return L10n.format("auth.error.random", Int(status))
         case .webAuthenticationFailed(let message):
-            return "浏览器登录失败：\(message)"
+            return L10n.format("auth.error.browser", message)
         case .invalidEmail:
-            return "请输入有效的邮箱地址。"
+            return L10n.string("auth.error.invalid_email")
         case .invalidEmailCode:
-            return "验证码不正确，请重新输入。"
+            return L10n.string("auth.error.invalid_code")
         }
     }
 }
@@ -67,9 +67,9 @@ final class AuthSession: ObservableObject {
         var accountSubtitle: String {
             switch self {
             case .google:
-                return "通过 Google 登录"
+                return L10n.string("account.google")
             case .email:
-                return "通过邮箱验证码登录"
+                return L10n.string("account.email")
             }
         }
     }

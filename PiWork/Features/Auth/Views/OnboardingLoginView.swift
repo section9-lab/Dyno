@@ -54,7 +54,7 @@ struct OnboardingLoginView: View {
 
                 Spacer(minLength: 0)
 
-                Text("登录即表示你同意我们的服务条款与隐私政策")
+                Text(L10n.string("onboarding.terms"))
                     .font(.system(size: 11))
                     .foregroundStyle(Color.primary.opacity(0.35))
                     .padding(.bottom, 22)
@@ -99,20 +99,20 @@ struct OnboardingLoginView: View {
 
     private var titleText: String {
         switch step {
-        case .picker: return "欢迎使用 pi-work"
-        case .emailInput: return "使用邮箱登录"
-        case .emailCode: return "输入验证码"
+        case .picker: return L10n.string("onboarding.welcome")
+        case .emailInput: return L10n.string("onboarding.email_title")
+        case .emailCode: return L10n.string("onboarding.code_title")
         }
     }
 
     private var subtitleText: String {
         switch step {
         case .picker:
-            return "登录后即可关联本地文件夹，让 pi 为你工作"
+            return L10n.string("onboarding.welcome_subtitle")
         case .emailInput:
-            return "我们会向你的邮箱发送一个 6 位验证码"
+            return L10n.string("onboarding.email_subtitle")
         case .emailCode:
-            return "验证码已发送至 \(authSession.pendingEmail ?? email)"
+            return L10n.format("onboarding.code_sent", authSession.pendingEmail ?? email)
         }
     }
 
@@ -121,7 +121,7 @@ struct OnboardingLoginView: View {
             Button(action: { Task { await authSession.signInWithGoogle() } }) {
                 HStack(spacing: 9) {
                     GoogleGlyph()
-                    Text("使用 Google 账号登录")
+                    Text(L10n.string("onboarding.google"))
                         .font(.system(size: 14, weight: .medium))
                 }
                 .frame(maxWidth: .infinity)
@@ -135,7 +135,9 @@ struct OnboardingLoginView: View {
 
             HStack(spacing: 10) {
                 line
-                Text("或").font(.system(size: 11)).foregroundStyle(Color.primary.opacity(0.35))
+                Text(L10n.string("common.or"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.primary.opacity(0.35))
                 line
             }
             .padding(.vertical, 2)
@@ -147,7 +149,7 @@ struct OnboardingLoginView: View {
                 HStack(spacing: 9) {
                     Image(systemName: "envelope")
                         .font(.system(size: 13))
-                    Text("使用邮箱验证码登录")
+                    Text(L10n.string("onboarding.email"))
                         .font(.system(size: 14, weight: .medium))
                 }
                 .frame(maxWidth: .infinity)
@@ -159,7 +161,7 @@ struct OnboardingLoginView: View {
             .disabled(authSession.isAuthenticating)
 
             if authSession.isAuthenticating {
-                progressHint("正在等待浏览器完成登录…")
+                progressHint(L10n.string("onboarding.waiting_browser"))
             }
         }
     }
@@ -168,7 +170,11 @@ struct OnboardingLoginView: View {
         VStack(spacing: 12) {
             EmailInputField(text: $email, onSubmit: sendCode)
 
-            primaryButton(title: "发送验证码", enabled: !email.trimmingCharacters(in: .whitespaces).isEmpty, action: sendCode)
+            primaryButton(
+                title: L10n.string("onboarding.send_code"),
+                enabled: !email.trimmingCharacters(in: .whitespaces).isEmpty,
+                action: sendCode
+            )
 
             backButton {
                 authSession.clearLastError()
@@ -176,7 +182,7 @@ struct OnboardingLoginView: View {
             }
 
             if authSession.isAuthenticating {
-                progressHint("正在发送验证码…")
+                progressHint(L10n.string("onboarding.sending_code"))
             }
         }
     }
@@ -185,10 +191,16 @@ struct OnboardingLoginView: View {
         VStack(spacing: 14) {
             OTPInputView(code: $code, length: 6) { _ in verifyCode() }
 
-            primaryButton(title: "验证并登录", enabled: code.count == 6, action: verifyCode)
+            primaryButton(
+                title: L10n.string("onboarding.verify"),
+                enabled: code.count == 6,
+                action: verifyCode
+            )
 
             Button(action: resend) {
-                Text(resendCooldown > 0 ? "重新发送（\(resendCooldown)s）" : "重新发送验证码")
+                Text(resendCooldown > 0
+                    ? L10n.format("onboarding.resend_countdown", resendCooldown)
+                    : L10n.string("onboarding.resend"))
                     .font(.system(size: 12))
                     .foregroundStyle(resendCooldown > 0
                                      ? Color.primary.opacity(0.3)
@@ -205,7 +217,7 @@ struct OnboardingLoginView: View {
             }
 
             if authSession.isAuthenticating {
-                progressHint("正在验证…")
+                progressHint(L10n.string("onboarding.verifying"))
             }
         }
     }
@@ -243,7 +255,7 @@ struct OnboardingLoginView: View {
 
     private func backButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text("返回")
+            Text(L10n.string("common.back"))
                 .font(.system(size: 12))
                 .foregroundStyle(Color.primary.opacity(0.45))
         }
@@ -304,21 +316,14 @@ struct OnboardingLoginView: View {
     }
 }
 
-/// Small multi-colour "G" stand-in. Google's real mark can't be redistributed
-/// in-tree, so this is a neutral gradient glyph.
+/// LobeHub's Google.Color brand mark.
 private struct GoogleGlyph: View {
     var body: some View {
-        Text("G")
-            .font(.system(size: 16, weight: .bold))
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [Color(red: 0.26, green: 0.52, blue: 0.96),
-                             Color(red: 0.92, green: 0.26, blue: 0.21),
-                             Color(red: 0.98, green: 0.74, blue: 0.02),
-                             Color(red: 0.20, green: 0.66, blue: 0.33)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+        Image("ModelIconGoogle")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 18, height: 18)
+            .accessibilityHidden(true)
     }
 }

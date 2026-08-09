@@ -1,0 +1,1074 @@
+import AppKit
+import SwiftUI
+
+struct AppSettingsView: View {
+    @ObservedObject var agentSettingsStore: AgentSettingsStore
+    @ObservedObject var providerAuthStore: ProviderAuthStore
+    @ObservedObject var languageStore: LanguageStore
+    @State private var selection = SettingsDestination.general
+
+    var body: some View {
+        ZStack {
+            AppBackgroundGradient()
+
+            HStack(spacing: 8) {
+                SettingsSidebar(selection: $selection, language: languageStore.language)
+                    .padding(10)
+
+                Group {
+                    switch selection {
+                    case .general:
+                        GeneralSettingsView(languageStore: languageStore)
+                    case .agent:
+                        AgentGeneralSettingsView(store: agentSettingsStore)
+                    case .modelsAndAuthentication:
+                        ModelProviderSettingsView(store: providerAuthStore)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .ignoresSafeArea(.container, edges: .top)
+        .frame(minWidth: 820, idealWidth: 900, minHeight: 560, idealHeight: 620)
+        .background(SettingsWindowChrome())
+        .background(TrafficLightPositioner(offset: CGSize(width: 10, height: 6)))
+        .task { await agentSettingsStore.start() }
+    }
+}
+
+private enum SettingsDestination: String, CaseIterable, Identifiable {
+    case general
+    case agent
+    case modelsAndAuthentication
+
+    var id: String { rawValue }
+
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .general:
+            return L10n.string("settings.sidebar.general", language: language)
+        case .agent:
+            return L10n.string("settings.sidebar.agent", language: language)
+        case .modelsAndAuthentication:
+            return L10n.string("settings.sidebar.models_auth", language: language)
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .agent: return "slider.horizontal.3"
+        case .modelsAndAuthentication: return "key.horizontal"
+        }
+    }
+}
+
+private struct SettingsSidebar: View {
+    @Binding var selection: SettingsDestination
+    let language: AppLanguage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.string("settings.title", language: language))
+                .font(.system(size: 20, weight: .semibold))
+                .padding(.horizontal, 14)
+                .padding(.top, 18)
+                .padding(.bottom, 24)
+
+            settingsButton(.general)
+                .padding(.bottom, 14)
+
+            Text(L10n.string("settings.sidebar.section"))
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.5)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 7)
+
+            ForEach([SettingsDestination.agent, .modelsAndAuthentication]) { destination in
+                settingsButton(destination)
+            }
+
+            Spacer()
+
+            Text(L10n.string("settings.sidebar.isolated", language: language))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(14)
+        }
+        .frame(width: 190)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 18)
+                .fill(AppPalette.sidebarSurface)
+                .shadow(color: AppPalette.subtleShadow, radius: 6, y: 2)
+        )
+        .overlay(
+            adaptiveRoundedShape(cornerRadius: 18)
+                .stroke(AppPalette.panelBorder, lineWidth: 1)
+        )
+    }
+
+    private func settingsButton(_ destination: SettingsDestination) -> some View {
+        Button {
+            selection = destination
+        } label: {
+            Label(destination.title(language: language), systemImage: destination.icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .frame(height: 38)
+        }
+        .buttonStyle(RoundedInteractionButtonStyle(
+            cornerRadius: 10,
+            isSelected: selection == destination
+        ))
+    }
+}
+
+private struct GeneralSettingsView: View {
+    @ObservedObject var languageStore: LanguageStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("settings.general.title"))
+                    .font(.system(size: 20, weight: .semibold))
+                Text(L10n.string("settings.general.subtitle"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+            .padding(.bottom, 18)
+
+            ScrollView {
+                AgentSettingsRow(
+                    title: L10n.string("settings.general.language.title"),
+                    description: L10n.string("settings.general.language.description")
+                ) {
+                    Picker(
+                        L10n.string("settings.general.language.title"),
+                        selection: $languageStore.language
+                    ) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.displayName).tag(language)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 170)
+                }
+                .background(
+                    adaptiveRoundedShape(cornerRadius: 15)
+                        .fill(AppPalette.translucentSurface)
+                        .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+                )
+                .overlay(
+                    adaptiveRoundedShape(cornerRadius: 15)
+                        .stroke(AppPalette.panelBorder, lineWidth: 1)
+                )
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+}
+
+private struct AgentGeneralSettingsView: View {
+    @ObservedObject var store: AgentSettingsStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            pageHeader
+
+            if let errorMessage = store.errorMessage {
+                errorBanner(errorMessage)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 4)
+            }
+
+            if store.isLoading && store.settings == nil {
+                ProgressView(L10n.string("settings.agent.loading"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if store.settings != nil {
+                settingsContent
+            } else {
+                unavailableState
+            }
+        }
+    }
+
+    private var pageHeader: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("settings.agent.title"))
+                    .font(.system(size: 20, weight: .semibold))
+                Text(L10n.string("settings.agent.subtitle"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if store.isSaving {
+                ProgressView()
+                    .controlSize(.small)
+                    .help(L10n.string("settings.agent.saving"))
+            }
+
+            Button {
+                Task { await store.reload() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 9))
+            .disabled(store.isLoading || store.isSaving)
+            .help(L10n.string("settings.agent.reload"))
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 18)
+    }
+
+    private var settingsContent: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                AgentSettingsSection(
+                    title: L10n.string("settings.agent.session_defaults.title"),
+                    subtitle: L10n.string("settings.agent.session_defaults.subtitle")
+                ) {
+                    AgentSettingsRow(
+                        title: L10n.string("settings.agent.default_model.title"),
+                        description: L10n.string("settings.agent.default_model.description")
+                    ) {
+                        Picker(L10n.string("settings.agent.default_model.title"), selection: modelSelection) {
+                            Text(L10n.string("settings.agent.default_model.select")).tag("")
+                            ForEach(sortedModels) { model in
+                                Text("\(model.name) · \(model.provider)")
+                                    .tag(modelKey(model))
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 250)
+                    }
+
+                    Divider().padding(.leading, 16)
+
+                    AgentSettingsRow(
+                        title: L10n.string("settings.agent.thinking.title"),
+                        description: L10n.string("settings.agent.thinking.description")
+                    ) {
+                        Picker(L10n.string("settings.agent.thinking.title"), selection: thinkingSelection) {
+                            ForEach(AgentHostThinkingLevel.allCases) { level in
+                                Text(level.settingsTitle).tag(level)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 150)
+                    }
+                }
+
+                AgentSettingsSection(
+                    title: L10n.string("settings.agent.runtime.title"),
+                    subtitle: L10n.string("settings.agent.runtime.subtitle")
+                ) {
+                    AgentSettingsRow(
+                        title: L10n.string("settings.agent.compaction.title"),
+                        description: L10n.string("settings.agent.compaction.description")
+                    ) {
+                        Toggle("", isOn: compactionSelection)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+
+                    Divider().padding(.leading, 16)
+
+                    AgentSettingsRow(
+                        title: L10n.string("settings.agent.retry.title"),
+                        description: L10n.string("settings.agent.retry.description")
+                    ) {
+                        Toggle("", isOn: retrySelection)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                }
+
+                AgentSettingsSection(
+                    title: L10n.string("settings.agent.connection.title"),
+                    subtitle: L10n.string("settings.agent.connection.subtitle")
+                ) {
+                    AgentSettingsRow(
+                        title: L10n.string("settings.agent.transport.title"),
+                        description: L10n.string("settings.agent.transport.description")
+                    ) {
+                        Picker(L10n.string("settings.agent.transport.title"), selection: transportSelection) {
+                            ForEach(AgentHostTransport.allCases) { transport in
+                                Text(transport.settingsTitle).tag(transport)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 180)
+                    }
+                }
+
+                Label(
+                    L10n.string("settings.agent.changes_apply"),
+                    systemImage: "info.circle"
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 2)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+        }
+        .disabled(store.isSaving)
+    }
+
+    private var unavailableState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 26))
+                .foregroundStyle(.secondary)
+            Text(L10n.string("settings.agent.unavailable"))
+                .font(.headline)
+            Button(L10n.string("common.retry")) { Task { await store.reload() } }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.system(size: 12))
+                .lineLimit(2)
+                .textSelection(.enabled)
+            Spacer()
+            Button(L10n.string("common.retry")) { Task { await store.reload() } }
+        }
+        .padding(12)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 11)
+                .fill(Color.orange.opacity(0.10))
+        )
+    }
+
+    private var sortedModels: [AgentHostModel] {
+        store.models.sorted { lhs, rhs in
+            let nameOrder = lhs.name.localizedStandardCompare(rhs.name)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            return lhs.provider.localizedStandardCompare(rhs.provider) == .orderedAscending
+        }
+    }
+
+    private func modelKey(_ model: AgentHostModel) -> String {
+        "\(model.provider)\u{1F}\(model.id)"
+    }
+
+    private var modelSelection: Binding<String> {
+        Binding(
+            get: {
+                guard let model = store.settings?.defaultModel else { return "" }
+                return "\(model.provider)\u{1F}\(model.modelId)"
+            },
+            set: { key in
+                guard let model = store.models.first(where: { modelKey($0) == key }) else { return }
+                Task {
+                    await store.update(AgentHostSettingsPatch(
+                        defaultModel: AgentHostDefaultModel(
+                            provider: model.provider,
+                            modelId: model.id
+                        )
+                    ))
+                }
+            }
+        )
+    }
+
+    private var thinkingSelection: Binding<AgentHostThinkingLevel> {
+        Binding(
+            get: { store.settings?.defaultThinkingLevel ?? .off },
+            set: { level in
+                Task { await store.update(AgentHostSettingsPatch(defaultThinkingLevel: level)) }
+            }
+        )
+    }
+
+    private var transportSelection: Binding<AgentHostTransport> {
+        Binding(
+            get: { store.settings?.transport ?? .auto },
+            set: { transport in
+                Task { await store.update(AgentHostSettingsPatch(transport: transport)) }
+            }
+        )
+    }
+
+    private var compactionSelection: Binding<Bool> {
+        Binding(
+            get: { store.settings?.compactionEnabled ?? true },
+            set: { enabled in
+                Task { await store.update(AgentHostSettingsPatch(compactionEnabled: enabled)) }
+            }
+        )
+    }
+
+    private var retrySelection: Binding<Bool> {
+        Binding(
+            get: { store.settings?.retryEnabled ?? true },
+            set: { enabled in
+                Task { await store.update(AgentHostSettingsPatch(retryEnabled: enabled)) }
+            }
+        )
+    }
+}
+
+private struct AgentSettingsSection<Content: View>: View {
+    let title: String
+    let subtitle: String
+    @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        subtitle: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 7)
+
+            content
+        }
+        .background(
+            adaptiveRoundedShape(cornerRadius: 15)
+                .fill(AppPalette.translucentSurface)
+                .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+        )
+        .overlay(
+            adaptiveRoundedShape(cornerRadius: 15)
+                .stroke(AppPalette.panelBorder, lineWidth: 1)
+        )
+    }
+}
+
+private struct AgentSettingsRow<Control: View>: View {
+    let title: String
+    let description: String
+    @ViewBuilder let control: Control
+
+    init(
+        title: String,
+        description: String,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.title = title
+        self.description = description
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                Text(description)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 20)
+            control
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+    }
+}
+
+private extension AgentHostThinkingLevel {
+    var settingsTitle: String {
+        switch self {
+        case .off: return L10n.string("settings.thinking.off")
+        case .minimal: return L10n.string("settings.thinking.minimal")
+        case .low: return L10n.string("settings.thinking.low")
+        case .medium: return L10n.string("settings.thinking.medium")
+        case .high: return L10n.string("settings.thinking.high")
+        case .xhigh: return L10n.string("settings.thinking.xhigh")
+        case .max: return L10n.string("settings.thinking.max")
+        }
+    }
+}
+
+private extension AgentHostTransport {
+    var settingsTitle: String {
+        switch self {
+        case .auto: return L10n.string("settings.transport.auto")
+        case .sse: return "SSE"
+        case .websocket: return "WebSocket"
+        case .websocketCached: return L10n.string("settings.transport.websocket_cached")
+        }
+    }
+}
+
+struct ModelProviderSettingsView: View {
+    @ObservedObject var store: ProviderAuthStore
+    @State private var searchText = ""
+    @State private var disconnectCandidate: AgentHostProvider?
+
+    private var visibleProviders: [AgentHostProvider] {
+        store.providers
+            .filter { provider in
+                searchText.isEmpty
+                    || provider.name.localizedCaseInsensitiveContains(searchText)
+                    || provider.id.localizedCaseInsensitiveContains(searchText)
+            }
+            .sorted { lhs, rhs in
+                if lhs.status.configured != rhs.status.configured {
+                    return lhs.status.configured
+                }
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            settingsHeader
+
+            if let errorMessage = store.errorMessage {
+                errorBanner(errorMessage)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+            }
+
+            if store.isLoading && store.providers.isEmpty {
+                ProgressView(L10n.string("providers.loading"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if visibleProviders.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(visibleProviders) { provider in
+                            ProviderSettingsRow(
+                                provider: provider,
+                                onAuthenticate: { method in
+                                    Task {
+                                        await store.beginAuthentication(
+                                            provider: provider,
+                                            method: method
+                                        )
+                                    }
+                                },
+                                onDisconnect: {
+                                    disconnectCandidate = provider
+                                }
+                            )
+                        }
+                    }
+                    .padding(24)
+                }
+            }
+        }
+        .task { await store.start() }
+        .sheet(isPresented: flowIsPresented) {
+            ProviderAuthenticationView(store: store)
+        }
+        .alert(item: $disconnectCandidate) { provider in
+            Alert(
+                title: Text(L10n.format("providers.disconnect_title", provider.name)),
+                message: Text(L10n.string("providers.disconnect_message")),
+                primaryButton: .destructive(Text(L10n.string("common.disconnect"))) {
+                    Task { await store.logout(provider: provider) }
+                },
+                secondaryButton: .cancel(Text(L10n.string("common.cancel")))
+            )
+        }
+    }
+
+    private var settingsHeader: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("providers.title"))
+                    .font(.system(size: 20, weight: .semibold))
+                Text(L10n.string("providers.subtitle"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            TextField(L10n.string("providers.search"), text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 210)
+
+            Button {
+                Task { await store.reloadProviders() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .disabled(store.isLoading)
+            .help(L10n.string("providers.refresh_help"))
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 18)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 28))
+                .foregroundStyle(.secondary)
+            Text(L10n.string("providers.no_match"))
+                .font(.headline)
+            Text(L10n.string("providers.no_match_hint"))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.system(size: 12))
+                .lineLimit(2)
+                .textSelection(.enabled)
+            Spacer()
+            Button(L10n.string("common.retry")) {
+                Task { await store.reloadProviders() }
+            }
+        }
+        .padding(12)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 10)
+                .fill(Color.orange.opacity(0.09))
+        )
+    }
+
+    private var flowIsPresented: Binding<Bool> {
+        Binding(
+            get: { store.flow != nil },
+            set: { isPresented in
+                if !isPresented { store.clearFlow() }
+            }
+        )
+    }
+}
+
+private struct ProviderSettingsRow: View {
+    let provider: AgentHostProvider
+    let onAuthenticate: (AgentHostAuthMethod) -> Void
+    let onDisconnect: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            providerIcon
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) {
+                    Text(provider.name)
+                        .font(.system(size: 14, weight: .medium))
+                    Text(provider.id)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(provider.status.configured ? Color.green : Color.secondary.opacity(0.45))
+                        .frame(width: 6, height: 6)
+                    Text(statusText)
+                    Text("·")
+                    Text(L10n.format(
+                        "providers.models_available",
+                        provider.models.available,
+                        provider.models.total
+                    ))
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 16)
+
+            if provider.status.canDisconnect {
+                Button(L10n.string("common.disconnect"), role: .destructive, action: onDisconnect)
+                    .buttonStyle(.bordered)
+            } else if provider.status.configured {
+                Text(L10n.string("providers.external_configuration"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help(L10n.string("providers.external_help"))
+            } else if !provider.methods.isEmpty {
+                authenticationControl
+            } else {
+                Text(L10n.string("providers.requires_environment"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 12)
+                .fill(AppPalette.translucentSurface)
+                .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+        )
+        .overlay(
+            adaptiveRoundedShape(cornerRadius: 12)
+                .stroke(AppPalette.panelBorder, lineWidth: 1)
+        )
+    }
+
+    private var providerIcon: some View {
+        ZStack {
+            adaptiveRoundedShape(cornerRadius: 10)
+                .fill(Color.accentColor.opacity(0.10))
+
+            if let assetName = ProviderIconCatalog.assetName(for: provider.id) {
+                Image(assetName)
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(7)
+            } else {
+                Text(String(provider.name.prefix(1)).uppercased())
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .frame(width: 38, height: 38)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var authenticationControl: some View {
+        if provider.methods.count == 1, let method = provider.methods.first {
+            Button(method.loginLabel ?? method.name) {
+                onAuthenticate(method.type)
+            }
+            .buttonStyle(.bordered)
+        } else {
+            Menu(L10n.string("common.connect")) {
+                ForEach(provider.methods) { method in
+                    Button(method.loginLabel ?? method.name) {
+                        onAuthenticate(method.type)
+                    }
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+
+    private var statusText: String {
+        guard provider.status.configured else { return L10n.string("providers.status.not_connected") }
+        if let label = provider.status.label { return label }
+        switch provider.status.source {
+        case .stored: return L10n.string("providers.status.connected")
+        case .runtime: return L10n.string("providers.status.runtime")
+        case .environment: return L10n.string("providers.status.environment")
+        case .fallback: return L10n.string("providers.status.fallback")
+        case .modelsJSONKey, .modelsJSONCommand: return "models.json"
+        case nil: return L10n.string("providers.status.configured")
+        }
+    }
+}
+
+private struct ProviderAuthenticationView: View {
+    @ObservedObject var store: ProviderAuthStore
+    @State private var responseValue = ""
+    @State private var openedAuthorizationURL: String?
+
+    private var flow: ProviderAuthFlowState? { store.flow }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: flow?.method == .oauth ? "person.badge.key" : "key")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(flow?.providerName ?? L10n.string("auth.title"))
+                        .font(.system(size: 17, weight: .semibold))
+                    Text(flow?.method == .oauth
+                        ? L10n.string("auth.oauth")
+                        : L10n.string("auth.api_key"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(20)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let flow {
+                        authenticationContent(flow)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+            }
+
+            Divider()
+            footer
+                .padding(16)
+        }
+        .frame(width: 520, height: 440)
+        .background(AppPalette.windowGradient)
+        .interactiveDismissDisabled(flow?.phase.isTerminal == false)
+        .onAppear { openAuthorizationURLIfNeeded() }
+        .onChange(of: flow?.authorizationURL) { _ in openAuthorizationURLIfNeeded() }
+        .onChange(of: flow?.prompt?.promptId) { _ in responseValue = "" }
+    }
+
+    @ViewBuilder
+    private func authenticationContent(_ flow: ProviderAuthFlowState) -> some View {
+        if let url = flow.authorizationURL {
+            instructionCard(icon: "safari", title: L10n.string("auth.browser.title")) {
+                if let instructions = flow.authorizationInstructions {
+                    Text(instructions)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                Text(url)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.accentColor)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                Button(L10n.string("auth.browser.open")) { open(url) }
+                    .buttonStyle(.bordered)
+            }
+        }
+
+        if let code = flow.deviceCode {
+            instructionCard(icon: "number.square", title: L10n.string("auth.device.title")) {
+                Text(code.userCode)
+                    .font(.system(size: 23, weight: .semibold, design: .monospaced))
+                    .textSelection(.enabled)
+                HStack {
+                    Button(L10n.string("auth.device.copy")) { copy(code.userCode) }
+                    Button(L10n.string("auth.device.open")) { open(code.verificationURI) }
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+
+        ForEach(Array(flow.information.enumerated()), id: \.offset) { _, message in
+            Label(message, systemImage: "info.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+
+        ForEach(flow.links) { link in
+            Button(link.label ?? link.url) { open(link.url) }
+                .buttonStyle(.link)
+        }
+
+        if let prompt = flow.prompt {
+            promptView(prompt)
+        } else if let progress = flow.progressMessage, !flow.phase.isTerminal {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(progress)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+        } else if !flow.phase.isTerminal {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(flow.phase == .cancelling
+                    ? L10n.string("auth.cancelling")
+                    : L10n.string("auth.waiting"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        terminalView(flow)
+    }
+
+    @ViewBuilder
+    private func promptView(_ prompt: AgentHostAuthPromptPayload) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(prompt.message)
+                .font(.system(size: 13, weight: .medium))
+
+            if prompt.type == .select {
+                ForEach(prompt.options ?? []) { option in
+                    Button {
+                        submit(option.id)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.label)
+                                if let description = option.description {
+                                    Text(description)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                    }
+                    .buttonStyle(RoundedInteractionButtonStyle(
+                        cornerRadius: 9,
+                        baseFill: Color.primary.opacity(0.045)
+                    ))
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Group {
+                        if prompt.type == .secret {
+                            SecureField(prompt.placeholder ?? L10n.string("auth.input_placeholder"), text: $responseValue)
+                        } else {
+                            TextField(prompt.placeholder ?? L10n.string("auth.input_placeholder"), text: $responseValue)
+                        }
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { submitInput(prompt: prompt) }
+
+                    Button(L10n.string("common.continue")) { submitInput(prompt: prompt) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(responseValue.isEmpty)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 11)
+                .fill(AppPalette.translucentSurface)
+        )
+    }
+
+    @ViewBuilder
+    private func terminalView(_ flow: ProviderAuthFlowState) -> some View {
+        switch flow.phase {
+        case .succeeded:
+            statusCard(icon: "checkmark.circle.fill", color: .green, text: L10n.string("auth.success"))
+        case .cancelled:
+            statusCard(icon: "xmark.circle", color: .secondary, text: L10n.string("auth.cancelled"))
+        case .failed:
+            statusCard(
+                icon: "exclamationmark.triangle.fill",
+                color: .orange,
+                text: flow.errorMessage ?? L10n.string("auth.failed")
+            )
+        case .starting, .waitingForProvider, .waitingForUser, .cancelling:
+            EmptyView()
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+            if flow?.phase.isTerminal == true {
+                Button(L10n.string("common.done")) { store.clearFlow() }
+                    .keyboardShortcut(.defaultAction)
+            } else {
+                Button(L10n.string("common.cancel")) {
+                    Task { await store.cancelAuthentication() }
+                }
+                .disabled(flow?.phase == .cancelling)
+            }
+        }
+    }
+
+    private func instructionCard<Content: View>(
+        icon: String,
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 9) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                content()
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 11)
+                .fill(AppPalette.translucentSurface)
+        )
+    }
+
+    private func statusCard(icon: String, color: Color, text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(color)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                adaptiveRoundedShape(cornerRadius: 11)
+                    .fill(color.opacity(0.09))
+            )
+    }
+
+    private func submitInput(prompt: AgentHostAuthPromptPayload) {
+        guard !responseValue.isEmpty else { return }
+        submit(responseValue)
+    }
+
+    private func submit(_ value: String) {
+        responseValue = ""
+        Task { await store.respond(value: value) }
+    }
+
+    private func openAuthorizationURLIfNeeded() {
+        guard let url = flow?.authorizationURL,
+              openedAuthorizationURL != url else { return }
+        openedAuthorizationURL = url
+        open(url)
+    }
+
+    private func open(_ value: String) {
+        guard let url = URL(string: value),
+              url.scheme == "https" || url.scheme == "http" else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    private func copy(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+}

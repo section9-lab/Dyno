@@ -31,6 +31,106 @@ struct TrafficLightPositioner: NSViewRepresentable {
     }
 }
 
+/// Restores the native window interactions lost when SwiftUI draws through a
+/// hidden title bar. The region is installed only over otherwise empty chrome
+/// so buttons in the custom interface keep receiving their own events.
+struct WindowTitlebarDragRegion: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        WindowTitlebarDragView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+/// Makes a SwiftUI `Settings` scene use the same edge-to-edge surface as the
+/// main window. `hiddenTitleBar` hides the title but does not make the
+/// settings titlebar transparent on every supported macOS release.
+struct SettingsWindowChrome: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        SettingsWindowChromeView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? SettingsWindowChromeView)?.configureWindow()
+    }
+}
+
+private final class SettingsWindowChromeView: NSView {
+    private var observers: [NSObjectProtocol] = []
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        stopObserving()
+
+        guard let window else { return }
+        let events: [Notification.Name] = [
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResizeNotification,
+            NSWindow.didEndLiveResizeNotification,
+            NSWindow.didUpdateNotification
+        ]
+        observers = events.map { name in
+            NotificationCenter.default.addObserver(
+                forName: name,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshWindowChrome()
+            }
+        }
+
+        refreshWindowChrome()
+    }
+
+    private func refreshWindowChrome() {
+        configureWindow()
+        DispatchQueue.main.async { [weak self] in
+            self?.configureWindow()
+        }
+    }
+
+    private func stopObserving() {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
+    }
+
+    deinit { stopObserving() }
+
+    func configureWindow() {
+        guard let window else { return }
+        if !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.insert(.fullSizeContentView)
+        }
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
+        }
+        if window.titleVisibility != .hidden {
+            window.titleVisibility = .hidden
+        }
+        if window.titlebarSeparatorStyle != .none {
+            window.titlebarSeparatorStyle = .none
+        }
+        window.toolbar?.isVisible = false
+        window.toolbar?.showsBaselineSeparator = false
+        if window.backgroundColor != .clear {
+            window.backgroundColor = .clear
+        }
+        if window.isOpaque {
+            window.isOpaque = false
+        }
+    }
+}
+
+private final class WindowTitlebarDragView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            window?.zoom(nil)
+        } else {
+            window?.performDrag(with: event)
+        }
+    }
+}
+
 private final class TrafficLightAnchorView: NSView {
     var offset: CGSize = .zero {
         didSet { applyOffset() }

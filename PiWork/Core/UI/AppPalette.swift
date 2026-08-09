@@ -42,30 +42,22 @@ enum AppPalette {
         dark: 0xFFFFFF, darkAlpha: 0.09
     )
 
-    /// Opaque raised card — input pills, the sidebar toggle, the selected
-    /// segmented tab.
+    /// Opaque raised card — input pills, floating controls, and the selected
+    /// sidebar segment.
     static let raisedSurface = dynamic(light: 0xFFFFFF, dark: 0x2E343D)
 
-    /// Semi-transparent raised card — the beta badge and chat bubbles, which
+    /// Semi-transparent raised card — chat bubbles and similar surfaces, which
     /// let a little of the backdrop through.
     static let translucentSurface = dynamic(
         light: 0xFFFFFF, lightAlpha: 0.88,
         dark: 0x2E343D, darkAlpha: 0.88
     )
 
-    /// Fill behind the selected sidebar folder row.
-    static let selectedRowFill = dynamic(
-        light: 0xFFFFFF, lightAlpha: 0.75,
-        dark: 0xFFFFFF, darkAlpha: 0.10
-    )
+    /// Neutral gray selection that follows the active row in either theme.
+    static let selectedRowFill = Color.primary.opacity(0.075)
 
-    /// Fill behind a hovered (not selected) sidebar row — a lighter step
-    /// below `selectedRowFill` so hover and selected read as two distinct
-    /// states rather than the same highlight.
-    static let hoverRowFill = dynamic(
-        light: 0xFFFFFF, lightAlpha: 0.40,
-        dark: 0xFFFFFF, darkAlpha: 0.06
-    )
+    /// A lighter neutral gray for pointer hover before selection.
+    static let hoverRowFill = Color.primary.opacity(0.055)
 
     /// Track behind the sidebar's segmented tab control.
     static let segmentedTrack = dynamic(

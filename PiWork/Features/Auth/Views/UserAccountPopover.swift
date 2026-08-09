@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+struct SettingsPresentationSequencer {
+    static func present(
+        dismiss: () -> Void,
+        schedule: (@escaping () -> Void) -> Void,
+        open: @escaping () -> Void
+    ) {
+        dismiss()
+        schedule(open)
+    }
+}
+
 struct UserAccountPopover: View {
     @Binding var isPresented: Bool
     let accountName: String
@@ -49,10 +60,13 @@ struct UserAccountPopover: View {
             Divider()
                 .padding(.horizontal, contentInset)
 
-            MenuItem(icon: "gearshape", title: "设置", action: {
-                isPresented = false
-                onSettings()
-            })
+            if #available(macOS 14.0, *) {
+                ModernSettingsMenuItem(isPresented: $isPresented)
+            } else {
+                MenuItem(icon: "gearshape", title: L10n.string("account.settings"), action: {
+                    presentSettings(open: onSettings)
+                })
+            }
 
             Divider()
                 .padding(.horizontal, contentInset)
@@ -62,7 +76,7 @@ struct UserAccountPopover: View {
             Divider()
                 .padding(.horizontal, contentInset)
 
-            MenuItem(icon: "questionmark.circle", title: "帮助", hasChevron: true, action: {
+            MenuItem(icon: "questionmark.circle", title: L10n.string("account.help"), hasChevron: true, action: {
                 isPresented = false
                 onHelp()
             })
@@ -70,7 +84,7 @@ struct UserAccountPopover: View {
             Divider()
                 .padding(.horizontal, contentInset)
 
-            MenuItem(icon: "arrow.right.square", title: "退出登录", isDestructive: true, action: {
+            MenuItem(icon: "arrow.right.square", title: L10n.string("account.sign_out"), isDestructive: true, action: {
                 isPresented = false
                 onLogout()
             })
@@ -91,6 +105,41 @@ struct UserAccountPopover: View {
             fallbackInitial: accountInitial,
             fallbackFontSize: 18
         )
+    }
+
+    private func presentSettings(open: @escaping () -> Void) {
+        SettingsPresentationSequencer.present(
+            dismiss: { isPresented = false },
+            schedule: { action in
+                DispatchQueue.main.async {
+                    action()
+                }
+            },
+            open: open
+        )
+    }
+}
+
+@available(macOS 14.0, *)
+private struct ModernSettingsMenuItem: View {
+    @Binding var isPresented: Bool
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        MenuItem(icon: "gearshape", title: L10n.string("account.settings"), action: {
+            SettingsPresentationSequencer.present(
+                dismiss: { isPresented = false },
+                schedule: { action in
+                    DispatchQueue.main.async {
+                        action()
+                    }
+                },
+                open: {
+                    openSettings()
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            )
+        })
     }
 }
 
@@ -217,7 +266,7 @@ private struct ThemeMenuItem: View {
         } label: {
             MenuItemLabel(
                 icon: "paintpalette",
-                title: "主题",
+                title: L10n.string("account.theme"),
                 hasChevron: true,
                 // Keep the row lit while its flyout is up, so the trail back
                 // to the parent menu stays obvious.
@@ -350,7 +399,7 @@ private struct MenuItem: View {
     UserAccountPopover(
         isPresented: .constant(true),
         accountName: "Google User",
-        accountSubtitle: "通过 Google 登录",
+        accountSubtitle: L10n.string("account.google"),
         accountInitial: "G",
         onSettings: {},
         onHelp: {},
