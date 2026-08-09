@@ -68,6 +68,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("actions/download-artifact", workflow)
         self.assertIn("gh release create", workflow)
 
+    def test_release_cli_targets_repository_without_checkout(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("GH_REPO: ${{ github.repository }}", workflow)
+
     def test_nested_executables_use_notarizable_signatures(self):
         project = PROJECT_PATH.read_text()
         hardened_signing_lines = [
