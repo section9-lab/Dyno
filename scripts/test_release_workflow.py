@@ -33,13 +33,32 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("arch: arm64", workflow)
         self.assertIn("arch: x86_64", workflow)
 
-    def test_release_signs_and_notarizes_each_dmg(self):
+    def test_release_uses_ad_hoc_signing_without_notarization(self):
         workflow = self.workflow_text()
 
-        self.assertIn("codesign", workflow)
-        self.assertIn("notarytool submit", workflow)
-        self.assertIn("stapler staple", workflow)
-        self.assertIn("stapler validate", workflow)
+        self.assertIn("CODE_SIGNING_ALLOWED=NO", workflow)
+        self.assertIn('codesign --force --deep --sign - "$app_path"', workflow)
+        self.assertIn('codesign --force --sign - "$dmg_path"', workflow)
+        self.assertNotIn("notarytool", workflow)
+        self.assertNotIn("stapler", workflow)
+
+    def test_release_requires_no_apple_credentials(self):
+        workflow = self.workflow_text()
+
+        for secret_name in (
+            "MACOS_CERTIFICATE_P12",
+            "MACOS_CERTIFICATE_PASSWORD",
+            "APPLE_ID",
+            "APPLE_APP_SPECIFIC_PASSWORD",
+            "APPLE_TEAM_ID",
+        ):
+            self.assertNotIn(secret_name, workflow)
+
+    def test_release_notes_disclose_gatekeeper_warning(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("not notarized by Apple", workflow)
+        self.assertIn("Gatekeeper warning", workflow)
 
     def test_release_publishes_both_dmg_artifacts(self):
         workflow = self.workflow_text()
