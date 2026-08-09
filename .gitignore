@@ -24,3 +24,6 @@ PiWork/Resources/PiAgent/x64/
 # Local secrets / API keys — never commit
 .env
 .env.*
+
+# Bun / Agent Host
+node_modules/

@@ -1,0 +1,774 @@
+import { describe, expect, test } from "bun:test";
+import {
+  SessionManager,
+  SettingsManager,
+  type AgentSession,
+  type AgentSessionEvent,
+} from "@earendil-works/pi-coding-agent";
+
+import {
+  PiSessionHandle,
+  createPiSessionHandle,
+  normalizeAgentMessages,
+  normalizeAgentSessionEvent,
+} from "../src/pi-session-handle.ts";
+import { AccessController } from "../src/access-policy.ts";
+import { SessionRegistryError } from "../src/session-registry.ts";
+
+const testModel = {
+  id: "gpt-test",
+  name: "GPT Test",
+  api: "openai-responses" as const,
+  provider: "openai",
+  baseUrl: "https://example.com",
+  reasoning: true,
+  input: ["text", "image"] as ("text" | "image")[],
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  contextWindow: 128_000,
+  maxTokens: 16_384,
+};
+
+const configurableModel = {
+  ...testModel,
+  id: "gpt-5.6-sol",
+  name: "GPT-5.6 Sol",
+  cost: {
+    ...testModel.cost,
+    tiers: [{
+      inputTokensAbove: 272_000,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    }],
+  },
+  contextWindow: 272_000,
+  maxTokens: 128_000,
+};
+
+type PiThinkingLevel = AgentSession["thinkingLevel"];
+
+function makePiSession(overrides: Record<string, unknown> = {}) {
+  return {
+    sessionId: "session-one",
+    messages: [],
+    model: testModel,
+    getContextUsage: () => undefined,
+    getAllTools: () => [],
+    thinkingLevel: "high" as PiThinkingLevel,
+    getAvailableThinkingLevels: (): PiThinkingLevel[] => ["off", "low", "medium", "high", "max"],
+    setThinkingLevel: (_level: PiThinkingLevel) => {},
+    agent: {
+      streamFunction: () => undefined as never,
+    },
+    modelRuntime: {
+      getModel: (provider: string, modelId: string) => (
+        provider === testModel.provider && modelId === testModel.id ? testModel : undefined
+      ),
+    },
+    extensionRunner: {
+      getRegisteredCommands: () => [],
+    } as unknown as AgentSession["extensionRunner"],
+    resourceLoader: {
+      getSkills: () => ({ skills: [], diagnostics: [] }),
+    } as unknown as AgentSession["resourceLoader"],
+    setModel: async (_model: NonNullable<AgentSession["model"]>) => {},
+    setActiveToolsByName: () => {},
+    prompt: async () => {},
+    abort: async () => {},
+    reload: async () => {},
+    dispose: () => {},
+    subscribe: () => () => {},
+    ...overrides,
+  };
+}
+
+describe("normalizeAgentSessionEvent", () => {
+  test("maps Pi text deltas to the stable host event", () => {
+    const event = {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "text_delta",
+        contentIndex: 0,
+        delta: "Hello",
+      },
+    } as AgentSessionEvent;
+
+    expect(normalizeAgentSessionEvent(event)).toEqual({
+      type: "textDelta",
+      delta: "Hello",
+    });
+  });
+
+  test("maps Pi tool starts without exposing the raw SDK object", () => {
+    const event = {
+      type: "tool_execution_start",
+      toolCallId: "tool-one",
+      toolName: "read",
+      args: { path: "README.md" },
+    } as AgentSessionEvent;
+
+    expect(normalizeAgentSessionEvent(event)).toEqual({
+      type: "toolStarted",
+      toolCallId: "tool-one",
+      toolName: "read",
+      summary: '{"path":"README.md"}',
+    });
+  });
+
+  test("maps Pi tool progress to displayable text", () => {
+    const event = {
+      type: "tool_execution_update",
+      toolCallId: "tool-one",
+      toolName: "read",
+      args: { path: "README.md" },
+      partialResult: {
+        content: [{ type: "text", text: "\u001b[32mFirst line\u001b[0m" }],
+      },
+    } as AgentSessionEvent;
+
+    expect(normalizeAgentSessionEvent(event)).toEqual({
+      type: "toolUpdated",
+      toolCallId: "tool-one",
+      toolName: "read",
+      output: "First line",
+    });
+  });
+
+  test("maps Pi tool completion to the stable host event", () => {
+    const event = {
+      type: "tool_execution_end",
+      toolCallId: "tool-one",
+      toolName: "read",
+      result: {
+        content: [{ type: "text", text: "README contents" }],
+      },
+      isError: false,
+    } as AgentSessionEvent;
+
+    expect(normalizeAgentSessionEvent(event)).toEqual({
+      type: "toolCompleted",
+      toolCallId: "tool-one",
+      toolName: "read",
+      output: "README contents",
+      isError: false,
+    });
+  });
+});
+
+describe("PiSessionHandle", () => {
+  test("lists invokable extension and skill slash commands from the live Pi session", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      extensionRunner: {
+        getRegisteredCommands: () => [{
+          invocationName: "review",
+          description: "Review the current changes",
+        }],
+      },
+      resourceLoader: {
+        getSkills: () => ({
+          skills: [{
+            name: "ego-browser",
+            description: "Browse and interact with websites",
+          }],
+          diagnostics: [],
+        }),
+      },
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+
+    expect(handle.commands()).toEqual([
+      {
+        name: "review",
+        description: "Review the current changes",
+        source: "extension",
+      },
+      {
+        name: "skill:ego-browser",
+        description: "Browse and interact with websites",
+        source: "skill",
+      },
+    ]);
+  });
+
+  test("normalizes persisted Pi messages without leaking hidden or reasoning content", () => {
+    const messages = normalizeAgentMessages("session-one", [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Inspect this" },
+          { type: "image", data: "private-base64", mimeType: "image/png" },
+        ],
+        timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+      },
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "private chain of thought" },
+          { type: "text", text: "I can help." },
+          { type: "toolCall", id: "tool-one", name: "read", arguments: { path: "README.md" } },
+        ],
+        api: "openai-responses",
+        provider: "openai",
+        model: "gpt-test",
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "toolUse",
+        timestamp: Date.parse("2026-08-09T00:00:01.000Z"),
+      },
+      {
+        role: "custom",
+        customType: "private-context",
+        content: "Do not display",
+        display: false,
+        timestamp: Date.parse("2026-08-09T00:00:02.000Z"),
+      },
+    ] as never[]);
+
+    expect(messages).toEqual([
+      {
+        id: "session-one:1786233600000:0",
+        role: "user",
+        content: [
+          { type: "text", text: "Inspect this" },
+          { type: "image", mimeType: "image/png" },
+        ],
+        timestamp: "2026-08-09T00:00:00.000Z",
+      },
+      {
+        id: "session-one:1786233601000:1",
+        role: "assistant",
+        content: [
+          { type: "text", text: "I can help." },
+          {
+            type: "toolCall",
+            id: "tool-one",
+            name: "read",
+            argumentsSummary: '{"path":"README.md"}',
+          },
+        ],
+        timestamp: "2026-08-09T00:00:01.000Z",
+        provider: "openai",
+        model: "gpt-test",
+        stopReason: "toolUse",
+      },
+    ]);
+    expect(JSON.stringify(messages)).not.toContain("private-base64");
+    expect(JSON.stringify(messages)).not.toContain("private chain of thought");
+    expect(JSON.stringify(messages)).not.toContain("Do not display");
+  });
+
+  test("strips terminal formatting from persisted tool output", () => {
+    const messages = normalizeAgentMessages("session-one", [{
+      role: "toolResult",
+      toolCallId: "tool-one",
+      toolName: "bash",
+      content: [{ type: "text", text: "\u001b[31mfailed\u001b[0m" }],
+      isError: true,
+      timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+    }] as never[]);
+
+    expect(messages[0]?.content).toEqual([{ type: "text", text: "failed" }]);
+  });
+
+  test("builds a normalized snapshot from the live Pi session", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    manager.appendMessage({
+      role: "user",
+      content: "Resume this work",
+      timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+    });
+    manager.appendSessionInfo("Session integration");
+    const piSession = makePiSession({
+      sessionId: manager.getSessionId(),
+      messages: manager.buildSessionContext().messages,
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+
+    expect(handle.snapshot()).toEqual({
+      session: {
+        id: manager.getSessionId(),
+        path: "",
+        cwd: "/tmp/project",
+        title: "Session integration",
+      },
+      messages: [{
+        id: `${manager.getSessionId()}:1786233600000:0`,
+        role: "user",
+        content: [{ type: "text", text: "Resume this work" }],
+        timestamp: "2026-08-09T00:00:00.000Z",
+      }],
+      model: {
+        provider: "openai",
+        id: "gpt-test",
+        name: "GPT Test",
+        contextWindow: 128_000,
+        maxTokens: 16_384,
+        reasoning: true,
+        supportsImages: true,
+        supportsFastMode: false,
+      },
+      accessMode: "full",
+      thinkingLevel: "high",
+      availableThinkingLevels: ["off", "low", "medium", "high", "max"],
+      modelOptions: {
+        fastMode: { supported: false, enabled: false },
+        oneMillionContext: { supported: false, enabled: false },
+      },
+      pendingApprovals: [],
+    });
+  });
+
+  test("persists the selected Git branch in the session snapshot", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const handle = new PiSessionHandle(makePiSession(), manager);
+
+    expect(handle.setGitBranch("feature/session-picker")).toBe("feature/session-picker");
+    expect(handle.snapshot().gitBranch).toBe("feature/session-picker");
+
+    const reopened = new PiSessionHandle(makePiSession(), manager);
+    expect(reopened.snapshot().gitBranch).toBe("feature/session-picker");
+  });
+
+  test("rejects changing the selected Git branch after the conversation starts", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const handle = new PiSessionHandle(
+      makePiSession({
+        messages: [{
+          role: "user",
+          content: "Start coding",
+          timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+        }],
+      }),
+      manager,
+    );
+
+    expect(() => handle.setGitBranch("feature/other")).toThrow(
+      "Git branch can only be selected before the conversation starts",
+    );
+  });
+
+  test("passes the selected Git branch to the coding task system prompt", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    let receivedSystemPrompt = "";
+    const agent = {
+      streamFunction: (
+        _model: unknown,
+        context: { systemPrompt: string },
+      ) => {
+        receivedSystemPrompt = context.systemPrompt;
+        return undefined as never;
+      },
+    };
+    const handle = new PiSessionHandle(makePiSession({ agent }), manager);
+    handle.setGitBranch("feature/session-picker");
+
+    agent.streamFunction(testModel, { systemPrompt: "Base instructions" });
+
+    expect(receivedSystemPrompt).toContain("Base instructions");
+    expect(receivedSystemPrompt).toContain("feature/session-picker");
+    expect(receivedSystemPrompt).toContain("target Git branch");
+  });
+
+  test("derives Fast and 1M context support from the active Pi model", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const handle = new PiSessionHandle(
+      makePiSession({ model: configurableModel }),
+      manager,
+    );
+
+    expect(handle.snapshot().modelOptions).toEqual({
+      fastMode: { supported: true, enabled: false },
+      oneMillionContext: { supported: true, enabled: false },
+    });
+  });
+
+  test("keeps custom proxy models disabled when capabilities are not declared by Pi", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const proxiedModel = {
+      ...configurableModel,
+      provider: "cc-switch-openai",
+      api: "openai-completions" as const,
+    };
+    const handle = new PiSessionHandle(
+      makePiSession({ model: proxiedModel }),
+      manager,
+    );
+
+    expect(handle.snapshot().modelOptions).toEqual({
+      fastMode: { supported: false, enabled: false },
+      oneMillionContext: { supported: false, enabled: false },
+    });
+  });
+
+  test("injects Pi's priority service tier only while Fast mode is enabled", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const receivedOptions: Array<Record<string, unknown> | undefined> = [];
+    const agent = {
+      streamFunction: (
+        _model: unknown,
+        _context: unknown,
+        options?: Record<string, unknown>,
+      ) => {
+        receivedOptions.push(options);
+        return undefined as never;
+      },
+    };
+    const piSession = makePiSession({ model: configurableModel, agent });
+    const handle = new PiSessionHandle(piSession, manager);
+
+    await handle.setModelOption("fastMode", true);
+    agent.streamFunction(configurableModel, {}, {});
+    await handle.setModelOption("fastMode", false);
+    agent.streamFunction(configurableModel, {}, {});
+
+    expect(receivedOptions).toEqual([
+      { serviceTier: "priority" },
+      { serviceTier: "default" },
+    ]);
+  });
+
+  test("changes Pi's effective context window when 1M context is toggled", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const selectedContextWindows: number[] = [];
+    const piSession = makePiSession({ model: configurableModel });
+    piSession.setModel = async (model: NonNullable<AgentSession["model"]>) => {
+      selectedContextWindows.push(model.contextWindow);
+      piSession.model = model;
+    };
+    const handle = new PiSessionHandle(piSession, manager);
+
+    const enabled = await handle.setModelOption("oneMillionContext", true);
+    const disabled = await handle.setModelOption("oneMillionContext", false);
+
+    expect(selectedContextWindows).toEqual([1_050_000, 272_000]);
+    expect(enabled.modelOptions.oneMillionContext).toEqual({ supported: true, enabled: true });
+    expect(disabled.modelOptions.oneMillionContext).toEqual({ supported: true, enabled: false });
+  });
+
+  test("rejects enabling a model option that the selected model does not support", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const handle = new PiSessionHandle(makePiSession(), manager);
+
+    expect(handle.setModelOption("fastMode", true)).rejects.toMatchObject({
+      code: "model_option_unsupported",
+    });
+  });
+
+  test("exposes Pi's current context usage in the normalized snapshot", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const contextUsage = {
+      tokens: 96_000,
+      contextWindow: 128_000,
+      percent: 75,
+    };
+    const handle = new PiSessionHandle(
+      makePiSession({ getContextUsage: () => contextUsage }),
+      manager,
+    );
+
+    expect(handle.snapshot().contextUsage).toEqual(contextUsage);
+  });
+
+  test("persists a renamed title through SessionManager", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const handle = new PiSessionHandle(makePiSession(), manager);
+
+    expect(handle.rename("Session integration")).toBe("Session integration");
+    expect(manager.getSessionName()).toBe("Session integration");
+  });
+
+  test("resolves and delegates model selection to Pi", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    let selectedModel: unknown;
+    const handle = new PiSessionHandle(makePiSession({
+      setModel: async (model: unknown) => { selectedModel = model; },
+    }), manager);
+
+    const result = await handle.setModel("openai", "gpt-test");
+
+    expect(selectedModel).toBe(testModel);
+    expect(result).toEqual({
+      provider: "openai",
+      id: "gpt-test",
+      name: "GPT Test",
+      contextWindow: 128_000,
+      maxTokens: 16_384,
+      reasoning: true,
+      supportsImages: true,
+      supportsFastMode: false,
+    });
+  });
+
+  test("returns Pi's effective thinking level after selection", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    let selectedLevel: string | undefined;
+    const piSession = makePiSession();
+    piSession.thinkingLevel = "low";
+    piSession.setThinkingLevel = (level: PiThinkingLevel) => {
+      selectedLevel = level;
+      piSession.thinkingLevel = "high";
+    };
+    piSession.getAvailableThinkingLevels = (): PiThinkingLevel[] => ["off", "low", "high"];
+    const handle = new PiSessionHandle(piSession, manager);
+
+    const result = handle.setThinkingLevel("max");
+
+    expect(selectedLevel).toBe("max");
+    expect(result).toEqual({
+      thinkingLevel: "high",
+      availableThinkingLevels: ["off", "low", "high"],
+    });
+  });
+
+  test("returns a stable error when Pi rejects an otherwise known model", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const handle = new PiSessionHandle(makePiSession({
+      setModel: async () => { throw new Error("Authentication required"); },
+    }), manager);
+
+    try {
+      await handle.setModel("openai", "gpt-test");
+      throw new Error("Expected model selection to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SessionRegistryError);
+      expect(error).toMatchObject({
+        code: "model_unavailable",
+        message: "Authentication required",
+      });
+    }
+  });
+
+  test("subscribers receive only normalized Pi events", () => {
+    let piListener: ((event: AgentSessionEvent) => void) | undefined;
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      subscribe: (listener: (event: AgentSessionEvent) => void) => {
+        piListener = listener;
+        return () => { piListener = undefined; };
+      },
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+    const events: unknown[] = [];
+    handle.subscribe((event) => events.push(event));
+
+    piListener?.({ type: "agent_start" } as AgentSessionEvent);
+    piListener?.({
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Hello" },
+    } as AgentSessionEvent);
+
+    expect(events).toEqual([{ type: "textDelta", delta: "Hello" }]);
+  });
+
+  test("delegates prompts to the Pi session", async () => {
+    let receivedPrompt: string | undefined;
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      prompt: async (text: string) => { receivedPrompt = text; },
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+
+    await handle.prompt("Build the feature");
+
+    expect(receivedPrompt).toBe("Build the feature");
+  });
+
+  test("rejects a resolved prompt when Pi finishes with an assistant error", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const messages: AgentSession["messages"] = [];
+    const piSession = makePiSession({
+      messages,
+      prompt: async () => {
+        messages.push({
+          role: "assistant",
+          content: [],
+          api: "openai-responses",
+          provider: "github-copilot",
+          model: "gpt-5.6-terra",
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: "error",
+          errorMessage: "OAuth module unavailable",
+          timestamp: Date.now(),
+        });
+      },
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+
+    expect(handle.prompt("Hello")).rejects.toThrow("OAuth module unavailable");
+  });
+
+  test("delegates abort to the Pi session", async () => {
+    let abortCount = 0;
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      abort: async () => { abortCount += 1; },
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+
+    await handle.abort();
+
+    expect(abortCount).toBe(1);
+  });
+
+  test("reloads Pi resources and activates newly loaded extension tools", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    let tools = [{
+      name: "old_extension_tool",
+      sourceInfo: { source: "npm:old-extension" },
+    }];
+    const activeToolSelections: string[][] = [];
+    const piSession = makePiSession({
+      getAllTools: () => tools,
+      reload: async () => {
+        tools = [{
+          name: "new_extension_tool",
+          sourceInfo: { source: "npm:new-extension" },
+        }];
+      },
+      setActiveToolsByName: (names: string[]) => activeToolSelections.push(names),
+    });
+    const accessController = new AccessController({ cwd: "/tmp/project", mode: "ask" });
+    const handle = new PiSessionHandle(
+      piSession,
+      manager,
+      accessController,
+      ["web_fetch"],
+      true,
+    );
+
+    await handle.reload();
+
+    expect(activeToolSelections.at(-1)).toEqual([
+      "read", "bash", "edit", "write", "web_fetch", "new_extension_tool",
+    ]);
+  });
+
+  test("delegates disposal to the Pi session", () => {
+    let disposeCount = 0;
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      dispose: () => { disposeCount += 1; },
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+
+    handle.dispose();
+
+    expect(disposeCount).toBe(1);
+  });
+
+  test("changes active Pi tools when access mode changes", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const activeToolSelections: string[][] = [];
+    const piSession = makePiSession({
+      setActiveToolsByName: (names: string[]) => activeToolSelections.push(names),
+    });
+    const accessController = new AccessController({ cwd: "/tmp/project", mode: "ask" });
+    const handle = new PiSessionHandle(piSession, manager, accessController);
+
+    expect(handle.setAccessMode("readOnly")).toBe("readOnly");
+    expect(activeToolSelections).toEqual([["read", "grep", "find", "ls"]]);
+    expect(handle.snapshot().accessMode).toBe("readOnly");
+  });
+});
+
+describe("createPiSessionHandle", () => {
+  test("injects pi-work's isolated settings into each Pi session", async () => {
+    const manager = SessionManager.inMemory("/tmp/pi-work-chat");
+    const settingsManager = SettingsManager.inMemory({ retry: { enabled: false } });
+    let receivedOptions: Record<string, unknown> | undefined;
+
+    await createPiSessionHandle(
+      {
+        sessionManager: manager,
+        profile: "chat",
+        agentDir: "/tmp/pi-work-agent",
+        settingsManager,
+      },
+      async (options) => {
+        receivedOptions = options as unknown as Record<string, unknown>;
+        return { session: makePiSession({ sessionId: manager.getSessionId() }) };
+      },
+    );
+
+    expect(receivedOptions?.agentDir).toBe("/tmp/pi-work-agent");
+    expect(receivedOptions?.settingsManager).toBe(settingsManager);
+  });
+
+  test("installs only web_fetch for a Chat session", async () => {
+    const manager = SessionManager.inMemory("/tmp/pi-work-chat");
+    let receivedOptions: Record<string, unknown> | undefined;
+    const activeToolSelections: string[][] = [];
+    const piSession = makePiSession({
+      sessionId: manager.getSessionId(),
+      setActiveToolsByName: (names: string[]) => activeToolSelections.push(names),
+    });
+
+    const handle = await createPiSessionHandle(
+      { sessionManager: manager, profile: "chat" },
+      async (options) => {
+        receivedOptions = options as unknown as Record<string, unknown>;
+        return { session: piSession };
+      },
+    );
+
+    expect(handle.sessionId).toBe(manager.getSessionId());
+    expect(receivedOptions?.cwd).toBe("/tmp/pi-work-chat");
+    expect(receivedOptions?.sessionManager).toBe(manager);
+    expect(receivedOptions?.noTools).toBeUndefined();
+    expect(receivedOptions?.tools).toEqual(["web_fetch"]);
+    expect(receivedOptions?.customTools).toHaveLength(1);
+    expect(activeToolSelections).toEqual([["web_fetch"]]);
+    expect(handle.snapshot().accessMode).toBe("none");
+  });
+
+  test("installs policy-controlled tools and web_fetch for a Work session", async () => {
+    const manager = SessionManager.inMemory("/tmp/pi-work-project");
+    let receivedOptions: Record<string, unknown> | undefined;
+    const activeToolSelections: string[][] = [];
+    const piSession = makePiSession({
+      sessionId: manager.getSessionId(),
+      getAllTools: () => [{
+        name: "extension_tool",
+        sourceInfo: { source: "npm:example-extension" },
+      }],
+      setActiveToolsByName: (names: string[]) => activeToolSelections.push(names),
+    });
+
+    const handle = await createPiSessionHandle(
+      { sessionManager: manager, profile: "work" },
+      async (options) => {
+        receivedOptions = options as unknown as Record<string, unknown>;
+        return { session: piSession };
+      },
+    );
+
+    expect(receivedOptions?.noTools).toBeUndefined();
+    expect(receivedOptions?.tools).toBeUndefined();
+    expect(receivedOptions?.customTools).toHaveLength(8);
+    expect(activeToolSelections).toEqual([[
+      "read", "bash", "edit", "write", "web_fetch", "extension_tool",
+    ]]);
+    expect(handle.snapshot().accessMode).toBe("ask");
+    expect(handle.snapshot().pendingApprovals).toEqual([]);
+
+    handle.setAccessMode("readOnly");
+    expect(activeToolSelections.at(-1)).toEqual([
+      "read", "grep", "find", "ls", "web_fetch", "extension_tool",
+    ]);
+  });
+});

@@ -1,19 +1,18 @@
-# PiAgent binaries (not committed to git)
+# Optional standalone Pi binaries (not committed to git)
 
 This folder is populated by `scripts/fetch-pi-binary.sh`, which downloads the
 official standalone `pi` coding-agent release binaries from
 https://github.com/earendil-works/pi/releases for both Apple Silicon
 (`arm64/pi`) and Intel (`x64/pi`).
 
-Run this once after cloning, and again whenever the pinned version in the
-script changes:
+These binaries are only useful for manual upstream debugging. They are not
+included in the app and are not required for a normal build. Fetch them with:
 
 ```bash
 ./scripts/fetch-pi-binary.sh
-xcodegen generate
 ```
 
-The app spawns whichever binary matches the running machine's architecture
-via `Process`, in `--mode rpc` (see `PiWork/Core/Agent/PiAgentProcess.swift`).
-No Bun, Node, or npm install is required on the end user's machine — the
-release binary is fully self-contained.
+Production builds compile `AgentHost/src/main.ts` with Bun and embed the
+matching self-contained Agent Host under `Contents/Helpers/AgentHost`. The
+Host contains the Pi SDK, so end users do not need Bun, Node, npm, or a
+separate `pi` installation.

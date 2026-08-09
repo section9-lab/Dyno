@@ -1,0 +1,26 @@
+{
+  "name": "pi-work-agent-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "build:arm64": "bun build --compile --no-compile-autoload-bunfig --target=bun-darwin-arm64 src/main.ts --outfile ../build/pi-work-agent-host-arm64",
+    "build:x64": "bun build --compile --no-compile-autoload-bunfig --target=bun-darwin-x64 src/main.ts --outfile ../build/pi-work-agent-host-x64"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.84.1",
+    "@earendil-works/pi-coding-agent": "0.84.1",
+    "@mozilla/readability": "^0.6.0",
+    "ipaddr.js": "^2.5.0",
+    "linkedom": "^0.18.13",
+    "turndown": "^7.2.4",
+    "typebox": "^1.3.11"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "@types/turndown": "^5.0.6",
+    "typescript": "5.9.3"
+  }
+}
