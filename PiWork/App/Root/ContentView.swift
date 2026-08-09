@@ -2,9 +2,32 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
+    @ObservedObject private var sessionStore: SessionStore
+    @ObservedObject private var installedExtensionsStore: InstalledExtensionsStore
+    @ObservedObject private var scheduleStore: ScheduleStore
+    private let scheduleRunner: ScheduleRunner
     @StateObject private var projectStore = ProjectStore()
-    @State private var selectedProject: PiProject?
+    @State private var workSession = WorkSessionSelection()
+    @State private var selectedTab: SidebarTab = .work
+    @State private var selectedCustomDestination: SidebarCustomDestination?
+    @StateObject private var skillsCatalogStore = SkillsCatalogStore()
+    @StateObject private var extensionsCatalogStore = ExtensionsCatalogStore()
     @State private var sidebarCollapsed = false
+    @State private var didBootstrapChat = false
+    @State private var bootstrappedWorkProjectPaths: Set<String> = []
+    @State private var agentError: String?
+
+    init(
+        sessionStore: SessionStore,
+        installedExtensionsStore: InstalledExtensionsStore,
+        scheduleStore: ScheduleStore,
+        scheduleRunner: ScheduleRunner
+    ) {
+        _sessionStore = ObservedObject(wrappedValue: sessionStore)
+        _installedExtensionsStore = ObservedObject(wrappedValue: installedExtensionsStore)
+        _scheduleStore = ObservedObject(wrappedValue: scheduleStore)
+        self.scheduleRunner = scheduleRunner
+    }
 
     var body: some View {
         ZStack {
@@ -15,8 +38,23 @@ struct ContentView: View {
                     SidebarPanel {
                         SidebarView(
                             projectStore: projectStore,
-                            selectedProject: $selectedProject,
-                            onAddFolder: pickFolder
+                            selectedProject: $workSession.selectedProject,
+                            selectedTab: $selectedTab,
+                            onAddFolder: pickFolder,
+                            onNewSession: startNewSession,
+                            onNewProjectSession: startNewSession(for:),
+                            chatSessions: sessionStore.chatSessions,
+                            selectedChatSessionId: sessionStore.selectedChatSessionId,
+                            onSelectChatSession: openChatSession,
+                            onDeleteChatSession: deleteChatSession,
+                            workSessionsByProjectPath: sessionStore.workSessionsByProjectPath,
+                            activeSessionIDs: activeSessionIDs,
+                            selectedWorkSidebarItem: workSession.sidebarItem,
+                            onSelectWorkProject: selectWorkProject,
+                            onSelectWorkSession: openWorkSession,
+                            onDeleteWorkSession: deleteWorkSession,
+                            onDeleteWorkProject: deleteWorkProject,
+                            onSelectCustomDestination: { selectedCustomDestination = $0 }
                         )
                     }
                     .transition(.move(edge: .leading))
@@ -24,11 +62,31 @@ struct ContentView: View {
 
                 ZStack(alignment: .top) {
                     Group {
-                        if let project = selectedProject {
-                            ChatView(project: project)
-                                .id(project.id)
+                        if selectedTab == .work, selectedCustomDestination == .schedule {
+                            ScheduleView(
+                                store: scheduleStore,
+                                runner: scheduleRunner,
+                                projects: projectStore.projects
+                            )
+                        } else if selectedTab == .work, selectedCustomDestination == .skills {
+                            SkillsCatalogView(store: skillsCatalogStore)
+                        } else if selectedTab == .work,
+                                  selectedCustomDestination == .connectedApps {
+                            ExtensionsCatalogView(
+                                store: extensionsCatalogStore,
+                                installedStore: installedExtensionsStore
+                            )
                         } else {
-                            WelcomeHeroView(onPickFolder: pickFolder)
+                            ChatView(
+                                mode: selectedTab,
+                                projects: projectStore.projects,
+                                selectedProject: $workSession.selectedProject,
+                                sessionStore: sessionStore,
+                                hostError: agentError,
+                                onSelectProject: startNewSession(for:),
+                                onAddFolder: pickFolder
+                            )
+                            .id(activeSessionIdentity)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -42,16 +100,289 @@ struct ContentView: View {
                         }
 
                         Spacer(minLength: 0)
-
-                        BetaBadge()
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 0)
                 }
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                Color.clear
+                    .frame(
+                        width: (sidebarCollapsed ? 0 : SidebarPanelMetrics.columnWidth) + 96
+                    )
+                    .allowsHitTesting(false)
+
+                WindowTitlebarDragRegion()
+            }
+            .frame(height: 52)
+            .ignoresSafeArea(edges: .top)
+        }
         .background(TrafficLightPositioner(offset: SidebarPanelMetrics.trafficLightOffset))
+        .task {
+            await bootstrapChatIfNeeded()
+            await bootstrapWorkProjects()
+        }
+    }
+
+    private var activeSessionIdentity: SessionIdentity {
+        SessionIdentity(
+            mode: selectedTab,
+            sessionID: selectedTab == .chat
+                ? (sessionStore.selectedChatSessionId ?? "chat-unselected")
+                : activeWorkSessionId,
+            projectID: selectedTab == .work ? workSession.selectedProject?.id : nil
+        )
+    }
+
+    private var activeSessionIDs: Set<String> {
+        Set(
+            sessionStore.records.values.compactMap { record in
+                record.runState.showsSidebarActivity ? record.id : nil
+            }
+        )
+    }
+
+    private func startNewSession() {
+        selectedCustomDestination = nil
+        switch selectedTab {
+        case .chat:
+            Task { await createChatSession() }
+        case .work:
+            workSession.startNewSession()
+        }
+    }
+
+    private func startNewSession(for project: PiProject) {
+        selectedTab = .work
+        selectedCustomDestination = nil
+        workSession.startNewSession(for: project)
+        Task { await createWorkSession(for: project) }
+    }
+
+    private var activeWorkSessionId: String {
+        guard let project = workSession.selectedProject else {
+            return workSession.sessionID.uuidString
+        }
+        return sessionStore.selectedWorkSessionIdByProjectPath[project.path]
+            ?? workSession.sessionID.uuidString
+    }
+
+    private func openChatSession(_ session: AgentHostSessionSummary) {
+        selectedCustomDestination = nil
+        Task {
+            do {
+                try await sessionStore.openSession(session, profile: .chat, sessionDirectory: nil)
+                agentError = nil
+            } catch {
+                agentError = String(describing: error)
+            }
+        }
+    }
+
+    private func bootstrapChatIfNeeded() async {
+        guard !didBootstrapChat else { return }
+        didBootstrapChat = true
+        do {
+            let directory = try prepareChatWorkingDirectory()
+            try await sessionStore.bootstrap(
+                cwd: directory.path,
+                sessionDirectory: nil,
+                profile: .chat
+            )
+            if sessionStore.selectedChatSessionId == nil {
+                if let session = sessionStore.chatSessions.first {
+                    try await sessionStore.openSession(
+                        session,
+                        profile: .chat,
+                        sessionDirectory: nil
+                    )
+                } else {
+                    _ = try await sessionStore.createDraft(
+                        cwd: directory.path,
+                        sessionDirectory: nil,
+                        profile: .chat
+                    )
+                }
+            }
+            agentError = nil
+        } catch {
+            agentError = String(describing: error)
+        }
+    }
+
+    private func createChatSession() async {
+        do {
+            let directory = try prepareChatWorkingDirectory()
+            _ = try await sessionStore.createDraft(
+                cwd: directory.path,
+                sessionDirectory: nil,
+                profile: .chat
+            )
+            agentError = nil
+        } catch {
+            agentError = String(describing: error)
+        }
+    }
+
+    private func bootstrapWorkProjects() async {
+        for project in projectStore.projects {
+            await bootstrapWorkProjectIfNeeded(project)
+        }
+    }
+
+    private func bootstrapWorkProjectIfNeeded(_ project: PiProject) async {
+        guard !bootstrappedWorkProjectPaths.contains(project.path) else { return }
+        bootstrappedWorkProjectPaths.insert(project.path)
+        do {
+            try await sessionStore.bootstrap(
+                cwd: project.path,
+                sessionDirectory: nil,
+                profile: .work
+            )
+            agentError = nil
+        } catch {
+            bootstrappedWorkProjectPaths.remove(project.path)
+            agentError = String(describing: error)
+        }
+    }
+
+    private func selectWorkProject(_ project: PiProject) {
+        selectedTab = .work
+        selectedCustomDestination = nil
+        workSession.selectProject(project)
+        Task { await openPreferredWorkSession(for: project) }
+    }
+
+    private func openPreferredWorkSession(for project: PiProject) async {
+        await bootstrapWorkProjectIfNeeded(project)
+        do {
+            let sessions = sessionStore.workSessionsByProjectPath[project.path] ?? []
+            if let selectedId = sessionStore.selectedWorkSessionIdByProjectPath[project.path],
+               let selected = sessions.first(where: { $0.id == selectedId }) {
+                try await sessionStore.openSession(
+                    selected,
+                    profile: .work,
+                    sessionDirectory: nil
+                )
+            } else if let recent = sessions.first {
+                try await sessionStore.openSession(
+                    recent,
+                    profile: .work,
+                    sessionDirectory: nil
+                )
+            } else {
+                _ = try await sessionStore.createDraft(
+                    cwd: project.path,
+                    sessionDirectory: nil,
+                    profile: .work
+                )
+            }
+            agentError = nil
+        } catch {
+            agentError = String(describing: error)
+        }
+    }
+
+    private func createWorkSession(for project: PiProject) async {
+        await bootstrapWorkProjectIfNeeded(project)
+        do {
+            _ = try await sessionStore.createDraft(
+                cwd: project.path,
+                sessionDirectory: nil,
+                profile: .work
+            )
+            agentError = nil
+        } catch {
+            agentError = String(describing: error)
+        }
+    }
+
+    private func openWorkSession(
+        _ project: PiProject,
+        _ session: AgentHostSessionSummary
+    ) {
+        selectedTab = .work
+        selectedCustomDestination = nil
+        workSession.selectSession(session.id, in: project)
+        Task {
+            do {
+                try await sessionStore.openSession(
+                    session,
+                    profile: .work,
+                    sessionDirectory: nil
+                )
+                agentError = nil
+            } catch {
+                agentError = String(describing: error)
+            }
+        }
+    }
+
+    private func deleteChatSession(_ session: AgentHostSessionSummary) {
+        Task {
+            do {
+                try await sessionStore.deleteSession(
+                    session,
+                    profile: .chat,
+                    sessionDirectory: nil
+                )
+                agentError = nil
+            } catch {
+                agentError = String(describing: error)
+            }
+        }
+    }
+
+    private func deleteWorkSession(
+        _ project: PiProject,
+        _ session: AgentHostSessionSummary
+    ) {
+        guard project.path == session.cwd else { return }
+        Task {
+            do {
+                try await sessionStore.deleteSession(
+                    session,
+                    profile: .work,
+                    sessionDirectory: nil
+                )
+                agentError = nil
+            } catch {
+                agentError = String(describing: error)
+            }
+        }
+    }
+
+    private func deleteWorkProject(_ project: PiProject) {
+        Task {
+            do {
+                try await sessionStore.deleteWorkSessions(
+                    cwd: project.path,
+                    sessionDirectory: nil
+                )
+                if workSession.selectedProject?.id == project.id {
+                    workSession.startNewSession()
+                }
+                bootstrappedWorkProjectPaths.remove(project.path)
+                projectStore.removeProject(project)
+                agentError = nil
+            } catch {
+                agentError = String(describing: error)
+            }
+        }
+    }
+
+    private func prepareChatWorkingDirectory() throws -> URL {
+        let directory = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("pi-work/Chat", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return directory
     }
 
     private func pickFolder() {
@@ -59,12 +390,19 @@ struct ContentView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "选择项目文件夹"
+        panel.prompt = L10n.string("sidebar.add_mac_folder")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         projectStore.addProject(path: url.path)
-        selectedProject = projectStore.projects.first { $0.path == url.path }
+        guard let project = projectStore.projects.first(where: { $0.path == url.path }) else { return }
+        startNewSession(for: project)
     }
+}
+
+private struct SessionIdentity: Hashable {
+    let mode: SidebarTab
+    let sessionID: String
+    let projectID: UUID?
 }
 
 /// Geometry + surface colors for the floating sidebar panel, kept in one
@@ -151,29 +489,7 @@ private struct SidebarToggleButton: View {
                         .shadow(color: AppPalette.subtleShadow, radius: 3, y: 1)
                 )
         }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Small "BETA" pill shown in the top-right corner, matching the reference
-/// design. Shares the tab header badge's type so the two never drift apart.
-/// Purely decorative for now.
-private struct BetaBadge: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            Text("BETA")
-                .font(.system(size: 9, weight: .medium))
-                .kerning(0.4)
-                .foregroundStyle(Color.primary.opacity(0.5))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(AppPalette.translucentSurface))
-
-            Rectangle()
-                .fill(Color.primary.opacity(0.12))
-                .frame(width: 2, height: 22)
-                .clipShape(Capsule())
-        }
+        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 10))
     }
 }
 
@@ -189,5 +505,19 @@ struct AppBackgroundGradient: View {
 }
 
 #Preview {
-    ContentView()
+    let service = AgentHostService(
+        executableURL: URL(fileURLWithPath: "/usr/bin/false"),
+        requiredCapabilities: []
+    )
+    let sessionStore = SessionStore(service: service)
+    let scheduleStore = ScheduleStore()
+    ContentView(
+        sessionStore: sessionStore,
+        installedExtensionsStore: InstalledExtensionsStore(service: service),
+        scheduleStore: scheduleStore,
+        scheduleRunner: ScheduleRunner(
+            store: scheduleStore,
+            executor: ScheduleAgentExecutor(sessionClient: sessionStore)
+        )
+    )
 }
