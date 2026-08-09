@@ -45,6 +45,7 @@ GRID = [
     [1, 0, 0, 1],
 ]
 N = 4
+DOT_VERTICAL_OFFSET_CELLS = -0.14
 
 BLUE = np.array([10, 132, 255])       # Apple systemBlue, matches brand hue
 BLUE_HILITE = np.array([120, 190, 255])
@@ -167,7 +168,7 @@ def main():
     # --- 5. blue dot above the i-stem (grid col 3, row 1) ---
     dot_col, dot_row = 3, 1
     dot_cx = origin + (dot_col + 0.5) * cell
-    dot_cy = origin + (dot_row + 0.5) * cell
+    dot_cy = origin + (dot_row + 0.5 + DOT_VERTICAL_OFFSET_CELLS) * cell
     dot_r = cell * 0.44
 
     yyc = yy - dot_cy
@@ -193,7 +194,7 @@ def main():
     canvas[dot_mask, 3] = 255
 
     out = np.clip(canvas, 0, 255).astype(np.uint8)
-    img = Image.fromarray(out, mode="RGBA")
+    img = Image.fromarray(out)
 
     os.makedirs(APPICONSET_DIR, exist_ok=True)
     for filename, size in ICON_SIZES.items():
