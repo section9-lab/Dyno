@@ -1,0 +1,82 @@
+import unittest
+from pathlib import Path
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_PATH = REPOSITORY_ROOT / ".github/workflows/release-macos.yml"
+PROJECT_PATH = REPOSITORY_ROOT / "project.yml"
+AGENT_HOST_LOCK_PATH = REPOSITORY_ROOT / "AgentHost/bun.lock"
+AGENT_HOST_PACKAGE_PATH = REPOSITORY_ROOT / "AgentHost/package.json"
+
+
+class ReleaseWorkflowTests(unittest.TestCase):
+    def workflow_text(self):
+        self.assertTrue(
+            WORKFLOW_PATH.is_file(),
+            "The tag-triggered macOS release workflow must exist.",
+        )
+        return WORKFLOW_PATH.read_text()
+
+    def test_version_tag_triggers_release(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("tags:", workflow)
+        self.assertIn('"v*"', workflow)
+        self.assertIn("GITHUB_REF_NAME", workflow)
+        self.assertIn("PROJECT_VERSION", workflow)
+
+    def test_release_builds_native_arm64_and_x86_64_packages(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("macos-15", workflow)
+        self.assertIn("macos-15-intel", workflow)
+        self.assertIn("arch: arm64", workflow)
+        self.assertIn("arch: x86_64", workflow)
+
+    def test_release_signs_and_notarizes_each_dmg(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("codesign", workflow)
+        self.assertIn("notarytool submit", workflow)
+        self.assertIn("stapler staple", workflow)
+        self.assertIn("stapler validate", workflow)
+
+    def test_release_publishes_both_dmg_artifacts(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("contents: write", workflow)
+        self.assertIn("actions/upload-artifact", workflow)
+        self.assertIn("actions/download-artifact", workflow)
+        self.assertIn("gh release create", workflow)
+
+    def test_nested_executables_use_notarizable_signatures(self):
+        project = PROJECT_PATH.read_text()
+        hardened_signing_lines = [
+            line
+            for line in project.splitlines()
+            if "/usr/bin/codesign" in line and "--options runtime" in line
+        ]
+
+        self.assertEqual(2, len(hardened_signing_lines))
+        for line in hardened_signing_lines:
+            self.assertIn("--timestamp", line)
+            self.assertIn("--preserve-metadata=entitlements", line)
+
+    def test_agent_host_lockfile_is_usable_without_private_registry_credentials(self):
+        lockfile = AGENT_HOST_LOCK_PATH.read_text()
+
+        self.assertFalse(
+            ".codeartifact." in lockfile,
+            "The Agent Host lockfile must use a registry available to clean CI runners.",
+        )
+
+    def test_compiled_agent_host_does_not_autoload_project_bunfig(self):
+        project = PROJECT_PATH.read_text()
+        package = AGENT_HOST_PACKAGE_PATH.read_text()
+
+        self.assertIn("--no-compile-autoload-bunfig", project)
+        self.assertEqual(2, package.count("--no-compile-autoload-bunfig"))
+
+
+if __name__ == "__main__":
+    unittest.main()
