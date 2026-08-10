@@ -244,6 +244,7 @@ struct AgentHostAuthPromptPayload: Decodable, Equatable {
     let message: String
     let placeholder: String?
     let options: [AgentHostAuthPromptOption]?
+    let allowsEmpty: Bool?
 }
 
 enum AgentHostAuthMethod: String, Codable, Equatable, CaseIterable, Identifiable {

@@ -9,22 +9,23 @@ final class ProviderIconCatalogTests: XCTestCase {
             "anthropic": "ModelIconClaude",
             "cc-anthropic": "ModelIconClaude",
             "azure-openai-responses": "ModelIconAzureAI",
+            "baseten": "ModelIconBaseten",
             "cerebras": "ModelIconCerebras",
             "cloudflare-ai-gateway": "ModelIconCloudflare",
             "cloudflare-workers-ai": "ModelIconCloudflare",
             "deepseek": "ModelIconDeepSeek",
             "fireworks": "ModelIconFireworks",
-            "github-copilot": "ModelIconCopilot",
+            "github-copilot": "ModelIconGitHubCopilot",
             "google": "ModelIconGoogle",
             "google-vertex": "ModelIconVertexAI",
             "groq": "ModelIconGroq",
             "huggingface": "ModelIconHuggingFace",
-            "kimi-coding": "ModelIconKimi",
+            "kimi-coding": "ModelIconKimiAvatar",
             "minimax": "ModelIconMiniMax",
             "minimax-cn": "ModelIconMiniMax",
             "mistral": "ModelIconMistral",
-            "moonshotai": "ModelIconKimi",
-            "moonshotai-cn": "ModelIconKimi",
+            "moonshotai": "ModelIconKimiAvatar",
+            "moonshotai-cn": "ModelIconKimiAvatar",
             "nvidia": "ModelIconNVIDIA",
             "openai": "ModelIconOpenAI",
             "openai-codex": "ModelIconOpenAI",
@@ -34,6 +35,8 @@ final class ProviderIconCatalogTests: XCTestCase {
             "openrouter": "ModelIconOpenRouter",
             "qwen-token-plan": "ModelIconQwen",
             "qwen-token-plan-cn": "ModelIconQwen",
+            "qwen-token-plan-individual": "ModelIconQwen",
+            "radius": "ModelIconPi",
             "together": "ModelIconTogether",
             "vercel-ai-gateway": "ModelIconVercel",
             "xai": "ModelIconXAI",
@@ -56,17 +59,17 @@ final class ProviderIconCatalogTests: XCTestCase {
 
     func testUnknownProviderKeepsFallbackInsteadOfClaimingAnotherBrand() {
         XCTAssertNil(ProviderIconCatalog.assetName(for: "my-private-provider"))
-        XCTAssertNil(ProviderIconCatalog.assetName(for: "radius"))
     }
 
     func testEveryMappedAssetExists() throws {
         let root = repositoryRoot()
         let assetNames = Set([
-            "amazon-bedrock", "ant-ling", "anthropic", "azure-openai-responses",
+            "amazon-bedrock", "ant-ling", "anthropic", "azure-openai-responses", "baseten",
             "cerebras", "cloudflare-ai-gateway", "deepseek", "fireworks",
             "github-copilot", "google", "google-vertex", "groq", "huggingface",
             "kimi-coding", "minimax", "mistral", "nvidia", "openai", "opencode",
-            "openrouter", "qwen-token-plan", "together", "vercel-ai-gateway",
+            "openrouter", "qwen-token-plan", "qwen-token-plan-individual", "radius",
+            "together", "vercel-ai-gateway",
             "xai", "xiaomi", "zai",
         ].compactMap(ProviderIconCatalog.assetName(for:)))
 
@@ -100,6 +103,65 @@ final class ProviderIconCatalogTests: XCTestCase {
         }
     }
 
+    func testGitHubCopilotUsesLobeHubGitHubCopilotSource() throws {
+        XCTAssertEqual(
+            ProviderIconCatalog.assetName(for: "github-copilot"),
+            "ModelIconGitHubCopilot"
+        )
+        let svg = try svgSource(
+            assetName: "ModelIconGitHubCopilot",
+            filename: "githubcopilot.svg"
+        )
+        XCTAssertTrue(svg.contains("<title>GithubCopilot</title>"))
+        XCTAssertFalse(svg.contains("<title>Copilot</title>"))
+    }
+
+    func testBasetenUsesLobeHubAvatarVariant() throws {
+        XCTAssertEqual(ProviderIconCatalog.assetName(for: "baseten"), "ModelIconBaseten")
+        let svg = try svgSource(assetName: "ModelIconBaseten", filename: "baseten-avatar.svg")
+        XCTAssertTrue(svg.contains("fill=\"#19E76E\""))
+        XCTAssertTrue(svg.contains("scale(.65)"))
+    }
+
+    func testKimiUsesLobeHubAvatarVariant() throws {
+        XCTAssertEqual(
+            ProviderIconCatalog.assetName(for: "kimi-coding"),
+            "ModelIconKimiAvatar"
+        )
+        let svg = try svgSource(assetName: "ModelIconKimiAvatar", filename: "kimi-avatar.svg")
+        XCTAssertTrue(svg.contains("fill=\"#000\""))
+        XCTAssertTrue(svg.contains("scale(.6)"))
+    }
+
+    func testOpenRouterUsesLobeHubMonoSource() throws {
+        let svg = try svgSource(assetName: "ModelIconOpenRouter", filename: "openrouter.svg")
+        XCTAssertTrue(svg.contains("fill=\"currentColor\""))
+    }
+
+    func testRadiusUsesPiOfficialBadgeSource() throws {
+        let assetName = ProviderIconCatalog.assetName(for: "radius")
+        XCTAssertEqual(assetName, "ModelIconPi")
+        guard assetName == "ModelIconPi" else { return }
+
+        let imageSet = repositoryRoot()
+            .appendingPathComponent("PiWork/Resources/Assets.xcassets/ModelIconPi.imageset")
+        let contents = try String(
+            contentsOf: imageSet.appendingPathComponent("Contents.json"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(contents.contains("\"filename\" : \"pi.svg\""))
+        XCTAssertTrue(contents.contains("\"filename\" : \"pi-dark.svg\""))
+
+        for filename in ["pi.svg", "pi-dark.svg"] {
+            let svg = try String(
+                contentsOf: imageSet.appendingPathComponent(filename),
+                encoding: .utf8
+            )
+            XCTAssertTrue(svg.contains("<title>Pi</title>"))
+            XCTAssertTrue(svg.contains("M165.29 165.29"))
+        }
+    }
+
     func testAuthenticationRowRequestsOriginalRenderingAndRetainsInitialFallback() throws {
         let sourceURL = repositoryRoot()
             .appendingPathComponent("PiWork/Features/Auth/Views/ModelProviderSettingsView.swift")
@@ -127,5 +189,20 @@ final class ProviderIconCatalogTests: XCTestCase {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+    }
+
+    private func svgSource(assetName: String, filename: String) throws -> String {
+        let imageSet = repositoryRoot()
+            .appendingPathComponent("PiWork/Resources/Assets.xcassets")
+            .appendingPathComponent("\(assetName).imageset")
+        let contents = try String(
+            contentsOf: imageSet.appendingPathComponent("Contents.json"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(contents.contains("\"filename\" : \"\(filename)\""))
+        return try String(
+            contentsOf: imageSet.appendingPathComponent(filename),
+            encoding: .utf8
+        )
     }
 }

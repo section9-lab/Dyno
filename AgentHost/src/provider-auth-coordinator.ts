@@ -16,6 +16,7 @@ export type ProviderAuthCoordinatorEvent =
         type: AuthPrompt["type"];
         message: string;
         placeholder?: string;
+        allowsEmpty?: boolean;
         options?: readonly { id: string; label: string; description?: string }[];
       };
     }
@@ -58,6 +59,12 @@ export type ProviderAuthCoordinatorEvent =
 type AuthRuntime = {
   login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<unknown>;
   logout(providerId: string): Promise<void>;
+  refresh?(options: {
+    allowNetwork: boolean;
+    force: boolean;
+    providers: readonly string[];
+    signal: AbortSignal;
+  }): Promise<{ errors?: ReadonlyMap<string, Error> }>;
 };
 
 type ActivePrompt = {
@@ -175,6 +182,7 @@ export class ProviderAuthCoordinator {
 
     try {
       await this.runtime.login(flow.providerId, flow.method, interaction);
+      await this.refreshDynamicCatalog(flow);
       this.emit({
         event: "models.changed",
         payload: { reason: "authentication", providerId: flow.providerId },
@@ -184,10 +192,7 @@ export class ProviderAuthCoordinator {
       if (flow.controller.signal.aborted || isAbortError(error)) {
         this.emitFinished(flow, "cancelled");
       } else {
-        this.emitFinished(flow, "failed", {
-          code: "login_failed",
-          message: "Authentication could not be completed",
-        });
+        this.emitFinished(flow, "failed", authenticationError(error));
       }
     } finally {
       this.rejectPendingPrompt(flow, abortError());
@@ -240,11 +245,46 @@ export class ProviderAuthCoordinator {
           ...(prompt.type !== "select" && prompt.placeholder
             ? { placeholder: prompt.placeholder }
             : {}),
+          ...(allowsEmptyResponse(flow.providerId, prompt)
+            ? { allowsEmpty: true }
+            : {}),
           ...(prompt.type === "select" ? { options: prompt.options } : {}),
         },
       });
 
       if (signals.some((signal) => signal.aborted)) onAbort();
+    });
+  }
+
+  private async refreshDynamicCatalog(flow: ActiveFlow): Promise<void> {
+    if (flow.providerId !== "radius" || !this.runtime.refresh) return;
+    try {
+      const result = await this.runtime.refresh({
+        allowNetwork: true,
+        force: true,
+        providers: [flow.providerId],
+        signal: flow.controller.signal,
+      });
+      flow.controller.signal.throwIfAborted();
+      if (result.errors?.has(flow.providerId)) this.emitCatalogRefreshWarning(flow);
+    } catch {
+      flow.controller.signal.throwIfAborted();
+      this.emitCatalogRefreshWarning(flow);
+    }
+  }
+
+  private emitCatalogRefreshWarning(flow: ActiveFlow): void {
+    this.emit({
+      event: "auth.notice",
+      payload: {
+        flowId: flow.id,
+        providerId: flow.providerId,
+        sequence: ++flow.sequence,
+        notice: {
+          type: "info",
+          message: "Credentials were saved, but the Radius model catalog could not be refreshed.",
+        },
+      },
     });
   }
 
@@ -280,4 +320,51 @@ function abortError(): Error {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function allowsEmptyResponse(providerId: string, prompt: AuthPrompt): boolean {
+  if (prompt.type !== "text") return false;
+  if (providerId === "github-copilot") {
+    return prompt.message.toLowerCase().includes("blank for github.com");
+  }
+  return providerId === "amazon-bedrock"
+    && prompt.message.toLowerCase().includes("press enter");
+}
+
+function authenticationError(error: unknown): { code: string; message: string } {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (/expired|device (?:code|authorization|flow).*(?:timeout|timed out)/u.test(message)) {
+    return {
+      code: "auth_expired",
+      message: "The authentication request expired. Start again to get a new code.",
+    };
+  }
+  if (/fetch|network|econn|enotfound|eai_again|socket|timed?\s*out|timeout/u.test(message)) {
+    return {
+      code: "auth_network_failed",
+      message: "Could not reach the authentication service. Check your connection and try again.",
+    };
+  }
+  if (/invalid.*(?:url|domain|host)|base url.*required|configuration|missing|required/u.test(message)) {
+    return {
+      code: "auth_invalid_configuration",
+      message: "The authentication settings are incomplete or invalid. Review them and try again.",
+    };
+  }
+  if (/access.denied|\bdenied\b|unauthorized|forbidden|invalid_grant|invalid.*(?:token|code|credential)|\b40[13]\b/u.test(message)) {
+    return {
+      code: "auth_rejected",
+      message: "The authentication service rejected these credentials. Review them and try again.",
+    };
+  }
+  if (/eaddrinuse|callback.*(?:failed|error)|listen.*(?:failed|error)/u.test(message)) {
+    return {
+      code: "auth_callback_failed",
+      message: "The browser callback could not be received. Try again or use the manual-code option.",
+    };
+  }
+  return {
+    code: "login_failed",
+    message: "Authentication could not be completed. Check your connection or credentials, then try again.",
+  };
 }

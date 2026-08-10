@@ -11,6 +11,8 @@ enum ProviderIconCatalog {
             return "ModelIconClaude"
         case "azure-openai-responses":
             return "ModelIconAzureAI"
+        case "baseten":
+            return "ModelIconBaseten"
         case "cerebras":
             return "ModelIconCerebras"
         case "cloudflare-ai-gateway", "cloudflare-workers-ai":
@@ -20,7 +22,7 @@ enum ProviderIconCatalog {
         case "fireworks":
             return "ModelIconFireworks"
         case "github-copilot":
-            return "ModelIconCopilot"
+            return "ModelIconGitHubCopilot"
         case "google":
             return "ModelIconGoogle"
         case "google-vertex":
@@ -30,7 +32,7 @@ enum ProviderIconCatalog {
         case "huggingface":
             return "ModelIconHuggingFace"
         case "kimi-coding", "moonshotai", "moonshotai-cn":
-            return "ModelIconKimi"
+            return "ModelIconKimiAvatar"
         case "minimax", "minimax-cn":
             return "ModelIconMiniMax"
         case "mistral":
@@ -43,8 +45,10 @@ enum ProviderIconCatalog {
             return "ModelIconOpenCode"
         case "openrouter":
             return "ModelIconOpenRouter"
-        case "qwen-token-plan", "qwen-token-plan-cn":
+        case "qwen-token-plan", "qwen-token-plan-cn", "qwen-token-plan-individual":
             return "ModelIconQwen"
+        case "radius":
+            return "ModelIconPi"
         case "together":
             return "ModelIconTogether"
         case "vercel-ai-gateway":

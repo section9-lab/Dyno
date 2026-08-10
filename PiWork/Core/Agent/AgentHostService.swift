@@ -118,6 +118,7 @@ protocol AgentHostServicing: Actor {
 
 protocol ProviderAuthServicing: Actor {
     func events() -> AsyncStream<AgentHostServerEvent>
+    func lifecycleEvents() -> AsyncStream<AgentHostServiceLifecycleEvent>
     func listProviders(requestID: String) async throws -> [AgentHostProvider]
     func startAuthentication(
         flowId: String,

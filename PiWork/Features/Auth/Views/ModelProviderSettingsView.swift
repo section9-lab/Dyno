@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AppSettingsView: View {
     @ObservedObject var agentSettingsStore: AgentSettingsStore
@@ -614,6 +615,7 @@ struct ModelProviderSettingsView: View {
                 Text(L10n.string("providers.subtitle"))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -700,13 +702,16 @@ private struct ProviderSettingsRow: View {
 
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(provider.status.configured ? Color.green : Color.secondary.opacity(0.45))
+                        .fill(statusColor)
                         .frame(width: 6, height: 6)
                     Text(statusText)
+                    if provider.authenticationState == .credentialsSaved {
+                        Text("·")
+                        Text(L10n.string("providers.status.not_verified"))
+                    }
                     Text("·")
                     Text(L10n.format(
-                        "providers.models_available",
-                        provider.models.available,
+                        "providers.models_supported",
                         provider.models.total
                     ))
                 }
@@ -716,7 +721,9 @@ private struct ProviderSettingsRow: View {
 
             Spacer(minLength: 16)
 
-            if provider.status.canDisconnect {
+            if !provider.methods.isEmpty {
+                authenticationControl
+            } else if provider.status.canDisconnect {
                 Button(L10n.string("common.disconnect"), role: .destructive, action: onDisconnect)
                     .buttonStyle(.bordered)
             } else if provider.status.configured {
@@ -724,8 +731,6 @@ private struct ProviderSettingsRow: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .help(L10n.string("providers.external_help"))
-            } else if !provider.methods.isEmpty {
-                authenticationControl
             } else {
                 Text(L10n.string("providers.requires_environment"))
                     .font(.system(size: 11))
@@ -768,34 +773,74 @@ private struct ProviderSettingsRow: View {
 
     @ViewBuilder
     private var authenticationControl: some View {
-        if provider.methods.count == 1, let method = provider.methods.first {
+        if provider.status.configured {
+            Menu {
+                authenticationMethodButtons
+                if provider.status.canDisconnect {
+                    Divider()
+                    Button(L10n.string("common.disconnect"), role: .destructive, action: onDisconnect)
+                }
+            } label: {
+                Text(L10n.string("providers.manage"))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        } else if provider.methods.count == 1, let method = provider.methods.first {
             Button(method.loginLabel ?? method.name) {
                 onAuthenticate(method.type)
             }
             .buttonStyle(.bordered)
         } else {
-            Menu(L10n.string("common.connect")) {
-                ForEach(provider.methods) { method in
-                    Button(method.loginLabel ?? method.name) {
-                        onAuthenticate(method.type)
-                    }
-                }
+            Menu {
+                authenticationMethodButtons
+            } label: {
+                Text(L10n.string("auth.method.choose"))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
         }
     }
 
+    @ViewBuilder
+    private var authenticationMethodButtons: some View {
+        ForEach(provider.methods) { method in
+            Button {
+                onAuthenticate(method.type)
+            } label: {
+                Label(
+                    method.loginLabel ?? method.name,
+                    systemImage: method.type == .oauth ? "safari" : "key"
+                )
+            }
+        }
+    }
+
     private var statusText: String {
-        guard provider.status.configured else { return L10n.string("providers.status.not_connected") }
-        if let label = provider.status.label { return label }
-        switch provider.status.source {
-        case .stored: return L10n.string("providers.status.connected")
-        case .runtime: return L10n.string("providers.status.runtime")
-        case .environment: return L10n.string("providers.status.environment")
-        case .fallback: return L10n.string("providers.status.fallback")
-        case .modelsJSONKey, .modelsJSONCommand: return "models.json"
-        case nil: return L10n.string("providers.status.configured")
+        switch provider.authenticationState {
+        case .notConfigured:
+            return L10n.string("providers.status.not_connected")
+        case .signedIn:
+            return L10n.string("providers.status.signed_in")
+        case .credentialsSaved:
+            return L10n.string("providers.status.credentials_saved")
+        case .externalCredentials:
+            if let label = provider.status.label { return label }
+            switch provider.status.source {
+            case .runtime: return L10n.string("providers.status.runtime")
+            case .environment: return L10n.string("providers.status.environment")
+            case .fallback: return L10n.string("providers.status.fallback")
+            case .modelsJSONKey, .modelsJSONCommand: return "models.json"
+            case .stored, nil: return L10n.string("providers.status.configured")
+            }
+        }
+    }
+
+    private var statusColor: Color {
+        switch provider.authenticationState {
+        case .signedIn: return .green
+        case .credentialsSaved: return Color.accentColor
+        case .externalCredentials: return .secondary
+        case .notConfigured: return Color.secondary.opacity(0.45)
         }
     }
 }
@@ -803,7 +848,12 @@ private struct ProviderSettingsRow: View {
 private struct ProviderAuthenticationView: View {
     @ObservedObject var store: ProviderAuthStore
     @State private var responseValue = ""
-    @State private var openedAuthorizationURL: String?
+    @State private var openedExternalURLs: Set<String> = []
+    @State private var copiedDeviceCode: String?
+    @State private var externalActionError: String?
+    @State private var showsGitHubEnterprise = false
+    @State private var deviceCodeReceivedAt = Date()
+    @FocusState private var inputFocused: Bool
 
     private var flow: ProviderAuthFlowState? { store.flow }
 
@@ -842,20 +892,35 @@ private struct ProviderAuthenticationView: View {
             footer
                 .padding(16)
         }
-        .frame(width: 520, height: 440)
+        .frame(width: 520, height: 500)
         .background(AppPalette.windowGradient)
         .interactiveDismissDisabled(flow?.phase.isTerminal == false)
-        .onAppear { openAuthorizationURLIfNeeded() }
+        .onAppear {
+            openAuthorizationURLIfNeeded()
+            openDeviceVerificationURLIfNeeded()
+        }
         .onChange(of: flow?.authorizationURL) { _ in openAuthorizationURLIfNeeded() }
-        .onChange(of: flow?.prompt?.promptId) { _ in responseValue = "" }
+        .onChange(of: flow?.deviceCode?.verificationURI) { _ in openDeviceVerificationURLIfNeeded() }
+        .onChange(of: flow?.deviceCode?.userCode) { _ in
+            copiedDeviceCode = nil
+            deviceCodeReceivedAt = Date()
+        }
+        .onChange(of: flow?.prompt?.promptId) { _ in
+            responseValue = ""
+            showsGitHubEnterprise = false
+            inputFocused = flow?.prompt?.type != .select
+        }
     }
 
     @ViewBuilder
     private func authenticationContent(_ flow: ProviderAuthFlowState) -> some View {
-        if let url = flow.authorizationURL {
+        if !flow.phase.isTerminal, let url = flow.authorizationURL {
             instructionCard(icon: "safari", title: L10n.string("auth.browser.title")) {
-                if let instructions = flow.authorizationInstructions {
-                    Text(instructions)
+                Text(L10n.string("auth.browser.help"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                if flow.authorizationInstructions != nil {
+                    Text(L10n.string("auth.browser.manual_help"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -869,21 +934,69 @@ private struct ProviderAuthenticationView: View {
             }
         }
 
-        if let code = flow.deviceCode {
+        if !flow.phase.isTerminal, let code = flow.deviceCode {
             instructionCard(icon: "number.square", title: L10n.string("auth.device.title")) {
+                Text(L10n.string("auth.device.help"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
                 Text(code.userCode)
                     .font(.system(size: 23, weight: .semibold, design: .monospaced))
                     .textSelection(.enabled)
+                Text(code.verificationURI)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.accentColor)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                deviceCodeExpiry(code)
                 HStack {
-                    Button(L10n.string("auth.device.copy")) { copy(code.userCode) }
+                    Button {
+                        copy(code.userCode)
+                        copiedDeviceCode = code.userCode
+                    } label: {
+                        Label(
+                            L10n.string(copiedDeviceCode == code.userCode
+                                ? "auth.device.copied"
+                                : "auth.device.copy"),
+                            systemImage: copiedDeviceCode == code.userCode
+                                ? "checkmark"
+                                : "doc.on.doc"
+                        )
+                    }
                     Button(L10n.string("auth.device.open")) { open(code.verificationURI) }
                 }
                 .buttonStyle(.bordered)
             }
         }
 
+        if flow.method == .apiKey, !flow.phase.isTerminal {
+            instructionCard(icon: "key", title: L10n.string("auth.credentials.title")) {
+                Text(L10n.string("auth.credentials.help"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                if let helpURL = ProviderAuthenticationGuide.credentialHelpURL(for: flow.providerId) {
+                    Button(L10n.string("auth.credentials.open_help")) {
+                        open(helpURL.absoluteString)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Label(L10n.string("auth.credentials.storage"), systemImage: "lock.shield")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if !flow.phase.isTerminal, let externalActionError {
+            statusCard(icon: "exclamationmark.triangle.fill", color: .orange, text: externalActionError)
+        }
+
         ForEach(Array(flow.information.enumerated()), id: \.offset) { _, message in
-            Label(message, systemImage: "info.circle")
+            Label(
+                ProviderAuthenticationPresentation.informationText(
+                    message,
+                    providerID: flow.providerId
+                ),
+                systemImage: "info.circle"
+            )
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
@@ -899,7 +1012,7 @@ private struct ProviderAuthenticationView: View {
             HStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
-                Text(progress)
+                Text(ProviderAuthenticationPresentation.progressText(progress))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -920,52 +1033,99 @@ private struct ProviderAuthenticationView: View {
 
     @ViewBuilder
     private func promptView(_ prompt: AgentHostAuthPromptPayload) -> some View {
+        let promptTitle = ProviderAuthenticationPresentation.promptTitle(
+            providerName: flow?.providerName ?? prompt.providerId,
+            prompt: prompt
+        )
         VStack(alignment: .leading, spacing: 10) {
-            Text(prompt.message)
-                .font(.system(size: 13, weight: .medium))
-
-            if prompt.type == .select {
-                ForEach(prompt.options ?? []) { option in
-                    Button {
-                        submit(option.id)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(option.label)
-                                if let description = option.description {
-                                    Text(description)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.tertiary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                    }
-                    .buttonStyle(RoundedInteractionButtonStyle(
-                        cornerRadius: 9,
-                        baseFill: Color.primary.opacity(0.045)
-                    ))
-                }
+            if isGitHubCopilotHostPrompt(prompt) {
+                githubCopilotHostPrompt(prompt)
             } else {
-                HStack(spacing: 8) {
-                    Group {
-                        if prompt.type == .secret {
-                            SecureField(prompt.placeholder ?? L10n.string("auth.input_placeholder"), text: $responseValue)
-                        } else {
-                            TextField(prompt.placeholder ?? L10n.string("auth.input_placeholder"), text: $responseValue)
-                        }
-                    }
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { submitInput(prompt: prompt) }
+                Text(promptTitle)
+                    .font(.system(size: 13, weight: .medium))
 
-                    Button(L10n.string("common.continue")) { submitInput(prompt: prompt) }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(responseValue.isEmpty)
+                if prompt.type == .select {
+                    ForEach(prompt.options ?? []) { option in
+                        Button {
+                            submit(option.id)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(ProviderAuthenticationPresentation.optionTitle(
+                                        id: option.id,
+                                        fallback: option.label
+                                    ))
+                                    if let description = option.description {
+                                        Text(description)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                        }
+                        .buttonStyle(RoundedInteractionButtonStyle(
+                            cornerRadius: 9,
+                            baseFill: Color.primary.opacity(0.045)
+                        ))
+                        .disabled(flow?.isSubmitting == true)
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        Group {
+                            if prompt.type == .secret {
+                                SecureField(
+                                    ProviderAuthenticationPresentation.inputPlaceholder(prompt: prompt),
+                                    text: $responseValue
+                                )
+                            } else {
+                                TextField(
+                                    ProviderAuthenticationPresentation.inputPlaceholder(prompt: prompt),
+                                    text: $responseValue
+                                )
+                            }
+                        }
+                        .textFieldStyle(.roundedBorder)
+                        .focused($inputFocused)
+                        .accessibilityLabel(promptTitle)
+                        .onSubmit { submitInput(prompt: prompt) }
+
+                        if isCredentialsFilePrompt(prompt) {
+                            Button(L10n.string("auth.choose_file")) {
+                                chooseCredentialsFile()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        Button {
+                            submitInput(prompt: prompt)
+                        } label: {
+                            if flow?.isSubmitting == true {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text(L10n.string("common.continue"))
+                            }
+                        }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(
+                                (responseValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    && prompt.allowsEmpty != true)
+                                    || flow?.isSubmitting == true
+                            )
+                    }
                 }
+            }
+
+            if let responseError = flow?.responseErrorMessage {
+                Label(responseError, systemImage: "exclamationmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(responseError)
             }
         }
         .padding(14)
@@ -976,17 +1136,80 @@ private struct ProviderAuthenticationView: View {
     }
 
     @ViewBuilder
+    private func githubCopilotHostPrompt(_ prompt: AgentHostAuthPromptPayload) -> some View {
+        Text(L10n.string("auth.github.host.title"))
+            .font(.system(size: 13, weight: .semibold))
+        Text(L10n.string("auth.github.host.help"))
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+
+        Button {
+            submit("")
+        } label: {
+            Label(L10n.string("auth.github.host.github_com"), systemImage: "globe")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(flow?.isSubmitting == true)
+
+        DisclosureGroup(
+            L10n.string("auth.github.host.enterprise"),
+            isExpanded: $showsGitHubEnterprise
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.string("auth.github.host.enterprise_help"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text(L10n.string("auth.github.host.enterprise_label"))
+                    .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 8) {
+                    TextField(
+                        L10n.string("auth.github.host.enterprise_placeholder"),
+                        text: $responseValue
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .focused($inputFocused)
+                    .accessibilityLabel(L10n.string("auth.github.host.enterprise_label"))
+                    .onSubmit { submitInput(prompt: prompt) }
+
+                    Button(L10n.string("auth.github.host.enterprise_continue")) {
+                        submitInput(prompt: prompt)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(
+                        responseValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || flow?.isSubmitting == true
+                    )
+                }
+            }
+            .padding(.top, 8)
+        }
+        .font(.system(size: 12, weight: .medium))
+    }
+
+    @ViewBuilder
     private func terminalView(_ flow: ProviderAuthFlowState) -> some View {
         switch flow.phase {
         case .succeeded:
-            statusCard(icon: "checkmark.circle.fill", color: .green, text: L10n.string("auth.success"))
+            statusCard(
+                icon: "checkmark.circle.fill",
+                color: .green,
+                text: flow.method == .oauth
+                    ? L10n.string("auth.success")
+                    : L10n.string("auth.credentials_saved")
+            )
         case .cancelled:
             statusCard(icon: "xmark.circle", color: .secondary, text: L10n.string("auth.cancelled"))
         case .failed:
+            let fallback = flow.errorMessage ?? L10n.string("auth.failed")
             statusCard(
                 icon: "exclamationmark.triangle.fill",
                 color: .orange,
-                text: flow.errorMessage ?? L10n.string("auth.failed")
+                text: ProviderAuthenticationPresentation.errorMessage(
+                    code: flow.errorCode,
+                    fallback: fallback
+                )
             )
         case .starting, .waitingForProvider, .waitingForUser, .cancelling:
             EmptyView()
@@ -996,7 +1219,12 @@ private struct ProviderAuthenticationView: View {
     private var footer: some View {
         HStack {
             Spacer()
-            if flow?.phase.isTerminal == true {
+            if flow?.phase == .failed {
+                Button(L10n.string("auth.retry")) { retryAuthentication() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                Button(L10n.string("common.done")) { store.clearFlow() }
+            } else if flow?.phase.isTerminal == true {
                 Button(L10n.string("common.done")) { store.clearFlow() }
                     .keyboardShortcut(.defaultAction)
             } else {
@@ -1004,6 +1232,7 @@ private struct ProviderAuthenticationView: View {
                     Task { await store.cancelAuthentication() }
                 }
                 .disabled(flow?.phase == .cancelling)
+                .keyboardShortcut(.cancelAction)
             }
         }
     }
@@ -1033,9 +1262,14 @@ private struct ProviderAuthenticationView: View {
     }
 
     private func statusCard(icon: String, color: Color, text: String) -> some View {
-        Label(text, systemImage: icon)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+            Text(text)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+        }
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(color)
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -1045,30 +1279,91 @@ private struct ProviderAuthenticationView: View {
     }
 
     private func submitInput(prompt: AgentHostAuthPromptPayload) {
-        guard !responseValue.isEmpty else { return }
-        submit(responseValue)
+        let value = responseValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty || prompt.allowsEmpty == true else { return }
+        submit(value)
     }
 
     private func submit(_ value: String) {
-        responseValue = ""
-        Task { await store.respond(value: value) }
+        Task {
+            if await store.respond(value: value) {
+                responseValue = ""
+            }
+        }
+    }
+
+    private func isGitHubCopilotHostPrompt(_ prompt: AgentHostAuthPromptPayload) -> Bool {
+        flow?.providerId == "github-copilot" && prompt.allowsEmpty == true
     }
 
     private func openAuthorizationURLIfNeeded() {
         guard let url = flow?.authorizationURL,
-              openedAuthorizationURL != url else { return }
-        openedAuthorizationURL = url
+              openedExternalURLs.insert(url).inserted else { return }
+        open(url)
+    }
+
+    private func openDeviceVerificationURLIfNeeded() {
+        guard let url = flow?.deviceCode?.verificationURI,
+              openedExternalURLs.insert(url).inserted else { return }
         open(url)
     }
 
     private func open(_ value: String) {
-        guard let url = URL(string: value),
-              url.scheme == "https" || url.scheme == "http" else { return }
-        NSWorkspace.shared.open(url)
+        guard let url = ProviderAuthenticationGuide.webURL(from: value) else {
+            externalActionError = L10n.string("auth.browser.open_failed")
+            return
+        }
+        externalActionError = NSWorkspace.shared.open(url)
+            ? nil
+            : L10n.string("auth.browser.open_failed")
     }
 
     private func copy(_ value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    @ViewBuilder
+    private func deviceCodeExpiry(_ code: ProviderAuthDeviceCode) -> some View {
+        if let expiresInSeconds = code.expiresInSeconds {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let elapsed = Int(context.date.timeIntervalSince(deviceCodeReceivedAt))
+                let remaining = max(0, expiresInSeconds - elapsed)
+                Text(remaining == 0
+                    ? L10n.string("auth.device.expired")
+                    : L10n.format("auth.device.expires_seconds", remaining))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func isCredentialsFilePrompt(_ prompt: AgentHostAuthPromptPayload) -> Bool {
+        prompt.providerId == "google-vertex"
+            && prompt.message.localizedCaseInsensitiveContains("file path")
+    }
+
+    private func chooseCredentialsFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() == .OK {
+            responseValue = panel.url?.path ?? responseValue
+            inputFocused = true
+        }
+    }
+
+    private func retryAuthentication() {
+        guard let flow,
+              let provider = store.providers.first(where: { $0.id == flow.providerId }) else { return }
+        responseValue = ""
+        openedExternalURLs.removeAll()
+        copiedDeviceCode = nil
+        externalActionError = nil
+        Task {
+            await store.beginAuthentication(provider: provider, method: flow.method)
+        }
     }
 }

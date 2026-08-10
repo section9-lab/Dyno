@@ -556,10 +556,22 @@ final class AgentHostProtocolTests: XCTestCase {
                             label: "Browser",
                             description: "Use the default browser"
                         )
-                    ]
+                    ],
+                    allowsEmpty: nil
                 )
             )
         )
+    }
+
+    func testAuthenticationPromptDecodesEmptyResponsePolicy() throws {
+        let data = Data(#"{"version":1,"kind":"event","event":"auth.prompt","payload":{"flowId":"flow-one","providerId":"github-copilot","sequence":1,"promptId":"prompt-one","type":"text","message":"Choose a GitHub host","allowsEmpty":true}}"#.utf8)
+
+        let event = try AgentHostServerEvent.decode(from: data)
+        guard case .authPrompt(let payload) = event else {
+            return XCTFail("Expected an authentication prompt")
+        }
+
+        XCTAssertEqual(payload.allowsEmpty, true)
     }
 
     func testDecodesProviderAuthenticationSnapshotsWithoutSecrets() throws {

@@ -102,6 +102,69 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
+    func testEveryLanguageExplainsTheCompleteAuthenticationJourney() throws {
+        let requiredKeys = Set([
+            "auth.method.choose",
+            "auth.browser.help",
+            "auth.browser.open_failed",
+            "auth.device.help",
+            "auth.device.copied",
+            "auth.device.expires_minutes",
+            "auth.credentials.title",
+            "auth.credentials.help",
+            "auth.credentials.open_help",
+            "auth.credentials.storage",
+            "auth.retry",
+            "auth.github.host.title",
+            "auth.github.host.help",
+            "auth.github.host.github_com",
+            "auth.github.host.enterprise",
+            "auth.github.host.enterprise_help",
+            "auth.github.host.enterprise_label",
+            "auth.github.host.enterprise_continue",
+            "auth.start_failed",
+            "auth.response_failed",
+            "auth.cancel_failed",
+            "auth.host_restarted",
+            "auth.credentials_saved",
+            "auth.prompt.api_key",
+            "auth.prompt.manual_code",
+            "auth.prompt.method",
+            "auth.prompt.azure.endpoint",
+            "auth.prompt.bedrock.method",
+            "auth.prompt.bedrock.profile",
+            "auth.prompt.bedrock.configured",
+            "auth.prompt.vertex.method",
+            "auth.prompt.vertex.credentials_file",
+            "auth.prompt.vertex.project",
+            "auth.prompt.vertex.location",
+            "auth.prompt.cloudflare.account",
+            "auth.prompt.cloudflare.gateway",
+            "auth.option.browser",
+            "auth.option.manual_code",
+            "auth.option.bearer_token",
+            "auth.option.aws_profile",
+            "auth.option.credential_chain",
+            "auth.option.oauth",
+            "auth.option.api_key",
+            "auth.option.adc",
+            "auth.option.service_account",
+            "providers.status.signed_in",
+            "providers.status.credentials_saved",
+            "providers.status.not_verified",
+            "providers.models_supported",
+            "providers.manage",
+        ])
+
+        for language in ["en", "zh-Hans", "zh-Hant", "ja", "ko", "es"] {
+            let localized = try localizationEntries(languageCode: language)
+            XCTAssertTrue(
+                requiredKeys.isSubset(of: localized.keys),
+                "\(language) is missing authentication guidance"
+            )
+        }
+    }
+
     func testProductionSwiftDoesNotContainHardcodedCJKUserFacingStrings() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

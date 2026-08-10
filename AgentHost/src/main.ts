@@ -29,6 +29,7 @@ import {
 import { createPiSessionHandle, type SessionProfile } from "./pi-session-handle.ts";
 import { listAvailableModels } from "./model-catalog.ts";
 import { modelRuntimeOptions } from "./model-runtime-options.ts";
+import { installProviderAuthOverrides } from "./provider-auth-overrides.ts";
 import { listProviderSnapshots } from "./provider-catalog.ts";
 import {
   ProviderAuthCoordinator,
@@ -685,7 +686,10 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
 }
 
 function getModelRuntime(): Promise<ModelRuntime> {
-  modelRuntimePromise ??= ModelRuntime.create(modelRuntimeOptions(Bun.env));
+  modelRuntimePromise ??= ModelRuntime.create(modelRuntimeOptions(Bun.env)).then((runtime) => {
+    installProviderAuthOverrides(runtime);
+    return runtime;
+  });
   return modelRuntimePromise;
 }
 
