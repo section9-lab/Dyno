@@ -39,6 +39,20 @@ final class AgentHostProtocolTests: XCTestCase {
         )
     }
 
+    func testDecodesCompactSkillUsageInSessionMessages() throws {
+        let data = Data(#"{"id":"message-one","role":"user","content":[{"type":"skill","name":"ego-browser"},{"type":"text","text":"使用这个再试试呢"}],"timestamp":"2026-08-09T00:00:00.000Z"}"#.utf8)
+
+        let message = try JSONDecoder().decode(AgentHostSessionMessage.self, from: data)
+
+        XCTAssertEqual(
+            message.content,
+            [
+                .skill(name: "ego-browser"),
+                .text("使用这个再试试呢")
+            ]
+        )
+    }
+
     func testDecodesNormalizedSessionSnapshot() throws {
         let data = Data(#"{"session":{"id":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project","title":"Session integration"},"messages":[{"id":"message-one","role":"user","content":[{"type":"text","text":"Inspect this"},{"type":"image","mimeType":"image/png"}],"timestamp":"2026-08-09T00:00:00.000Z"},{"id":"message-two","role":"assistant","content":[{"type":"text","text":"Ready"},{"type":"toolCall","id":"tool-one","name":"read","argumentsSummary":"{\"path\":\"README.md\"}"}],"timestamp":"2026-08-09T00:00:01.000Z","provider":"openai","model":"gpt-test","stopReason":"toolUse"}],"state":"running","sequence":4,"turnId":"turn-one","gitBranch":"feature/session-picker","model":{"provider":"openai","id":"gpt-test","name":"GPT Test","contextWindow":128000,"maxTokens":16384,"reasoning":true,"supportsImages":true,"supportsFastMode":false},"contextUsage":{"tokens":96000,"contextWindow":128000,"percent":75},"thinkingLevel":"high","availableThinkingLevels":["off","low","medium","high","max"],"modelOptions":{"fastMode":{"supported":true,"enabled":false},"oneMillionContext":{"supported":true,"enabled":true}},"accessMode":"ask","pendingApprovals":[{"id":"approval-one","toolCallId":"tool-one","toolName":"bash","summary":"bun test"}]}"#.utf8)
 
@@ -713,6 +727,41 @@ final class AgentHostProtocolTests: XCTestCase {
         XCTAssertEqual(object["id"] as? String, "list-1")
         XCTAssertEqual(object["method"] as? String, "sessions.list")
         XCTAssertEqual((object["params"] as? [String: Any])?["cwd"] as? String, "/tmp/project")
+    }
+
+    func testDecodesAssistantContentAsARecognizedSessionEvent() throws {
+        let data = Data(#"{"version":1,"kind":"event","event":"session.assistantContent","payload":{"sessionId":"session-one","sequence":2,"turnId":"turn-one","generationIndex":0,"phase":"start","contentType":"thinking","contentIndex":0}}"#.utf8)
+
+        let event = try AgentHostServerEvent.decode(from: data)
+
+        XCTAssertEqual(
+            event,
+            .sessionAssistantContent(
+                AgentHostSessionAssistantContentPayload(
+                    sessionId: "session-one",
+                    sequence: 2,
+                    turnId: "turn-one",
+                    generationIndex: 0,
+                    phase: .start,
+                    contentType: .thinking,
+                    contentIndex: 0,
+                    delta: nil,
+                    content: nil,
+                    toolCall: nil
+                )
+            )
+        )
+    }
+
+    func testDecodesProviderVisibleThinkingText() throws {
+        let data = Data(#"{"session":{"id":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project","title":"Thinking"},"messages":[{"id":"assistant-one","role":"assistant","content":[{"type":"thinking","thinking":"Visible summary","redacted":false},{"type":"text","text":"Answer"}],"timestamp":"2026-08-09T00:00:01.000Z"}],"state":"idle","sequence":0,"turnId":null,"model":null,"thinkingLevel":"high","availableThinkingLevels":["off","high"],"modelOptions":{"fastMode":{"supported":false,"enabled":false},"oneMillionContext":{"supported":false,"enabled":false}},"accessMode":"ask","pendingApprovals":[]}"#.utf8)
+
+        let snapshot = try JSONDecoder().decode(AgentHostSessionSnapshotResult.self, from: data)
+
+        XCTAssertEqual(
+            snapshot.messages.first?.content,
+            [.thinking(text: "Visible summary", redacted: false), .text("Answer")]
+        )
     }
 
 }

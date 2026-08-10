@@ -6,6 +6,22 @@ import type {
 
 export type SessionHandleEvent =
   | {
+      type: "assistantMessageStarted";
+    }
+  | {
+      type: "assistantContent";
+      phase: "start" | "delta" | "end";
+      contentType: "text" | "thinking" | "toolCall";
+      contentIndex: number;
+      delta?: string;
+      content?: string;
+      toolCall?: {
+        id: string;
+        name: string;
+        argumentsSummary: string;
+      };
+    }
+  | {
       type: "textDelta";
       delta: string;
     }
@@ -84,6 +100,8 @@ export type SessionModelOptionSelection = {
 
 export type SessionMessageContent =
   | { type: "text"; text: string }
+  | { type: "skill"; name: string }
+  | { type: "thinking"; thinking: string; redacted: boolean }
   | { type: "image"; mimeType: string }
   | { type: "toolCall"; id: string; name: string; argumentsSummary: string };
 
@@ -184,6 +202,25 @@ export type SessionRegistryEvent =
       };
     }
   | {
+      event: "session.assistantContent";
+      payload: {
+        sessionId: string;
+        sequence: number;
+        turnId: string;
+        generationIndex: number;
+        phase: "start" | "delta" | "end";
+        contentType: "text" | "thinking" | "toolCall";
+        contentIndex: number;
+        delta?: string;
+        content?: string;
+        toolCall?: {
+          id: string;
+          name: string;
+          argumentsSummary: string;
+        };
+      };
+    }
+  | {
       event: "session.toolStarted";
       payload: {
         sessionId: string;
@@ -248,6 +285,7 @@ export class SessionRegistryError extends Error {
 type ManagedSession = {
   handle: SessionHandle;
   sequence: number;
+  assistantGenerationIndex: number;
   activeTurnId?: string;
   reloadPending: boolean;
   reloading: boolean;
@@ -271,6 +309,7 @@ export class SessionRegistry {
     const managed: ManagedSession = {
       handle,
       sequence: 0,
+      assistantGenerationIndex: -1,
       reloadPending: false,
       reloading: false,
       unsubscribe: () => {},
@@ -382,6 +421,7 @@ export class SessionRegistry {
     }
 
     managed.activeTurnId = turnId;
+    managed.assistantGenerationIndex = -1;
     this.emitState(managed, turnId, "running");
     void managed.handle.prompt(text).then(async () => {
       if (managed.closed) return;
@@ -462,6 +502,34 @@ export class SessionRegistry {
   private consume(managed: ManagedSession, event: SessionHandleEvent): void {
     const turnId = managed.activeTurnId;
     if (!turnId) return;
+
+    if (event.type === "assistantMessageStarted") {
+      managed.assistantGenerationIndex += 1;
+      return;
+    }
+
+    if (event.type === "assistantContent") {
+      if (managed.assistantGenerationIndex < 0) {
+        managed.assistantGenerationIndex = 0;
+      }
+      managed.sequence += 1;
+      this.emit({
+        event: "session.assistantContent",
+        payload: {
+          sessionId: managed.handle.sessionId,
+          sequence: managed.sequence,
+          turnId,
+          generationIndex: managed.assistantGenerationIndex,
+          phase: event.phase,
+          contentType: event.contentType,
+          contentIndex: event.contentIndex,
+          ...(event.delta !== undefined ? { delta: event.delta } : {}),
+          ...(event.content !== undefined ? { content: event.content } : {}),
+          ...(event.toolCall ? { toolCall: event.toolCall } : {}),
+        },
+      });
+      return;
+    }
 
     if (event.type === "textDelta") {
       managed.sequence += 1;

@@ -34,6 +34,10 @@ struct PiChatMessage: Identifiable, Equatable {
             switch part {
             case .text(_, let text):
                 return text
+            case .skill:
+                return ""
+            case .thinking:
+                return ""
             case .image(_, let mimeType):
                 return L10n.format("chat.image_attachment", mimeType)
             case .tool(let tool):
@@ -58,6 +62,10 @@ struct PiChatMessage: Identifiable, Equatable {
                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return nil
             }
+            if role == .assistant,
+               let taggedThinking = AssistantTaggedThinkingContent.parse(text) {
+                return taggedThinking.response.isEmpty ? nil : taggedThinking.response
+            }
             return text
         }
         .joined(separator: "\n")
@@ -67,11 +75,25 @@ struct PiChatMessage: Identifiable, Equatable {
         !copyableText.isEmpty
     }
 
+    var usedSkills: [SessionSkillRecord] {
+        parts.reduce(into: []) { result, part in
+            guard case .skill(let skill) = part,
+                  !result.contains(where: { $0.name == skill.name }) else {
+                return
+            }
+            result.append(skill)
+        }
+    }
+
     var isVisible: Bool {
         isStreaming || parts.contains { part in
             switch part {
             case .text(_, let text):
                 return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .skill:
+                return true
+            case .thinking(let thinking):
+                return thinking.isVisibleInTranscript
             case .image, .tool:
                 return true
             }
@@ -92,6 +114,20 @@ struct PiChatMessage: Identifiable, Equatable {
         self.isStreaming = isStreaming
     }
 
+    init(
+        id: String,
+        role: Role,
+        parts: [SessionTranscriptPart],
+        timestamp: Date?,
+        isStreaming: Bool
+    ) {
+        self.id = id
+        self.role = role
+        self.parts = parts
+        self.timestamp = timestamp
+        self.isStreaming = isStreaming
+    }
+
     init(message: AgentHostSessionMessage, isStreaming: Bool = false) {
         id = message.id
         role = switch message.role {
@@ -105,6 +141,17 @@ struct PiChatMessage: Identifiable, Equatable {
             switch content {
             case .text(let text):
                 return .text(id: partID, text: text)
+            case .skill(let name):
+                return .skill(SessionSkillRecord(id: partID, name: name))
+            case .thinking(let text, let redacted):
+                return .thinking(
+                    SessionThinkingRecord(
+                        id: partID,
+                        text: text,
+                        state: .completed,
+                        redacted: redacted
+                    )
+                )
             case .image(let mimeType):
                 return .image(id: partID, mimeType: mimeType)
             case .toolCall(let id, let name, let argumentsSummary):
@@ -153,6 +200,7 @@ struct PiChatMessage: Identifiable, Equatable {
 
 enum AssistantTranscriptBlock: Equatable, Identifiable {
     case text(id: String, text: String)
+    case thinking(SessionThinkingRecord)
     case image(id: String, mimeType: String)
     case tools(AssistantToolGroup)
 
@@ -160,9 +208,18 @@ enum AssistantTranscriptBlock: Equatable, Identifiable {
         switch self {
         case .text(let id, _), .image(let id, _):
             return id
+        case .thinking(let thinking):
+            return thinking.id
         case .tools(let group):
             return group.id
         }
+    }
+}
+
+extension SessionThinkingRecord {
+    var isVisibleInTranscript: Bool {
+        !redacted
+            && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -220,6 +277,29 @@ enum AssistantToolGroupStatus: Equatable {
 }
 
 enum AssistantTranscriptPresentation {
+    static func groupAdjacentTools(in messages: [PiChatMessage]) -> [PiChatMessage] {
+        var grouped: [PiChatMessage] = []
+
+        for message in messages {
+            guard isToolOnly(message),
+                  let previous = grouped.last,
+                  endsWithTools(previous) else {
+                grouped.append(message)
+                continue
+            }
+
+            grouped[grouped.index(before: grouped.endIndex)] = PiChatMessage(
+                id: previous.id,
+                role: previous.role,
+                parts: previous.parts + message.parts,
+                timestamp: previous.timestamp ?? message.timestamp,
+                isStreaming: previous.isStreaming || message.isStreaming
+            )
+        }
+
+        return grouped
+    }
+
     static func blocks(from parts: [SessionTranscriptPart]) -> [AssistantTranscriptBlock] {
         var blocks: [AssistantTranscriptBlock] = []
         var consecutiveTools: [SessionToolRecord] = []
@@ -241,12 +321,36 @@ enum AssistantTranscriptPresentation {
             switch part {
             case .tool(let tool):
                 consecutiveTools.append(tool)
+            case .skill:
+                appendTools()
+            case .thinking(let thinking):
+                if thinking.isVisibleInTranscript {
+                    appendTools()
+                    blocks.append(.thinking(thinking))
+                }
             case .text(let id, let text):
                 guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     continue
                 }
                 appendTools()
-                blocks.append(.text(id: id, text: text))
+                if let taggedThinking = AssistantTaggedThinkingContent.parse(text) {
+                    let thinking = SessionThinkingRecord(
+                        id: "\(id):thinking",
+                        text: taggedThinking.thinking,
+                        state: taggedThinking.state,
+                        redacted: false
+                    )
+                    if thinking.isVisibleInTranscript {
+                        blocks.append(.thinking(thinking))
+                    }
+                    if !taggedThinking.response.isEmpty {
+                        blocks.append(
+                            .text(id: "\(id):response", text: taggedThinking.response)
+                        )
+                    }
+                } else {
+                    blocks.append(.text(id: id, text: text))
+                }
             case .image(let id, let mimeType):
                 appendTools()
                 blocks.append(.image(id: id, mimeType: mimeType))
@@ -255,6 +359,73 @@ enum AssistantTranscriptPresentation {
 
         appendTools()
         return blocks
+    }
+
+    static func metadataAnchorID(in blocks: [AssistantTranscriptBlock]) -> String? {
+        for block in blocks.reversed() {
+            if case .text(let id, let text) = block,
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return id
+            }
+        }
+        return nil
+    }
+
+    private static func isToolOnly(_ message: PiChatMessage) -> Bool {
+        guard message.role == .assistant else { return false }
+        let visibleBlocks = blocks(from: message.parts)
+        return !visibleBlocks.isEmpty && visibleBlocks.allSatisfy { block in
+            if case .tools = block { return true }
+            return false
+        }
+    }
+
+    private static func endsWithTools(_ message: PiChatMessage) -> Bool {
+        guard message.role == .assistant,
+              let lastBlock = blocks(from: message.parts).last,
+              case .tools = lastBlock else {
+            return false
+        }
+        return true
+    }
+}
+
+private struct AssistantTaggedThinkingContent {
+    let thinking: String
+    let response: String
+    let state: SessionThinkingRunState
+
+    static func parse(_ text: String) -> AssistantTaggedThinkingContent? {
+        let openingTag = "<think>"
+        let closingTag = "</think>"
+        let trimmed = text.drop(while: { $0.isWhitespace })
+
+        if !trimmed.isEmpty, openingTag.hasPrefix(trimmed) {
+            return AssistantTaggedThinkingContent(
+                thinking: "",
+                response: "",
+                state: .running
+            )
+        }
+        guard trimmed.hasPrefix(openingTag) else { return nil }
+
+        let thinkingStart = trimmed.index(trimmed.startIndex, offsetBy: openingTag.count)
+        guard let closingRange = trimmed.range(of: closingTag, range: thinkingStart..<trimmed.endIndex) else {
+            return AssistantTaggedThinkingContent(
+                thinking: String(trimmed[thinkingStart...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                response: "",
+                state: .running
+            )
+        }
+
+        return AssistantTaggedThinkingContent(
+            thinking: String(trimmed[thinkingStart..<closingRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            response: String(trimmed[closingRange.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            state: .completed
+        )
     }
 }
 

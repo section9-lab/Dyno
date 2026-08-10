@@ -183,6 +183,22 @@ class ControllableSession implements SessionHandle {
     for (const listener of this.listeners) listener({ type: "textDelta", delta });
   }
 
+  emitAssistantMessageStarted(): void {
+    for (const listener of this.listeners) listener({ type: "assistantMessageStarted" });
+  }
+
+  emitAssistantContent(delta: string, contentIndex: number): void {
+    for (const listener of this.listeners) {
+      listener({
+        type: "assistantContent",
+        phase: "delta",
+        contentType: "text",
+        contentIndex,
+        delta,
+      });
+    }
+  }
+
   emitToolStarted(): void {
     for (const listener of this.listeners) {
       listener({
@@ -520,6 +536,48 @@ describe("SessionRegistry", () => {
         delta: "Hello",
       },
     });
+  });
+
+  test("adds generation and content positions to assistant content", () => {
+    const events: SessionRegistryEvent[] = [];
+    const session = new ControllableSession("session-one");
+    const registry = new SessionRegistry((event) => events.push(event));
+    registry.register(session);
+    registry.prompt("session-one", "turn-one", "Build the feature");
+
+    session.emitAssistantMessageStarted();
+    session.emitAssistantContent("Before tool", 1);
+    session.emitAssistantMessageStarted();
+    session.emitAssistantContent("After tool", 0);
+
+    expect(events.slice(-2)).toEqual([
+      {
+        event: "session.assistantContent",
+        payload: {
+          sessionId: "session-one",
+          sequence: 2,
+          turnId: "turn-one",
+          generationIndex: 0,
+          phase: "delta",
+          contentType: "text",
+          contentIndex: 1,
+          delta: "Before tool",
+        },
+      },
+      {
+        event: "session.assistantContent",
+        payload: {
+          sessionId: "session-one",
+          sequence: 3,
+          turnId: "turn-one",
+          generationIndex: 1,
+          phase: "delta",
+          contentType: "text",
+          contentIndex: 0,
+          delta: "After tool",
+        },
+      },
+    ]);
   });
 
   test("disposes a closed session", async () => {

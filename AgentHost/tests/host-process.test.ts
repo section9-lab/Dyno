@@ -964,7 +964,7 @@ describe("agent host process", () => {
     }
   });
 
-  test("opens an existing native Pi session", async () => {
+  test("opens an existing native Pi session idempotently", async () => {
     const root = mkdtempSync(join(tmpdir(), "pi-work-host-open-process-test-"));
     const cwd = join(root, "project");
     const sessionDirectory = join(root, "sessions");
@@ -1016,6 +1016,27 @@ describe("agent host process", () => {
         version: 1,
         kind: "response",
         id: "open-one",
+        ok: true,
+        result: {
+          sessionId: "session-one",
+          path: sessionPath,
+          cwd,
+        },
+      });
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "open-two",
+        method: "session.open",
+        params: { path: sessionPath, sessionDirectory, profile: "work" },
+      })}\n`);
+      await child.stdin.flush();
+
+      expect(await lines.read()).toEqual({
+        version: 1,
+        kind: "response",
+        id: "open-two",
         ok: true,
         result: {
           sessionId: "session-one",

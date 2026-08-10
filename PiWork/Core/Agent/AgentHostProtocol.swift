@@ -62,6 +62,37 @@ struct AgentHostSessionMessageDeltaPayload: Decodable, Equatable {
     let delta: String
 }
 
+enum AgentHostAssistantContentPhase: String, Decodable, Equatable {
+    case start
+    case delta
+    case end
+}
+
+enum AgentHostAssistantContentType: String, Decodable, Equatable {
+    case text
+    case thinking
+    case toolCall
+}
+
+struct AgentHostAssistantToolCall: Decodable, Equatable {
+    let id: String
+    let name: String
+    let argumentsSummary: String
+}
+
+struct AgentHostSessionAssistantContentPayload: Decodable, Equatable {
+    let sessionId: String
+    let sequence: Int
+    let turnId: String
+    let generationIndex: Int
+    let phase: AgentHostAssistantContentPhase
+    let contentType: AgentHostAssistantContentType
+    let contentIndex: Int
+    let delta: String?
+    let content: String?
+    let toolCall: AgentHostAssistantToolCall?
+}
+
 struct AgentHostSessionToolStartedPayload: Decodable, Equatable {
     let sessionId: String
     let sequence: Int
@@ -371,6 +402,7 @@ enum AgentHostServerEvent: Equatable {
     case hostHello(AgentHostHelloPayload)
     case sessionStateChanged(AgentHostSessionStateChangedPayload)
     case sessionMessageDelta(AgentHostSessionMessageDeltaPayload)
+    case sessionAssistantContent(AgentHostSessionAssistantContentPayload)
     case sessionToolStarted(AgentHostSessionToolStartedPayload)
     case sessionToolUpdated(AgentHostSessionToolUpdatedPayload)
     case sessionToolCompleted(AgentHostSessionToolCompletedPayload)
@@ -415,6 +447,12 @@ enum AgentHostServerEvent: Equatable {
                 from: data
             )
             return .sessionMessageDelta(event.payload)
+        case "session.assistantContent":
+            let event = try decoder.decode(
+                AgentHostEvent<AgentHostSessionAssistantContentPayload>.self,
+                from: data
+            )
+            return .sessionAssistantContent(event.payload)
         case "session.toolStarted":
             let event = try decoder.decode(
                 AgentHostEvent<AgentHostSessionToolStartedPayload>.self,
@@ -958,20 +996,26 @@ enum AgentHostSessionMessageRole: String, Decodable, Equatable {
 
 enum AgentHostSessionMessageContent: Decodable, Equatable {
     case text(String)
+    case skill(name: String)
+    case thinking(text: String, redacted: Bool)
     case image(mimeType: String)
     case toolCall(id: String, name: String, argumentsSummary: String)
 
     private enum CodingKeys: String, CodingKey {
         case type
         case text
+        case name
+        case thinking
+        case redacted
         case mimeType
         case id
-        case name
         case argumentsSummary
     }
 
     private enum ContentType: String, Decodable {
         case text
+        case skill
+        case thinking
         case image
         case toolCall
     }
@@ -981,6 +1025,16 @@ enum AgentHostSessionMessageContent: Decodable, Equatable {
         switch try container.decode(ContentType.self, forKey: .type) {
         case .text:
             self = .text(try container.decode(String.self, forKey: .text))
+        case .skill:
+            self = .skill(name: try container.decode(String.self, forKey: .name))
+        case .thinking:
+            let redacted = try container.decodeIfPresent(Bool.self, forKey: .redacted) ?? false
+            self = .thinking(
+                text: redacted
+                    ? ""
+                    : (try container.decodeIfPresent(String.self, forKey: .thinking) ?? ""),
+                redacted: redacted
+            )
         case .image:
             self = .image(
                 mimeType: try container.decode(String.self, forKey: .mimeType)

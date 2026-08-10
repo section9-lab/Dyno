@@ -117,6 +117,7 @@ writeHostRecord(
     ],
   }),
 );
+await flushRawStdout();
 
 async function handleRequest(request: HostRequest): Promise<HostResponse> {
   if (request.method === "settings.get") {
@@ -413,6 +414,20 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
     }
 
     const manager = sessionCatalog.open(path, sessionDirectory);
+    const existing = sessionRegistry.descriptor(manager.getSessionId());
+    if (existing) {
+      return {
+        version: PROTOCOL_VERSION,
+        kind: "response",
+        id: request.id,
+        ok: true,
+        result: {
+          sessionId: existing.id,
+          path: existing.path,
+          cwd: existing.cwd,
+        },
+      };
+    }
     const handle = await createPiSessionHandle({
       sessionManager: manager,
       profile,

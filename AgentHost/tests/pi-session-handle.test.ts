@@ -84,7 +84,18 @@ function makePiSession(overrides: Record<string, unknown> = {}) {
 }
 
 describe("normalizeAgentSessionEvent", () => {
-  test("maps Pi text deltas to the stable host event", () => {
+  test("marks the start of each assistant generation", () => {
+    const event = {
+      type: "message_start",
+      message: { role: "assistant" },
+    } as unknown as AgentSessionEvent;
+
+    expect(normalizeAgentSessionEvent(event)).toEqual({
+      type: "assistantMessageStarted",
+    });
+  });
+
+  test("maps Pi text deltas with their content position", () => {
     const event = {
       type: "message_update",
       assistantMessageEvent: {
@@ -92,11 +103,121 @@ describe("normalizeAgentSessionEvent", () => {
         contentIndex: 0,
         delta: "Hello",
       },
-    } as AgentSessionEvent;
+    } as unknown as AgentSessionEvent;
 
     expect(normalizeAgentSessionEvent(event)).toEqual({
-      type: "textDelta",
+      type: "assistantContent",
+      phase: "delta",
+      contentType: "text",
+      contentIndex: 0,
       delta: "Hello",
+    });
+  });
+
+  test("streams provider-visible Pi thinking without exposing signatures", () => {
+    const started = {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "thinking_start",
+        contentIndex: 2,
+      },
+    } as unknown as AgentSessionEvent;
+    const delta = {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "thinking_delta",
+        contentIndex: 2,
+        delta: "Checking ",
+        partial: {
+          content: [{
+            type: "thinking",
+            thinking: "Checking ",
+            thinkingSignature: "secret-signature",
+          }],
+        },
+      },
+    } as unknown as AgentSessionEvent;
+    const completed = {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "thinking_end",
+        contentIndex: 2,
+        content: "Checking APIs",
+        partial: {
+          content: [{
+            type: "thinking",
+            thinking: "Checking APIs",
+            thinkingSignature: "secret-signature",
+          }],
+        },
+      },
+    } as unknown as AgentSessionEvent;
+
+    expect(normalizeAgentSessionEvent(started)).toEqual({
+      type: "assistantContent",
+      phase: "start",
+      contentType: "thinking",
+      contentIndex: 2,
+    });
+    expect(normalizeAgentSessionEvent(delta)).toEqual({
+      type: "assistantContent",
+      phase: "delta",
+      contentType: "thinking",
+      contentIndex: 2,
+      delta: "Checking ",
+    });
+    expect(normalizeAgentSessionEvent(completed)).toEqual({
+      type: "assistantContent",
+      phase: "end",
+      contentType: "thinking",
+      contentIndex: 2,
+      content: "Checking APIs",
+    });
+    expect(JSON.stringify(normalizeAgentSessionEvent(completed))).not.toContain("secret-signature");
+  });
+
+  test("maps Pi tool calls with their content position", () => {
+    const toolCall = {
+      type: "toolCall",
+      id: "tool-one",
+      name: "read",
+      arguments: { path: "README.md" },
+    };
+    const started = {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "toolcall_start",
+        contentIndex: 3,
+        partial: { content: [null, null, null, toolCall] },
+      },
+    } as unknown as AgentSessionEvent;
+    const completed = {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "toolcall_end",
+        contentIndex: 3,
+        toolCall,
+      },
+    } as unknown as AgentSessionEvent;
+    const expectedToolCall = {
+      id: "tool-one",
+      name: "read",
+      argumentsSummary: '{"path":"README.md"}',
+    };
+
+    expect(normalizeAgentSessionEvent(started)).toEqual({
+      type: "assistantContent",
+      phase: "start",
+      contentType: "toolCall",
+      contentIndex: 3,
+      toolCall: expectedToolCall,
+    });
+    expect(normalizeAgentSessionEvent(completed)).toEqual({
+      type: "assistantContent",
+      phase: "end",
+      contentType: "toolCall",
+      contentIndex: 3,
+      toolCall: expectedToolCall,
     });
   });
 
@@ -192,7 +313,7 @@ describe("PiSessionHandle", () => {
     ]);
   });
 
-  test("normalizes persisted Pi messages without leaking hidden or reasoning content", () => {
+  test("normalizes provider-visible thinking without leaking signatures or redacted content", () => {
     const messages = normalizeAgentMessages("session-one", [
       {
         role: "user",
@@ -205,7 +326,17 @@ describe("PiSessionHandle", () => {
       {
         role: "assistant",
         content: [
-          { type: "thinking", thinking: "private chain of thought" },
+          {
+            type: "thinking",
+            thinking: "provider-visible reasoning",
+            thinkingSignature: "secret-signature",
+          },
+          {
+            type: "thinking",
+            thinking: "redacted reasoning",
+            thinkingSignature: "redacted-signature",
+            redacted: true,
+          },
           { type: "text", text: "I can help." },
           { type: "toolCall", id: "tool-one", name: "read", arguments: { path: "README.md" } },
         ],
@@ -246,6 +377,12 @@ describe("PiSessionHandle", () => {
         id: "session-one:1786233601000:1",
         role: "assistant",
         content: [
+          {
+            type: "thinking",
+            thinking: "provider-visible reasoning",
+            redacted: false,
+          },
+          { type: "thinking", thinking: "", redacted: true },
           { type: "text", text: "I can help." },
           {
             type: "toolCall",
@@ -261,8 +398,64 @@ describe("PiSessionHandle", () => {
       },
     ]);
     expect(JSON.stringify(messages)).not.toContain("private-base64");
-    expect(JSON.stringify(messages)).not.toContain("private chain of thought");
+    expect(JSON.stringify(messages)).toContain("provider-visible reasoning");
+    expect(JSON.stringify(messages)).not.toContain("redacted reasoning");
+    expect(JSON.stringify(messages)).not.toContain("secret-signature");
+    expect(JSON.stringify(messages)).not.toContain("redacted-signature");
     expect(JSON.stringify(messages)).not.toContain("Do not display");
+  });
+
+  test("records an injected skill without exposing its instructions or path", () => {
+    const messages = normalizeAgentMessages("session-one", [{
+      role: "user",
+      content: [{
+        type: "text",
+        text: [
+          '<skill name="ego-browser" location="/tmp/ego-browser/SKILL.md">',
+          "# ego-browser",
+          "Internal instructions that must not appear in the transcript.",
+          "</skill>",
+          "",
+          "使用这个再试试呢",
+        ].join("\n"),
+      }],
+      timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+    }] as never[]);
+
+    expect(messages[0]?.content).toEqual([
+      {
+        type: "skill",
+        name: "ego-browser",
+      },
+      {
+        type: "text",
+        text: "使用这个再试试呢",
+      },
+    ]);
+    expect(JSON.stringify(messages)).not.toContain("Internal instructions");
+    expect(JSON.stringify(messages)).not.toContain("SKILL.md");
+    expect(JSON.stringify(messages)).not.toContain("/tmp/ego-browser");
+  });
+
+  test("hides injected skill instructions even when the skill name is missing", () => {
+    const messages = normalizeAgentMessages("session-one", [{
+      role: "user",
+      content: [{
+        type: "text",
+        text: [
+          '<skill location="/tmp/unknown/SKILL.md">',
+          "Internal instructions that must not appear in the transcript.",
+          "</skill>",
+          "",
+          "继续",
+        ].join("\n"),
+      }],
+      timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+    }] as never[]);
+
+    expect(messages[0]?.content).toEqual([{ type: "text", text: "继续" }]);
+    expect(JSON.stringify(messages)).not.toContain("Internal instructions");
+    expect(JSON.stringify(messages)).not.toContain("SKILL.md");
   });
 
   test("strips terminal formatting from persisted tool output", () => {
@@ -565,7 +758,13 @@ describe("PiSessionHandle", () => {
       assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Hello" },
     } as AgentSessionEvent);
 
-    expect(events).toEqual([{ type: "textDelta", delta: "Hello" }]);
+    expect(events).toEqual([{
+      type: "assistantContent",
+      phase: "delta",
+      contentType: "text",
+      contentIndex: 0,
+      delta: "Hello",
+    }]);
   });
 
   test("delegates prompts to the Pi session", async () => {

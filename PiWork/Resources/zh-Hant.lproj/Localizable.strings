@@ -165,6 +165,10 @@
 "chat.smarter" = "更聰明";
 "chat.thinking_help" = "思考強度：%@";
 "chat.thinking_accessibility" = "思考強度";
+"chat.thinking.running" = "正在思考…";
+"chat.thinking.title" = "深度思考";
+"chat.thinking.expand" = "展開思考內容";
+"chat.thinking.collapse" = "收起思考內容";
 "chat.one_million_context" = "1M 上下文";
 "chat.access_help" = "存取權限：%@";
 "chat.send" = "傳送";
@@ -182,6 +186,7 @@
 "chat.approval.deny" = "拒絕";
 "chat.approval.allow_once" = "允許一次";
 "chat.image_attachment" = "[圖片 · %@]";
+"chat.skill.used" = "已使用技能 · %@";
 "chat.message.copy" = "複製回覆";
 "chat.message.copied" = "已複製";
 "chat.tool.input" = "輸入";

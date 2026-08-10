@@ -165,6 +165,10 @@
 "chat.smarter" = "更聪明";
 "chat.thinking_help" = "思考力度：%@";
 "chat.thinking_accessibility" = "思考力度";
+"chat.thinking.running" = "正在思考…";
+"chat.thinking.title" = "深度思考";
+"chat.thinking.expand" = "展开思考内容";
+"chat.thinking.collapse" = "收起思考内容";
 "chat.one_million_context" = "1M 上下文";
 "chat.access_help" = "访问权限：%@";
 "chat.send" = "发送";
@@ -182,6 +186,7 @@
 "chat.approval.deny" = "拒绝";
 "chat.approval.allow_once" = "允许一次";
 "chat.image_attachment" = "[图片 · %@]";
+"chat.skill.used" = "已使用技能 · %@";
 "chat.message.copy" = "复制回复";
 "chat.message.copied" = "已复制";
 "chat.tool.input" = "输入";

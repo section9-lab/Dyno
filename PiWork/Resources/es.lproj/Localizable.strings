@@ -165,6 +165,10 @@
 "chat.smarter" = "Más capaz";
 "chat.thinking_help" = "Nivel de razonamiento: %@";
 "chat.thinking_accessibility" = "Nivel de razonamiento";
+"chat.thinking.running" = "Pensando…";
+"chat.thinking.title" = "Razonamiento profundo";
+"chat.thinking.expand" = "Expandir razonamiento";
+"chat.thinking.collapse" = "Contraer razonamiento";
 "chat.one_million_context" = "Contexto de 1 M";
 "chat.access_help" = "Acceso: %@";
 "chat.send" = "Enviar";
@@ -182,6 +186,7 @@
 "chat.approval.deny" = "Denegar";
 "chat.approval.allow_once" = "Permitir una vez";
 "chat.image_attachment" = "[Imagen · %@]";
+"chat.skill.used" = "Habilidad usada · %@";
 "chat.message.copy" = "Copiar respuesta";
 "chat.message.copied" = "Copiado";
 "chat.tool.input" = "Entrada";

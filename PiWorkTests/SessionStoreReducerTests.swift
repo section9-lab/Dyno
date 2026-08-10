@@ -2,6 +2,34 @@ import XCTest
 @testable import PiWork
 
 final class SessionStoreReducerTests: XCTestCase {
+    func testSubmittingSkillPromptImmediatelyKeepsSkillAndCleanUserText() throws {
+        var reducer = SessionStoreReducer()
+        reducer.apply(
+            snapshot: makeSnapshot(sessionId: "session-one"),
+            profile: .work,
+            sessionDirectory: nil
+        )
+
+        _ = reducer.submitPrompt(
+            sessionId: "session-one",
+            turnId: "turn-one",
+            text: "/skill:ego-browser 使用这个再试试呢",
+            timestamp: "2026-08-09T00:00:01.000Z"
+        )
+
+        let record = try XCTUnwrap(reducer.records["session-one"])
+        XCTAssertEqual(
+            record.messages.last?.content,
+            [
+                .skill(name: "ego-browser"),
+                .text("使用这个再试试呢")
+            ]
+        )
+        let transcriptMessage = try XCTUnwrap(record.transcript.last)
+        XCTAssertEqual(transcriptMessage.parts.count, 2)
+        XCTAssertEqual(PiChatMessage(message: transcriptMessage).text, "使用这个再试试呢")
+    }
+
     func testRunningEventBeforePromptResponseDoesNotRegressToSubmitting() {
         var reducer = SessionStoreReducer()
         reducer.apply(
@@ -276,6 +304,259 @@ final class SessionStoreReducerTests: XCTestCase {
         XCTAssertEqual(after, "After")
     }
 
+    func testAssistantContentPreservesThinkingTextToolAndNextGenerationOrder() throws {
+        var reducer = SessionStoreReducer()
+        reducer.apply(
+            snapshot: makeSnapshot(sessionId: "session-one"),
+            profile: .work,
+            sessionDirectory: nil
+        )
+
+        let firstThinking = assistantContent(
+            sequence: 1,
+            generationIndex: 0,
+            phase: .start,
+            contentType: .thinking,
+            contentIndex: 0
+        )
+        let firstTextStart = assistantContent(
+            sequence: 2,
+            generationIndex: 0,
+            phase: .start,
+            contentType: .text,
+            contentIndex: 1
+        )
+        let firstText = assistantContent(
+            sequence: 3,
+            generationIndex: 0,
+            phase: .delta,
+            contentType: .text,
+            contentIndex: 1,
+            delta: "Checking"
+        )
+        let toolCall = AgentHostAssistantToolCall(
+            id: "tool-one",
+            name: "read",
+            argumentsSummary: #"{"path":"README.md"}"#
+        )
+        let toolStart = assistantContent(
+            sequence: 4,
+            generationIndex: 0,
+            phase: .start,
+            contentType: .toolCall,
+            contentIndex: 2,
+            toolCall: toolCall
+        )
+        let toolEnd = assistantContent(
+            sequence: 5,
+            generationIndex: 0,
+            phase: .end,
+            contentType: .toolCall,
+            contentIndex: 2,
+            toolCall: toolCall
+        )
+        let firstThinkingEnd = assistantContent(
+            sequence: 6,
+            generationIndex: 0,
+            phase: .end,
+            contentType: .thinking,
+            contentIndex: 0
+        )
+
+        for event in [firstThinking, firstTextStart, firstText, toolStart, toolEnd, firstThinkingEnd] {
+            _ = reducer.receive(event, timestamp: "2026-08-09T00:00:01.000Z")
+        }
+        _ = reducer.receive(
+            .sessionToolStarted(
+                AgentHostSessionToolStartedPayload(
+                    sessionId: "session-one",
+                    sequence: 7,
+                    turnId: "turn-one",
+                    toolCallId: "tool-one",
+                    toolName: "read",
+                    summary: #"{"path":"README.md"}"#
+                )
+            ),
+            timestamp: "2026-08-09T00:00:02.000Z"
+        )
+        _ = reducer.receive(
+            .sessionToolCompleted(
+                AgentHostSessionToolCompletedPayload(
+                    sessionId: "session-one",
+                    sequence: 8,
+                    turnId: "turn-one",
+                    toolCallId: "tool-one",
+                    toolName: "read",
+                    output: "README contents",
+                    isError: false
+                )
+            ),
+            timestamp: "2026-08-09T00:00:03.000Z"
+        )
+        for event in [
+            assistantContent(
+                sequence: 9,
+                generationIndex: 1,
+                phase: .start,
+                contentType: .thinking,
+                contentIndex: 0
+            ),
+            assistantContent(
+                sequence: 10,
+                generationIndex: 1,
+                phase: .end,
+                contentType: .thinking,
+                contentIndex: 0
+            ),
+            assistantContent(
+                sequence: 11,
+                generationIndex: 1,
+                phase: .start,
+                contentType: .text,
+                contentIndex: 1
+            ),
+            assistantContent(
+                sequence: 12,
+                generationIndex: 1,
+                phase: .delta,
+                contentType: .text,
+                contentIndex: 1,
+                delta: "Done"
+            )
+        ] {
+            _ = reducer.receive(event, timestamp: "2026-08-09T00:00:04.000Z")
+        }
+
+        let transcript = try XCTUnwrap(reducer.records["session-one"]?.transcript)
+        XCTAssertEqual(transcript.count, 2)
+        let firstParts = transcript[0].parts
+        let secondParts = transcript[1].parts
+        XCTAssertEqual(firstParts.count, 3)
+        XCTAssertEqual(secondParts.count, 2)
+        guard case .thinking(let firstThought) = firstParts[0],
+              case .text(_, let before) = firstParts[1],
+              case .tool(let tool) = firstParts[2],
+              case .thinking(let secondThought) = secondParts[0],
+              case .text(_, let after) = secondParts[1] else {
+            return XCTFail("Expected each assistant generation to remain a separate row")
+        }
+        XCTAssertEqual(firstThought.state, .completed)
+        XCTAssertEqual(before, "Checking")
+        XCTAssertEqual(tool.output, "README contents")
+        XCTAssertEqual(secondThought.state, .completed)
+        XCTAssertEqual(after, "Done")
+    }
+
+    func testAssistantThinkingStreamsDeltasAndUsesFinalContent() throws {
+        var reducer = SessionStoreReducer()
+        reducer.apply(
+            snapshot: makeSnapshot(sessionId: "session-one"),
+            profile: .work,
+            sessionDirectory: nil
+        )
+
+        for event in [
+            assistantContent(
+                sequence: 1,
+                generationIndex: 0,
+                phase: .start,
+                contentType: .thinking,
+                contentIndex: 0
+            ),
+            assistantContent(
+                sequence: 2,
+                generationIndex: 0,
+                phase: .delta,
+                contentType: .thinking,
+                contentIndex: 0,
+                delta: "Inspecting "
+            ),
+            assistantContent(
+                sequence: 3,
+                generationIndex: 0,
+                phase: .delta,
+                contentType: .thinking,
+                contentIndex: 0,
+                delta: "sources"
+            ),
+            assistantContent(
+                sequence: 4,
+                generationIndex: 0,
+                phase: .end,
+                contentType: .thinking,
+                contentIndex: 0,
+                content: "Inspecting sources."
+            )
+        ] {
+            _ = reducer.receive(event, timestamp: "2026-08-09T00:00:01.000Z")
+        }
+
+        let parts = try XCTUnwrap(reducer.records["session-one"]?.transcript.first?.parts)
+        guard case .thinking(let thinking) = try XCTUnwrap(parts.first) else {
+            return XCTFail("Expected a thinking transcript part")
+        }
+        XCTAssertEqual(thinking.state, .completed)
+        XCTAssertEqual(thinking.text, "Inspecting sources.")
+    }
+
+    func testAssistantThinkingKeepsStreamedTextWhenFinalContentIsEmptyBeforeTool() throws {
+        var reducer = SessionStoreReducer()
+        reducer.apply(
+            snapshot: makeSnapshot(sessionId: "session-one"),
+            profile: .work,
+            sessionDirectory: nil
+        )
+
+        for event in [
+            assistantContent(
+                sequence: 1,
+                generationIndex: 0,
+                phase: .start,
+                contentType: .thinking,
+                contentIndex: 0
+            ),
+            assistantContent(
+                sequence: 2,
+                generationIndex: 0,
+                phase: .delta,
+                contentType: .thinking,
+                contentIndex: 0,
+                delta: "Checking the browser state."
+            ),
+            assistantContent(
+                sequence: 3,
+                generationIndex: 0,
+                phase: .end,
+                contentType: .thinking,
+                contentIndex: 0,
+                content: ""
+            ),
+            assistantContent(
+                sequence: 4,
+                generationIndex: 0,
+                phase: .end,
+                contentType: .toolCall,
+                contentIndex: 1,
+                toolCall: AgentHostAssistantToolCall(
+                    id: "tool-one",
+                    name: "bash",
+                    argumentsSummary: "pageInfo"
+                )
+            )
+        ] {
+            _ = reducer.receive(event, timestamp: "2026-08-09T00:00:01.000Z")
+        }
+
+        let parts = try XCTUnwrap(reducer.records["session-one"]?.transcript.first?.parts)
+        XCTAssertEqual(parts.count, 2)
+        guard case .thinking(let thinking) = parts[0],
+              case .tool = parts[1] else {
+            return XCTFail("Expected streamed thinking followed by the tool")
+        }
+        XCTAssertEqual(thinking.state, .completed)
+        XCTAssertEqual(thinking.text, "Checking the browser state.")
+    }
+
     func testIdleStateMarksAnUnfinishedToolAsCancelled() throws {
         var reducer = SessionStoreReducer()
         reducer.apply(
@@ -420,6 +701,91 @@ final class SessionStoreReducerTests: XCTestCase {
         XCTAssertEqual(tool.output, "README contents")
         XCTAssertEqual(tool.state, .completed)
         XCTAssertEqual(after, "After")
+    }
+
+    func testSnapshotKeepsAssistantGenerationsAsSeparateTranscriptRows() throws {
+        let messages = [
+            AgentHostSessionMessage(
+                id: "user-one",
+                role: .user,
+                content: [.text("Research this")],
+                timestamp: "2026-08-09T00:00:00.000Z",
+                provider: nil,
+                model: nil,
+                stopReason: nil,
+                errorMessage: nil,
+                toolCallId: nil,
+                toolName: nil,
+                isError: nil
+            ),
+            AgentHostSessionMessage(
+                id: "assistant-one",
+                role: .assistant,
+                content: [
+                    .thinking(text: "Inspecting", redacted: false),
+                    .text("Checking"),
+                    .toolCall(id: "tool-one", name: "read", argumentsSummary: "README.md")
+                ],
+                timestamp: "2026-08-09T00:00:01.000Z",
+                provider: nil,
+                model: nil,
+                stopReason: "toolUse",
+                errorMessage: nil,
+                toolCallId: nil,
+                toolName: nil,
+                isError: nil
+            ),
+            AgentHostSessionMessage(
+                id: "tool-result",
+                role: .tool,
+                content: [.text("README contents")],
+                timestamp: "2026-08-09T00:00:02.000Z",
+                provider: nil,
+                model: nil,
+                stopReason: nil,
+                errorMessage: nil,
+                toolCallId: "tool-one",
+                toolName: "read",
+                isError: false
+            ),
+            AgentHostSessionMessage(
+                id: "assistant-two",
+                role: .assistant,
+                content: [.thinking(text: "Summarizing", redacted: false), .text("Done")],
+                timestamp: "2026-08-09T00:00:03.000Z",
+                provider: nil,
+                model: nil,
+                stopReason: "stop",
+                errorMessage: nil,
+                toolCallId: nil,
+                toolName: nil,
+                isError: nil
+            )
+        ]
+        var reducer = SessionStoreReducer()
+
+        reducer.apply(
+            snapshot: makeSnapshot(sessionId: "session-one", messages: messages),
+            profile: .work,
+            sessionDirectory: nil
+        )
+
+        let transcript = try XCTUnwrap(reducer.records["session-one"]?.transcript)
+        XCTAssertEqual(transcript.map(\.role), [.user, .assistant, .assistant])
+        let firstParts = transcript[1].parts
+        let secondParts = transcript[2].parts
+        XCTAssertEqual(firstParts.count, 3)
+        XCTAssertEqual(secondParts.count, 2)
+        guard case .thinking = firstParts[0],
+              case .text(_, let before) = firstParts[1],
+              case .tool(let tool) = firstParts[2],
+              case .thinking = secondParts[0],
+              case .text(_, let after) = secondParts[1] else {
+            return XCTFail("Expected ordered assistant generation rows")
+        }
+        XCTAssertEqual(before, "Checking")
+        XCTAssertEqual(tool.output, "README contents")
+        XCTAssertEqual(after, "Done")
     }
 
     func testApprovalEventAddsPendingApprovalToItsCorrelatedWorkSession() {
@@ -688,5 +1054,31 @@ private func makeSnapshot(
         availableThinkingLevels: [],
         accessMode: .ask,
         pendingApprovals: pendingApprovals
+    )
+}
+
+private func assistantContent(
+    sequence: Int,
+    generationIndex: Int,
+    phase: AgentHostAssistantContentPhase,
+    contentType: AgentHostAssistantContentType,
+    contentIndex: Int,
+    delta: String? = nil,
+    content: String? = nil,
+    toolCall: AgentHostAssistantToolCall? = nil
+) -> AgentHostServerEvent {
+    .sessionAssistantContent(
+        AgentHostSessionAssistantContentPayload(
+            sessionId: "session-one",
+            sequence: sequence,
+            turnId: "turn-one",
+            generationIndex: generationIndex,
+            phase: phase,
+            contentType: contentType,
+            contentIndex: contentIndex,
+            delta: delta,
+            content: content,
+            toolCall: toolCall
+        )
     )
 }

@@ -4,6 +4,58 @@ import XCTest
 @testable import PiWork
 
 final class SessionComposerTests: XCTestCase {
+    func testSkillUsageProjectionIsCompactDeduplicatedAndNotCopyable() {
+        let skill = SessionSkillRecord(id: "skill-one", name: "ego-browser")
+        let duplicate = SessionSkillRecord(id: "skill-two", name: "ego-browser")
+        let message = PiChatMessage(
+            id: "user-one",
+            role: .user,
+            parts: [
+                .skill(skill),
+                .text(id: "text-one", text: "使用这个再试试呢"),
+                .skill(duplicate)
+            ],
+            timestamp: nil,
+            isStreaming: false
+        )
+
+        XCTAssertEqual(message.usedSkills, [skill])
+        XCTAssertEqual(message.text, "使用这个再试试呢")
+        XCTAssertEqual(message.copyableText, "使用这个再试试呢")
+    }
+
+    func testUserSkillUsageRendersAsACompactNonExpandableRow() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let userStart = try XCTUnwrap(source.range(of: "case .user:"))
+        let assistantStart = try XCTUnwrap(
+            source.range(of: "case .assistant:", range: userStart.upperBound..<source.endIndex)
+        )
+        let userSource = source[userStart.lowerBound..<assistantStart.lowerBound]
+        let rowStart = try XCTUnwrap(source.range(of: "private struct SkillUsageRow"))
+        let rowEnd = try XCTUnwrap(
+            source.range(
+                of: "private struct AssistantThinkingView",
+                range: rowStart.upperBound..<source.endIndex
+            )
+        )
+        let rowSource = source[rowStart.lowerBound..<rowEnd.lowerBound]
+
+        XCTAssertTrue(userSource.contains("ForEach(message.usedSkills)"))
+        XCTAssertTrue(userSource.contains("SkillUsageRow(skill: skill)"))
+        XCTAssertTrue(rowSource.contains("L10n.format(\"chat.skill.used\", skill.name)"))
+        XCTAssertTrue(rowSource.contains("Image(systemName: \"doc.text\")"))
+        XCTAssertFalse(rowSource.contains("Button"))
+        XCTAssertFalse(rowSource.contains("chevron"))
+    }
+
     func testHostMessageProjectionPreservesIdentityAndVisibleContent() {
         let source = AgentHostSessionMessage(
             id: "message-one",
@@ -1184,6 +1236,36 @@ final class SessionComposerTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testComposerPreservesMarkedTextDuringSwiftUIUpdate() throws {
+        let view = ChatView(
+            mode: .work,
+            projects: [],
+            selectedProject: .constant(nil),
+            sessionStore: makeInactiveSessionStore(),
+            onAddFolder: {}
+        )
+        .frame(width: 646, height: 600)
+
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = CGRect(x: 0, y: 0, width: 646, height: 600)
+        hostingView.layoutSubtreeIfNeeded()
+
+        let textView = try XCTUnwrap(hostingView.firstDescendant(of: NSTextView.self))
+        textView.setMarkedText(
+            "ni",
+            selectedRange: NSRange(location: 2, length: 0),
+            replacementRange: NSRange(location: NSNotFound, length: 0)
+        )
+
+        XCTAssertTrue(textView.hasMarkedText())
+        hostingView.rootView = view
+        hostingView.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(textView.string, "ni")
+        XCTAssertTrue(textView.hasMarkedText())
+    }
+
     func testComposerBorderRemainsNeutral() {
         XCTAssertEqual(SessionComposerState.borderOpacity(isHovering: false), 0.09)
         XCTAssertEqual(SessionComposerState.borderOpacity(isHovering: true), 0.16)
@@ -1334,5 +1416,12 @@ private extension NSBitmapImageRep {
         }
 
         return max(longest, current)
+    }
+}
+
+private extension NSView {
+    func firstDescendant<View: NSView>(of type: View.Type) -> View? {
+        if let match = self as? View { return match }
+        return subviews.lazy.compactMap { $0.firstDescendant(of: type) }.first
     }
 }

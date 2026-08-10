@@ -58,8 +58,27 @@ struct SessionToolRecord: Equatable, Identifiable {
     }
 }
 
+enum SessionThinkingRunState: Equatable {
+    case running
+    case completed
+}
+
+struct SessionThinkingRecord: Equatable, Identifiable {
+    let id: String
+    let text: String
+    let state: SessionThinkingRunState
+    let redacted: Bool
+}
+
+struct SessionSkillRecord: Equatable, Identifiable {
+    let id: String
+    let name: String
+}
+
 enum SessionTranscriptPart: Equatable, Identifiable {
     case text(id: String, text: String)
+    case skill(SessionSkillRecord)
+    case thinking(SessionThinkingRecord)
     case image(id: String, mimeType: String)
     case tool(SessionToolRecord)
 
@@ -67,6 +86,10 @@ enum SessionTranscriptPart: Equatable, Identifiable {
         switch self {
         case .text(let id, _), .image(let id, _):
             return id
+        case .skill(let skill):
+            return skill.id
+        case .thinking(let thinking):
+            return thinking.id
         case .tool(let tool):
             return "tool:\(tool.id)"
         }
@@ -158,11 +181,35 @@ struct SessionStoreReducer {
             return []
         }
 
+        let messageID = "turn:\(turnId):user"
+        let invocation = skillInvocation(in: text)
+        let visibleText = invocation?.userText ?? text
+        let messageContent: [AgentHostSessionMessageContent] = if let invocation {
+            [.skill(name: invocation.name)]
+                + (visibleText.isEmpty ? [] : [.text(visibleText)])
+        } else {
+            [.text(text)]
+        }
+        let transcriptParts: [SessionTranscriptPart] = if let invocation {
+            [
+                .skill(
+                    SessionSkillRecord(
+                        id: "\(messageID):skill:0",
+                        name: invocation.name
+                    )
+                )
+            ] + (visibleText.isEmpty
+                ? []
+                : [.text(id: "\(messageID):text:0", text: visibleText)])
+        } else {
+            [.text(id: "\(messageID):text:0", text: text)]
+        }
+
         record.messages.append(
             AgentHostSessionMessage(
-                id: "turn:\(turnId):user",
+                id: messageID,
                 role: .user,
-                content: [.text(text)],
+                content: messageContent,
                 timestamp: timestamp,
                 provider: nil,
                 model: nil,
@@ -175,9 +222,9 @@ struct SessionStoreReducer {
         )
         record.transcript.append(
             SessionTranscriptMessage(
-                id: "turn:\(turnId):user",
+                id: messageID,
                 role: .user,
-                parts: [.text(id: "turn:\(turnId):user:text:0", text: text)],
+                parts: transcriptParts,
                 timestamp: timestamp
             )
         )
@@ -357,6 +404,7 @@ struct SessionStoreReducer {
                 record.activeTurnId = payload.turnId
             } else {
                 finishUnfinishedTools(in: &record, state: .cancelled)
+                finishUnfinishedThinking(in: &record)
                 record.runState = .idle
                 record.activeTurnId = nil
                 record.pendingApprovals = []
@@ -365,6 +413,10 @@ struct SessionStoreReducer {
             record.runState = .running
             record.activeTurnId = payload.turnId
             append(delta: payload.delta, turnId: payload.turnId, timestamp: timestamp, to: &record)
+        case .sessionAssistantContent(let payload):
+            record.runState = .running
+            record.activeTurnId = payload.turnId
+            applyAssistantContent(payload, timestamp: timestamp, to: &record)
         case .sessionToolStarted(let payload):
             let tool = SessionToolRecord(
                 id: payload.toolCallId,
@@ -422,6 +474,7 @@ struct SessionStoreReducer {
                 state: .completed,
                 errorMessage: payload.message
             )
+            finishUnfinishedThinking(in: &record)
             record.runState = .failed
             record.activeTurnId = nil
             record.pendingApprovals = []
@@ -445,6 +498,8 @@ struct SessionStoreReducer {
         case .sessionStateChanged(let payload):
             return (payload.sessionId, payload.sequence)
         case .sessionMessageDelta(let payload):
+            return (payload.sessionId, payload.sequence)
+        case .sessionAssistantContent(let payload):
             return (payload.sessionId, payload.sequence)
         case .sessionToolStarted(let payload):
             return (payload.sessionId, payload.sequence)
@@ -515,6 +570,116 @@ struct SessionStoreReducer {
         )
     }
 
+    private func applyAssistantContent(
+        _ payload: AgentHostSessionAssistantContentPayload,
+        timestamp: String,
+        to record: inout SessionRecord
+    ) {
+        let messageID = "turn:\(payload.turnId):assistant:\(payload.generationIndex)"
+        let partID = "\(messageID):content:\(payload.generationIndex):\(payload.contentIndex)"
+        let messageIndex: Int
+        if let existingIndex = record.transcript.firstIndex(where: { $0.id == messageID }) {
+            messageIndex = existingIndex
+        } else {
+            record.transcript.append(
+                SessionTranscriptMessage(
+                    id: messageID,
+                    role: .assistant,
+                    parts: [],
+                    timestamp: timestamp
+                )
+            )
+            messageIndex = record.transcript.index(before: record.transcript.endIndex)
+        }
+
+        switch payload.contentType {
+        case .text:
+            let textIndex = record.transcript[messageIndex].parts.firstIndex { $0.id == partID }
+            switch payload.phase {
+            case .start:
+                if textIndex == nil {
+                    record.transcript[messageIndex].parts.append(.text(id: partID, text: ""))
+                }
+            case .delta:
+                if let textIndex,
+                   case .text(_, let text) = record.transcript[messageIndex].parts[textIndex] {
+                    record.transcript[messageIndex].parts[textIndex] = .text(
+                        id: partID,
+                        text: text + (payload.delta ?? "")
+                    )
+                } else {
+                    record.transcript[messageIndex].parts.append(
+                        .text(id: partID, text: payload.delta ?? "")
+                    )
+                }
+            case .end:
+                if let content = payload.content {
+                    if let textIndex {
+                        record.transcript[messageIndex].parts[textIndex] = .text(
+                            id: partID,
+                            text: content
+                        )
+                    } else {
+                        record.transcript[messageIndex].parts.append(.text(id: partID, text: content))
+                    }
+                }
+            }
+        case .thinking:
+            let existing: SessionThinkingRecord? = record.transcript[messageIndex].parts
+                .compactMap { part in
+                    guard case .thinking(let thinking) = part, thinking.id == partID else {
+                        return nil
+                    }
+                    return thinking
+                }
+                .first
+            let state: SessionThinkingRunState = payload.phase == .end ? .completed : .running
+            let text: String
+            switch payload.phase {
+            case .start:
+                text = existing?.text ?? ""
+            case .delta:
+                text = (existing?.text ?? "") + (payload.delta ?? "")
+            case .end:
+                if let content = payload.content, !content.isEmpty {
+                    text = content
+                } else {
+                    text = existing?.text ?? ""
+                }
+            }
+            let thinking = SessionThinkingRecord(
+                id: partID,
+                text: text,
+                state: state,
+                redacted: existing?.redacted ?? false
+            )
+            if let partIndex = record.transcript[messageIndex].parts.firstIndex(where: { $0.id == partID }) {
+                record.transcript[messageIndex].parts[partIndex] = .thinking(thinking)
+            } else {
+                record.transcript[messageIndex].parts.append(.thinking(thinking))
+            }
+        case .toolCall:
+            guard let call = payload.toolCall else { return }
+            let existing = record.tools.first { $0.id == call.id }
+            let tool = SessionToolRecord(
+                id: call.id,
+                name: call.name,
+                summary: call.argumentsSummary,
+                output: existing?.output ?? "",
+                state: existing?.state ?? .running,
+                isError: existing?.isError,
+                approval: existing?.approval
+            )
+            replaceOrAppend(tool, in: &record.tools)
+            replaceOrAppend(
+                tool,
+                turnId: payload.turnId,
+                timestamp: timestamp,
+                in: &record.transcript
+            )
+        }
+    }
+
     private func replaceOrAppend(_ tool: SessionToolRecord, in tools: inout [SessionToolRecord]) {
         if let index = tools.firstIndex(where: { $0.id == tool.id }) {
             tools[index] = tool
@@ -570,6 +735,23 @@ struct SessionStoreReducer {
         }
     }
 
+    private func finishUnfinishedThinking(in record: inout SessionRecord) {
+        for messageIndex in record.transcript.indices {
+            for partIndex in record.transcript[messageIndex].parts.indices {
+                guard case .thinking(let thinking) = record.transcript[messageIndex].parts[partIndex],
+                      thinking.state == .running else { continue }
+                record.transcript[messageIndex].parts[partIndex] = .thinking(
+                    SessionThinkingRecord(
+                        id: thinking.id,
+                        text: thinking.text,
+                        state: .completed,
+                        redacted: thinking.redacted
+                    )
+                )
+            }
+        }
+    }
+
     private func appendTranscript(
         delta: String,
         turnId: String,
@@ -615,7 +797,14 @@ struct SessionStoreReducer {
         }
 
         let messageID = "turn:\(turnId):assistant"
-        if let messageIndex = transcript.firstIndex(where: { $0.id == messageID }) {
+        let messageIndex = transcript.indices.reversed().first { index in
+            transcript[index].role == .assistant
+                && (
+                    transcript[index].id == messageID
+                        || transcript[index].id.hasPrefix("\(messageID):")
+                )
+        }
+        if let messageIndex {
             transcript[messageIndex].parts.append(.tool(tool))
         } else {
             transcript.append(
@@ -642,16 +831,23 @@ struct SessionStoreReducer {
             uniquingKeysWith: { _, latest in latest }
         )
 
-        var transcript: [SessionTranscriptMessage] = messages.compactMap { message -> SessionTranscriptMessage? in
-            if message.role == .tool {
-                guard message.toolCallId == nil else { return nil }
-            }
-
-            let parts = message.content.enumerated().map { index, content -> SessionTranscriptPart in
+        func parts(for message: AgentHostSessionMessage) -> [SessionTranscriptPart] {
+            message.content.enumerated().map { index, content -> SessionTranscriptPart in
                 let partID = "\(message.id):part:\(index)"
                 switch content {
                 case .text(let text):
                     return .text(id: partID, text: text)
+                case .skill(let name):
+                    return .skill(SessionSkillRecord(id: partID, name: name))
+                case .thinking(let text, let redacted):
+                    return .thinking(
+                        SessionThinkingRecord(
+                            id: partID,
+                            text: text,
+                            state: .completed,
+                            redacted: redacted
+                        )
+                    )
                 case .image(let mimeType):
                     return .image(id: partID, mimeType: mimeType)
                 case .toolCall(let id, let name, let argumentsSummary):
@@ -670,12 +866,23 @@ struct SessionStoreReducer {
                     )
                 }
             }
-            guard !parts.isEmpty else { return nil }
-            return SessionTranscriptMessage(
-                id: message.id,
-                role: message.role,
-                parts: parts,
-                timestamp: message.timestamp
+        }
+
+        var transcript: [SessionTranscriptMessage] = []
+        for message in messages {
+            if message.role == .tool, message.toolCallId != nil {
+                continue
+            }
+
+            let messageParts = parts(for: message)
+            guard !messageParts.isEmpty else { continue }
+            transcript.append(
+                SessionTranscriptMessage(
+                    id: message.id,
+                    role: message.role,
+                    parts: messageParts,
+                    timestamp: message.timestamp
+                )
             )
         }
 
@@ -732,6 +939,10 @@ struct SessionStoreReducer {
             switch content {
             case .text(let text):
                 return text
+            case .skill:
+                return ""
+            case .thinking:
+                return ""
             case .image(let mimeType):
                 return "[image: \(mimeType)]"
             case .toolCall(_, let name, let argumentsSummary):
@@ -759,6 +970,18 @@ struct SessionStoreReducer {
             .joined(separator: " ")
         guard !normalized.isEmpty else { return nil }
         return String(normalized.prefix(40))
+    }
+
+    private func skillInvocation(in text: String) -> (name: String, userText: String)? {
+        guard text.hasPrefix("/skill:") else { return nil }
+        let nameStart = text.index(text.startIndex, offsetBy: "/skill:".count)
+        let nameEnd = text[nameStart...].firstIndex(where: { $0.isWhitespace }) ?? text.endIndex
+        let name = String(text[nameStart..<nameEnd])
+        guard !name.isEmpty else { return nil }
+        return (
+            name,
+            String(text[nameEnd...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 }
 
@@ -852,12 +1075,21 @@ final class SessionStore: ObservableObject {
             select(summary.id, profile: record.profile, cwd: record.descriptor.cwd)
             return
         }
-        _ = try await service.openSession(
-            path: summary.path,
-            sessionDirectory: sessionDirectory,
-            profile: profile,
-            requestID: UUID().uuidString
-        )
+        do {
+            _ = try await service.openSession(
+                path: summary.path,
+                sessionDirectory: sessionDirectory,
+                profile: profile,
+                requestID: UUID().uuidString
+            )
+        } catch AgentHostClientError.requestTimedOut {
+            _ = try await service.openSession(
+                path: summary.path,
+                sessionDirectory: sessionDirectory,
+                profile: profile,
+                requestID: UUID().uuidString
+            )
+        }
         let snapshot = try await service.snapshot(
             sessionId: summary.id,
             requestID: UUID().uuidString

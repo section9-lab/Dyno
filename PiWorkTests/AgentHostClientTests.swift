@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import PiWork
 
@@ -13,6 +14,20 @@ final class AgentHostClientTests: XCTestCase {
         let hello = try await client.start()
 
         XCTAssertEqual(hello.hostVersion, "/tmp/pi-work/auth.json")
+        await client.stop()
+    }
+
+    func testClientDoesNotPassTestHarnessConfigurationToHostProcess() async throws {
+        let script = #"printf '{"version":1,"kind":"event","event":"host.hello","payload":{"hostVersion":"%s","piVersion":"0.83.0","capabilities":[]}}\n' "${XCTestConfigurationFilePath:-missing}"; cat >/dev/null"#
+        let client = AgentHostClient(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", script],
+            environment: ["PI_WORK_AUTH_PATH": "/tmp/pi-work/auth.json"]
+        )
+
+        let hello = try await client.start()
+
+        XCTAssertEqual(hello.hostVersion, "missing")
         await client.stop()
     }
 
@@ -230,6 +245,37 @@ final class AgentHostClientTests: XCTestCase {
         }
 
         await client.stop()
+    }
+
+    func testHandshakeTimeoutKillsAHostThatIgnoresTermination() async throws {
+        let markerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pi-work-stubborn-host-\(UUID().uuidString)")
+        let script = "printf '%s' \"$$\" > '\(markerURL.path)'; trap '' TERM; while :; do sleep 1; done"
+        let client = AgentHostClient(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", script],
+            handshakeTimeout: 0.05
+        )
+
+        do {
+            _ = try await client.start()
+            XCTFail("Expected the handshake to time out")
+        } catch AgentHostClientError.handshakeTimedOut {
+            // Expected.
+        }
+        await client.stop()
+
+        let pidText = try String(contentsOf: markerURL, encoding: .utf8)
+        let pid = try XCTUnwrap(Int32(pidText))
+        defer {
+            Darwin.kill(pid, SIGKILL)
+            try? FileManager.default.removeItem(at: markerURL)
+        }
+        for _ in 0..<20 where Darwin.kill(pid, 0) == 0 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertNotEqual(Darwin.kill(pid, 0), 0, "Timed-out host process must not survive")
     }
 
     func testStartRejectsAnIncompatibleHandshake() async {

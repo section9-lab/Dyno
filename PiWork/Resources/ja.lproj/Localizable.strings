@@ -165,6 +165,10 @@
 "chat.smarter" = "高性能";
 "chat.thinking_help" = "思考レベル：%@";
 "chat.thinking_accessibility" = "思考レベル";
+"chat.thinking.running" = "思考中…";
+"chat.thinking.title" = "深い思考";
+"chat.thinking.expand" = "思考内容を展開";
+"chat.thinking.collapse" = "思考内容を折りたたむ";
 "chat.one_million_context" = "1M コンテキスト";
 "chat.access_help" = "アクセス：%@";
 "chat.send" = "送信";
@@ -182,6 +186,7 @@
 "chat.approval.deny" = "拒否";
 "chat.approval.allow_once" = "今回のみ許可";
 "chat.image_attachment" = "[画像 · %@]";
+"chat.skill.used" = "スキルを使用 · %@";
 "chat.message.copy" = "回答をコピー";
 "chat.message.copied" = "コピーしました";
 "chat.tool.input" = "入力";

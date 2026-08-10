@@ -165,6 +165,10 @@
 "chat.smarter" = "더 정교하게";
 "chat.thinking_help" = "사고 수준: %@";
 "chat.thinking_accessibility" = "사고 수준";
+"chat.thinking.running" = "생각 중…";
+"chat.thinking.title" = "심층 사고";
+"chat.thinking.expand" = "사고 내용 펼치기";
+"chat.thinking.collapse" = "사고 내용 접기";
 "chat.one_million_context" = "1M 컨텍스트";
 "chat.access_help" = "접근 권한: %@";
 "chat.send" = "보내기";
@@ -182,6 +186,7 @@
 "chat.approval.deny" = "거부";
 "chat.approval.allow_once" = "한 번 허용";
 "chat.image_attachment" = "[이미지 · %@]";
+"chat.skill.used" = "스킬 사용 · %@";
 "chat.message.copy" = "응답 복사";
 "chat.message.copied" = "복사됨";
 "chat.tool.input" = "입력";

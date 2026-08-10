@@ -438,7 +438,7 @@ export function normalizeAgentMessages(
       return [{
         ...base,
         role: "user",
-        content: normalizeContent(message.content),
+        content: normalizeUserContent(message.content),
       }];
     }
 
@@ -495,6 +495,44 @@ export function normalizeAgentMessages(
   });
 }
 
+function normalizeUserContent(content: unknown): SessionMessageContent[] {
+  return normalizeContent(content).flatMap((item): SessionMessageContent[] => {
+    if (item.type !== "text") return [item];
+    const invocation = extractInjectedSkillBlocks(item.text);
+    if (!invocation) return [item];
+    return [
+      ...invocation.skillNames.map((name): SessionMessageContent => ({ type: "skill", name })),
+      ...(invocation.text ? [{ type: "text" as const, text: invocation.text }] : []),
+    ];
+  });
+}
+
+function extractInjectedSkillBlocks(
+  text: string,
+): { skillNames: string[]; text: string } | undefined {
+  let remainder = text;
+  const skillNames: string[] = [];
+  let removedSkillBlock = false;
+
+  while (true) {
+    const openingTag = /^\s*<skill\b[^>]*>/.exec(remainder);
+    if (!openingTag) {
+      return removedSkillBlock
+        ? { skillNames, text: remainder.trimStart() }
+        : undefined;
+    }
+
+    const closingIndex = remainder.indexOf("</skill>", openingTag[0].length);
+    if (closingIndex < 0) return undefined;
+
+    const name = /\bname="([^"]+)"/.exec(openingTag[0])?.[1]?.trim();
+    if (name && !skillNames.includes(name)) skillNames.push(name);
+
+    remainder = remainder.slice(closingIndex + "</skill>".length);
+    removedSkillBlock = true;
+  }
+}
+
 function normalizeContent(content: unknown): SessionMessageContent[] {
   if (typeof content === "string") return [{ type: "text", text: content }];
   if (!Array.isArray(content)) return [];
@@ -503,6 +541,16 @@ function normalizeContent(content: unknown): SessionMessageContent[] {
     if (!item || typeof item !== "object" || !("type" in item)) return [];
     if (item.type === "text" && "text" in item && typeof item.text === "string") {
       return [{ type: "text", text: item.text }];
+    }
+    if (item.type === "thinking") {
+      const redacted = "redacted" in item && item.redacted === true;
+      return [{
+        type: "thinking",
+        thinking: redacted
+          ? ""
+          : ("thinking" in item && typeof item.thinking === "string" ? item.thinking : ""),
+        redacted,
+      }];
     }
     if (item.type === "image" && "mimeType" in item && typeof item.mimeType === "string") {
       return [{ type: "image", mimeType: item.mimeType }];
@@ -541,14 +589,84 @@ function safeJSONStringify(value: unknown): string {
 }
 
 export function normalizeAgentSessionEvent(event: AgentSessionEvent): SessionHandleEvent | undefined {
-  if (
-    event.type === "message_update"
-    && event.assistantMessageEvent.type === "text_delta"
-  ) {
-    return {
-      type: "textDelta",
-      delta: event.assistantMessageEvent.delta,
-    };
+  if (event.type === "message_start" && event.message.role === "assistant") {
+    return { type: "assistantMessageStarted" };
+  }
+
+  if (event.type === "message_update") {
+    const update = event.assistantMessageEvent;
+    switch (update.type) {
+      case "text_start":
+        return {
+          type: "assistantContent",
+          phase: "start",
+          contentType: "text",
+          contentIndex: update.contentIndex,
+        };
+      case "text_delta":
+        return {
+          type: "assistantContent",
+          phase: "delta",
+          contentType: "text",
+          contentIndex: update.contentIndex,
+          delta: update.delta,
+        };
+      case "text_end":
+        return {
+          type: "assistantContent",
+          phase: "end",
+          contentType: "text",
+          contentIndex: update.contentIndex,
+          content: update.content,
+        };
+      case "thinking_start":
+        return {
+          type: "assistantContent",
+          phase: "start",
+          contentType: "thinking",
+          contentIndex: update.contentIndex,
+        };
+      case "thinking_delta":
+        return {
+          type: "assistantContent",
+          phase: "delta",
+          contentType: "thinking",
+          contentIndex: update.contentIndex,
+          delta: update.delta,
+        };
+      case "thinking_end":
+        return {
+          type: "assistantContent",
+          phase: "end",
+          contentType: "thinking",
+          contentIndex: update.contentIndex,
+          content: update.content,
+        };
+      case "toolcall_start": {
+        const toolCall = normalizeStreamingToolCall(update.partial.content[update.contentIndex]);
+        return {
+          type: "assistantContent",
+          phase: "start",
+          contentType: "toolCall",
+          contentIndex: update.contentIndex,
+          ...(toolCall ? { toolCall } : {}),
+        };
+      }
+      case "toolcall_end":
+        return {
+          type: "assistantContent",
+          phase: "end",
+          contentType: "toolCall",
+          contentIndex: update.contentIndex,
+          toolCall: {
+            id: update.toolCall.id,
+            name: update.toolCall.name,
+            argumentsSummary: safeJSONStringify(update.toolCall.arguments),
+          },
+        };
+      default:
+        break;
+    }
   }
 
   if (event.type === "tool_execution_start") {
@@ -582,12 +700,34 @@ export function normalizeAgentSessionEvent(event: AgentSessionEvent): SessionHan
   return undefined;
 }
 
+function normalizeStreamingToolCall(
+  content: unknown,
+): Extract<SessionHandleEvent, { type: "assistantContent" }>["toolCall"] {
+  if (!content || typeof content !== "object" || !("type" in content)) return undefined;
+  if (
+    content.type !== "toolCall"
+    || !("id" in content)
+    || typeof content.id !== "string"
+    || !("name" in content)
+    || typeof content.name !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    id: content.id,
+    name: content.name,
+    argumentsSummary: safeJSONStringify("arguments" in content ? content.arguments : {}),
+  };
+}
+
 function normalizeToolOutput(result: unknown): string {
   if (result && typeof result === "object" && "content" in result) {
     const content = normalizeContent(result.content);
     const text = content.map((item) => {
       if (item.type === "text") return item.text;
       if (item.type === "image") return `[image · ${item.mimeType}]`;
+      if (item.type === "skill") return "";
+      if (item.type === "thinking") return "";
       return `${item.name} ${item.argumentsSummary}`;
     }).join("\n");
     if (text) return stripTerminalFormatting(text);

@@ -79,7 +79,9 @@ private struct RootView: View {
         .preferredColorScheme(themeStore.theme.colorScheme)
         .task {
 #if DEBUG
-            guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+            let environment = ProcessInfo.processInfo.environment
+            guard environment["XCTestConfigurationFilePath"] == nil,
+                  !CommandLine.arguments.contains("--pi-work-skip-auth-restore") else {
                 return
             }
 #endif

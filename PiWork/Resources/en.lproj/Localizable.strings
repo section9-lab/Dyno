@@ -165,6 +165,10 @@
 "chat.smarter" = "Smarter";
 "chat.thinking_help" = "Thinking effort: %@";
 "chat.thinking_accessibility" = "Thinking effort";
+"chat.thinking.running" = "Thinking…";
+"chat.thinking.title" = "Deep thinking";
+"chat.thinking.expand" = "Expand thinking";
+"chat.thinking.collapse" = "Collapse thinking";
 "chat.one_million_context" = "1M context";
 "chat.access_help" = "Access: %@";
 "chat.send" = "Send";
@@ -182,6 +186,7 @@
 "chat.approval.deny" = "Deny";
 "chat.approval.allow_once" = "Allow Once";
 "chat.image_attachment" = "[Image · %@]";
+"chat.skill.used" = "Used skill · %@";
 "chat.message.copy" = "Copy response";
 "chat.message.copied" = "Copied";
 "chat.tool.input" = "Input";

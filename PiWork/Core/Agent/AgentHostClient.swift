@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum AgentHostClientError: Error {
@@ -22,6 +23,8 @@ actor AgentHostClient {
     private var stdinHandle: FileHandle?
     private var stdoutHandle: FileHandle?
     private var stderrHandle: FileHandle?
+    private var stdoutReadTask: Task<Void, Never>?
+    private var stderrReadTask: Task<Void, Never>?
     private var framer = AgentHostLineFramer()
     private var handshakeContinuation: CheckedContinuation<AgentHostHelloPayload, Error>?
     private var handshakeTimeoutTask: Task<Void, Never>?
@@ -61,7 +64,9 @@ actor AgentHostClient {
         task.executableURL = executableURL
         task.arguments = arguments
         if !environment.isEmpty {
-            task.environment = ProcessInfo.processInfo.environment.merging(environment) {
+            var childEnvironment = ProcessInfo.processInfo.environment
+            childEnvironment.removeValue(forKey: "XCTestConfigurationFilePath")
+            task.environment = childEnvironment.merging(environment) {
                 _, override in override
             }
         }
@@ -76,13 +81,15 @@ actor AgentHostClient {
         stdinHandle = stdinPipe.fileHandleForWriting
         stdoutHandle = stdoutPipe.fileHandleForReading
         stderrHandle = stderrPipe.fileHandleForReading
-        stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            Task { await self?.consume(data) }
+        stdoutReadTask = Task.detached { [weak self, handle = stdoutPipe.fileHandleForReading] in
+            while !Task.isCancelled {
+                let data = handle.availableData
+                guard !data.isEmpty else { return }
+                await self?.consume(data)
+            }
         }
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
+        stderrReadTask = Task.detached { [handle = stderrPipe.fileHandleForReading] in
+            while !Task.isCancelled, !handle.availableData.isEmpty {}
         }
         task.terminationHandler = { [weak self] terminatedProcess in
             Task { await self?.processDidExit(terminatedProcess.terminationStatus) }
@@ -111,7 +118,7 @@ actor AgentHostClient {
         }
     }
 
-    func stop() {
+    func stop() async {
         handshakeTimeoutTask?.cancel()
         handshakeTimeoutTask = nil
         if let continuation = handshakeContinuation {
@@ -119,12 +126,9 @@ actor AgentHostClient {
             continuation.resume(throwing: CancellationError())
         }
         failPendingRequests(with: CancellationError())
-        stdoutHandle?.readabilityHandler = nil
-        stderrHandle?.readabilityHandler = nil
         try? stdinHandle?.close()
-        if let process, process.isRunning {
-            process.terminate()
-            process.waitUntilExit()
+        if let process {
+            await terminate(process)
         }
         cleanup()
     }
@@ -246,15 +250,27 @@ actor AgentHostClient {
         cleanup()
     }
 
-    private func handshakeDidTimeout() {
+    private func handshakeDidTimeout() async {
         handshakeTimeoutTask = nil
         guard let continuation = handshakeContinuation else { return }
         handshakeContinuation = nil
-        continuation.resume(throwing: AgentHostClientError.handshakeTimedOut)
-        if let process, process.isRunning {
-            process.terminate()
+        if let process {
+            await terminate(process)
         }
         cleanup()
+        continuation.resume(throwing: AgentHostClientError.handshakeTimedOut)
+    }
+
+    private func terminate(_ process: Process) async {
+        guard process.isRunning else { return }
+        process.terminate()
+        for _ in 0..<20 where process.isRunning {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        if process.isRunning {
+            Darwin.kill(process.processIdentifier, SIGKILL)
+            process.waitUntilExit()
+        }
     }
 
     private func failPendingRequests(with error: Error) {
@@ -282,8 +298,10 @@ actor AgentHostClient {
     }
 
     private func cleanup() {
-        stdoutHandle?.readabilityHandler = nil
-        stderrHandle?.readabilityHandler = nil
+        stdoutReadTask?.cancel()
+        stderrReadTask?.cancel()
+        stdoutReadTask = nil
+        stderrReadTask = nil
         stdinHandle = nil
         stdoutHandle = nil
         stderrHandle = nil

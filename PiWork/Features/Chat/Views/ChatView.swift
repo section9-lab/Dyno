@@ -476,14 +476,24 @@ struct ChatView: View {
 
     private var messages: [PiChatMessage] {
         guard let record = activeRecord else { return [] }
-        let streamingMessageID = record.activeTurnId.map { "turn:\($0):assistant" }
-        return record.transcript.map { message in
+        let streamingMessageID = record.activeTurnId.flatMap { turnId in
+            let messageID = "turn:\(turnId):assistant"
+            return record.transcript.last { message in
+                message.role == .assistant
+                    && (
+                        message.id == messageID
+                            || message.id.hasPrefix("\(messageID):")
+                    )
+            }?.id
+        }
+        let visibleMessages = record.transcript.map { message in
             PiChatMessage(
                 message: message,
                 isStreaming: message.id == streamingMessageID && isExecuting
             )
         }
         .filter(\.isVisible)
+        return AssistantTranscriptPresentation.groupAdjacentTools(in: visibleMessages)
     }
 
     private var transcriptTailID: String? {
@@ -1725,7 +1735,7 @@ private struct GrowingTextEditor: NSViewRepresentable {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? NSTextView else { return }
 
-        if textView.string != text {
+        if !textView.hasMarkedText(), textView.string != text {
             textView.string = text
             textView.setSelectedRange(NSRange(location: text.utf16.count, length: 0))
         }
@@ -1998,15 +2008,23 @@ private struct ChatMessageRow: View {
     var body: some View {
         switch message.role {
         case .user:
-            HStack {
+            HStack(alignment: .top) {
                 Spacer(minLength: 60)
-                Text(message.text)
-                    .font(.system(size: 14))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(AppPalette.translucentSurface)
-                    .adaptiveCornerRadius(14)
-                    .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+                VStack(alignment: .trailing, spacing: 7) {
+                    if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(message.text)
+                            .font(.system(size: 14))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(AppPalette.translucentSurface)
+                            .adaptiveCornerRadius(14)
+                            .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+                    }
+
+                    ForEach(message.usedSkills) { skill in
+                        SkillUsageRow(skill: skill)
+                    }
+                }
             }
         case .assistant:
             HStack(alignment: .top) {
@@ -2037,30 +2055,6 @@ private struct ChatMessageRow: View {
                         .controlSize(.small)
                 }
             }
-
-            if message.hasCopyableText {
-                HStack(spacing: 8) {
-                    Button(action: copyMessage) {
-                        Image(systemName: MessageCopyFeedback.iconName(isCopied: isMessageCopied))
-                            .font(.system(size: 11, weight: .medium))
-                            .frame(width: 24, height: 22)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.secondary)
-                    .help(copyMessageLabel)
-                    .accessibilityLabel(copyMessageLabel)
-
-                    if let timestamp = message.timestamp {
-                        Text(timestamp, style: .time)
-                            .font(.system(size: 10.5, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                            .monospacedDigit()
-                    }
-
-                    Spacer(minLength: 8)
-                }
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
@@ -2071,6 +2065,35 @@ private struct ChatMessageRow: View {
 
     private var assistantBlocks: [AssistantTranscriptBlock] {
         AssistantTranscriptPresentation.blocks(from: message.parts)
+    }
+
+    private var assistantMetadataAnchorID: String? {
+        guard message.hasCopyableText else { return nil }
+        return AssistantTranscriptPresentation.metadataAnchorID(in: assistantBlocks)
+    }
+
+    private var assistantMetadata: some View {
+        HStack(spacing: 8) {
+            Button(action: copyMessage) {
+                Image(systemName: MessageCopyFeedback.iconName(isCopied: isMessageCopied))
+                    .font(.system(size: 11, weight: .medium))
+                    .frame(width: 24, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.secondary)
+            .help(copyMessageLabel)
+            .accessibilityLabel(copyMessageLabel)
+
+            if let timestamp = message.timestamp {
+                Text(timestamp, style: .time)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+                    .monospacedDigit()
+            }
+
+            Spacer(minLength: 8)
+        }
     }
 
     private var copyMessageLabel: String {
@@ -2103,10 +2126,17 @@ private struct ChatMessageRow: View {
     @ViewBuilder
     private func assistantBlock(_ block: AssistantTranscriptBlock) -> some View {
         switch block {
-        case .text(_, let text):
-            Markdown(text)
-                .markdownTheme(assistantMarkdownTheme)
-                .textSelection(.enabled)
+        case .text(let id, let text):
+            VStack(alignment: .leading, spacing: 4) {
+                Markdown(text)
+                    .markdownTheme(assistantMarkdownTheme)
+                    .textSelection(.enabled)
+                if id == assistantMetadataAnchorID {
+                    assistantMetadata
+                }
+            }
+        case .thinking(let thinking):
+            AssistantThinkingView(thinking: thinking)
         case .image(_, let mimeType):
             Label(L10n.format("chat.image_attachment", mimeType), systemImage: "photo")
                 .font(.system(size: 12))
@@ -2117,6 +2147,118 @@ private struct ChatMessageRow: View {
                 onResolve: onResolve
             )
         }
+    }
+}
+
+private struct SkillUsageRow: View {
+    let skill: SessionSkillRecord
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 11.5, weight: .medium))
+
+            Text(L10n.format("chat.skill.used", skill.name))
+                .lineLimit(1)
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(Color.primary.opacity(0.5))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct AssistantThinkingView: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+
+    let thinking: SessionThinkingRecord
+
+    @State private var isExpanded: Bool
+    @State private var isHeaderHovered = false
+
+    init(thinking: SessionThinkingRecord) {
+        self.thinking = thinking
+        _isExpanded = State(initialValue: thinking.state == .running)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: toggleExpansion) {
+                HStack(spacing: 8) {
+                    statusIcon
+
+                    Text(L10n.string("chat.thinking.title"))
+                        .font(.system(size: 13.5, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.62))
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.36))
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        .animation(
+                            accessibilityReduceMotion ? nil : .easeOut(duration: 0.16),
+                            value: isExpanded
+                        )
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(Color.primary.opacity(isHeaderHovered ? 0.045 : 0))
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { isHeaderHovered = $0 }
+            .accessibilityLabel(L10n.string("chat.thinking.title"))
+            .accessibilityValue(
+                thinking.state == .running
+                    ? L10n.string("chat.thinking.running")
+                    : ""
+            )
+            .accessibilityHint(
+                L10n.string(
+                    isExpanded
+                        ? "chat.thinking.collapse"
+                        : "chat.thinking.expand"
+                )
+            )
+
+            if isExpanded,
+               !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(verbatim: thinking.text)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.primary.opacity(0.62))
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.primary.opacity(0.045))
+                    )
+                    .padding(.top, 7)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        if thinking.state == .running {
+            ProgressView()
+                .controlSize(.mini)
+                .frame(width: 16, height: 16)
+        } else {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.32))
+                .frame(width: 16, height: 16)
+        }
+    }
+
+    private func toggleExpansion() {
+        isExpanded.toggle()
     }
 }
 
@@ -2151,8 +2293,6 @@ private struct AssistantToolGroupView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Color.primary.opacity(0.58))
 
-                    Spacer(minLength: 8)
-
                     if canToggleExpansion {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10, weight: .semibold))
@@ -2174,6 +2314,7 @@ private struct AssistantToolGroupView: View {
                             )
                         )
                 )
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

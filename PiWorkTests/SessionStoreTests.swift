@@ -79,6 +79,23 @@ final class SessionStoreTests: XCTestCase {
         await store.stop()
     }
 
+    func testOpenSessionRetriesOnceAfterTheInitialRequestTimesOut() async throws {
+        let host = FakeAgentHost()
+        await host.setSnapshot(makeStoreSnapshot())
+        await host.setOpenSessionTimeoutsRemaining(1)
+        let store = SessionStore(service: host)
+
+        try await store.openSession(makeSummary(), profile: .chat, sessionDirectory: nil)
+
+        let openCount = await host.openCount
+        let requestIDs = await host.openSessionRequestIDs
+        XCTAssertEqual(openCount, 2)
+        XCTAssertEqual(Set(requestIDs).count, 2)
+        XCTAssertEqual(store.selectedChatSessionId, "session-one")
+        XCTAssertNotNil(store.records["session-one"])
+        await store.stop()
+    }
+
     func testScheduledDraftCanBeCreatedWithoutChangingSelection() async throws {
         let host = FakeAgentHost()
         await host.setSnapshot(makeStoreSnapshot())
@@ -600,9 +617,11 @@ private actor FakeAgentHost: AgentHostServicing {
     private var gitBranchesResult = AgentHostGitBranchesResult.unavailable
     private var shouldEmitRunningBeforeResponse = false
     private var shouldRejectPrompts = false
+    private var openSessionTimeoutsRemaining = 0
 
     private(set) var startCount = 0
     private(set) var openCount = 0
+    private(set) var openSessionRequestIDs: [String] = []
     private(set) var snapshotCount = 0
     private(set) var promptTexts: [String] = []
     private(set) var renamedTitles: [String] = []
@@ -649,6 +668,10 @@ private actor FakeAgentHost: AgentHostServicing {
 
     func rejectPrompts(_ enabled: Bool) {
         shouldRejectPrompts = enabled
+    }
+
+    func setOpenSessionTimeoutsRemaining(_ count: Int) {
+        openSessionTimeoutsRemaining = count
     }
 
     func emit(_ event: AgentHostServerEvent) {
@@ -719,6 +742,11 @@ private actor FakeAgentHost: AgentHostServicing {
         requestID: String
     ) async throws -> AgentHostSessionOpenResult {
         openCount += 1
+        openSessionRequestIDs.append(requestID)
+        if openSessionTimeoutsRemaining > 0 {
+            openSessionTimeoutsRemaining -= 1
+            throw AgentHostClientError.requestTimedOut(requestID)
+        }
         return AgentHostSessionOpenResult(
             sessionId: snapshotResult.session.id,
             path: path,
