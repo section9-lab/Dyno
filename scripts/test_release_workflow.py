@@ -5,6 +5,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github/workflows/release-macos.yml"
 PROJECT_PATH = REPOSITORY_ROOT / "project.yml"
+INFO_PLIST_PATH = REPOSITORY_ROOT / "PiWork/Resources/Info.plist"
 AGENT_HOST_LOCK_PATH = REPOSITORY_ROOT / "AgentHost/bun.lock"
 AGENT_HOST_PACKAGE_PATH = REPOSITORY_ROOT / "AgentHost/package.json"
 
@@ -24,6 +25,16 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('"v*"', workflow)
         self.assertIn("GITHUB_REF_NAME", workflow)
         self.assertIn("PROJECT_VERSION", workflow)
+
+    def test_installed_app_reports_the_marketing_version(self):
+        project = PROJECT_PATH.read_text()
+        info_plist = INFO_PLIST_PATH.read_text()
+
+        self.assertIn(
+            'CFBundleShortVersionString: "$(MARKETING_VERSION)"',
+            project,
+        )
+        self.assertIn("<string>$(MARKETING_VERSION)</string>", info_plist)
 
     def test_release_builds_native_arm64_and_x86_64_packages(self):
         workflow = self.workflow_text()

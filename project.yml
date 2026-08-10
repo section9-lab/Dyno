@@ -47,7 +47,7 @@ targets:
       path: PiWork/Resources/Info.plist
       properties:
         CFBundleDisplayName: pi-work
-        CFBundleShortVersionString: 0.1.0
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         # Must be a string: CFNetwork builds the default User-Agent from this
         # and calls -length on it, so a numeric value crashes on the first
         # URLSession request.

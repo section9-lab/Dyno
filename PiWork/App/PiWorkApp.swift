@@ -5,6 +5,7 @@ import SwiftUI
 struct PiWorkApp: App {
     @StateObject private var authSession = AuthSession.shared
     @StateObject private var agentRuntime = AppAgentRuntime()
+    @StateObject private var updateController = AppUpdateController()
     @ObservedObject private var themeStore = ThemeStore.shared
     @ObservedObject private var languageStore = LanguageStore.shared
 
@@ -19,6 +20,14 @@ struct PiWorkApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button(L10n.string("update.check")) {
+                    Task { await updateController.checkForUpdatesAndPresent() }
+                }
+                .disabled(updateController.isChecking)
+            }
+        }
 
         Settings {
             if let agentSettingsStore = agentRuntime.agentSettingsStore,
@@ -26,7 +35,8 @@ struct PiWorkApp: App {
                 AppSettingsView(
                     agentSettingsStore: agentSettingsStore,
                     providerAuthStore: providerAuthStore,
-                    languageStore: languageStore
+                    languageStore: languageStore,
+                    updateController: updateController
                 )
                     .preferredColorScheme(themeStore.theme.colorScheme)
                     .environment(\.locale, languageStore.language.locale)

@@ -6,6 +6,7 @@ struct AppSettingsView: View {
     @ObservedObject var agentSettingsStore: AgentSettingsStore
     @ObservedObject var providerAuthStore: ProviderAuthStore
     @ObservedObject var languageStore: LanguageStore
+    @ObservedObject var updateController: AppUpdateController
     @State private var selection = SettingsDestination.general
 
     var body: some View {
@@ -19,7 +20,10 @@ struct AppSettingsView: View {
                 Group {
                     switch selection {
                     case .general:
-                        GeneralSettingsView(languageStore: languageStore)
+                        GeneralSettingsView(
+                            languageStore: languageStore,
+                            updateController: updateController
+                        )
                     case .agent:
                         AgentGeneralSettingsView(store: agentSettingsStore)
                     case .modelsAndAuthentication:
@@ -130,6 +134,7 @@ private struct SettingsSidebar: View {
 
 private struct GeneralSettingsView: View {
     @ObservedObject var languageStore: LanguageStore
+    @ObservedObject var updateController: AppUpdateController
 
     var body: some View {
         VStack(spacing: 0) {
@@ -146,35 +151,93 @@ private struct GeneralSettingsView: View {
             .padding(.bottom, 18)
 
             ScrollView {
-                AgentSettingsRow(
-                    title: L10n.string("settings.general.language.title"),
-                    description: L10n.string("settings.general.language.description")
-                ) {
-                    Picker(
-                        L10n.string("settings.general.language.title"),
-                        selection: $languageStore.language
+                VStack(spacing: 16) {
+                    AgentSettingsRow(
+                        title: L10n.string("settings.general.language.title"),
+                        description: L10n.string("settings.general.language.description")
                     ) {
-                        ForEach(AppLanguage.allCases) { language in
-                            Text(language.displayName).tag(language)
+                        Picker(
+                            L10n.string("settings.general.language.title"),
+                            selection: $languageStore.language
+                        ) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(language.displayName).tag(language)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 170)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 170)
+                    .settingsCard()
+
+                    AppUpdateSettingsRow(controller: updateController)
+                        .settingsCard()
                 }
-                .background(
-                    adaptiveRoundedShape(cornerRadius: 15)
-                        .fill(AppPalette.translucentSurface)
-                        .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
-                )
-                .overlay(
-                    adaptiveRoundedShape(cornerRadius: 15)
-                        .stroke(AppPalette.panelBorder, lineWidth: 1)
-                )
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
         }
+    }
+}
+
+private struct AppUpdateSettingsRow: View {
+    @ObservedObject var controller: AppUpdateController
+
+    var body: some View {
+        AgentSettingsRow(
+            title: L10n.string("update.title"),
+            description: statusDescription
+        ) {
+            if controller.isChecking {
+                ProgressView()
+                    .controlSize(.small)
+                    .help(L10n.string("update.checking"))
+            } else {
+                Button(buttonTitle) {
+                    if case .updateAvailable = controller.state {
+                        controller.openAvailableUpdate()
+                    } else {
+                        Task { await controller.checkForUpdatesAndPresent() }
+                    }
+                }
+            }
+        }
+    }
+
+    private var statusDescription: String {
+        switch controller.state {
+        case .idle:
+            return L10n.format("update.installed_version", controller.currentVersion)
+        case .checking:
+            return L10n.string("update.checking")
+        case .upToDate:
+            return L10n.format("update.status.up_to_date", controller.currentVersion)
+        case let .updateAvailable(update):
+            return L10n.format("update.status.available", update.version)
+        case .failed:
+            return L10n.string("update.status.failed")
+        }
+    }
+
+    private var buttonTitle: String {
+        if case .updateAvailable = controller.state {
+            return L10n.string("update.download")
+        }
+        return L10n.string("update.check")
+    }
+}
+
+private extension View {
+    func settingsCard() -> some View {
+        background(
+            adaptiveRoundedShape(cornerRadius: 15)
+                .fill(AppPalette.translucentSurface)
+                .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+        )
+        .overlay(
+            adaptiveRoundedShape(cornerRadius: 15)
+                .stroke(AppPalette.panelBorder, lineWidth: 1)
+        )
     }
 }
 
