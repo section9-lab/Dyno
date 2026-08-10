@@ -115,7 +115,7 @@ struct ChatView: View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 18) {
                         ForEach(messages) { message in
                             ChatMessageRow(message: message) { approval, decision in
                                 resolve(approval: approval, decision: decision)

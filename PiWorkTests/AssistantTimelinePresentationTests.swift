@@ -353,6 +353,25 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertFalse(thinkingSource.contains("withAnimation("))
     }
 
+    func testConversationKeepsTranscriptRowsMountedWhileScrolling() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        let transcriptStart = try XCTUnwrap(source.range(of: "private var transcript: some View"))
+        let emptySessionStart = try XCTUnwrap(source.range(of: "private var emptySession: some View"))
+        let transcriptSource = String(source[transcriptStart.lowerBound..<emptySessionStart.lowerBound])
+
+        XCTAssertTrue(transcriptSource.contains("VStack(alignment: .leading, spacing: 18)"))
+        XCTAssertFalse(transcriptSource.contains("LazyVStack(alignment: .leading, spacing: 18)"))
+    }
+
     func testToolGroupHeaderUsesLeadingAlignedContent() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
