@@ -63,8 +63,14 @@ struct SchedulePlanner {
 }
 
 @MainActor
+struct ScheduleTaskExecution: Equatable {
+    let sessionID: String
+    let resultText: String?
+}
+
+@MainActor
 protocol ScheduleTaskExecuting: AnyObject {
-    func execute(_ task: ScheduledTask) async throws -> String
+    func execute(_ task: ScheduledTask) async throws -> ScheduleTaskExecution
 }
 
 @MainActor
@@ -73,7 +79,7 @@ protocol ScheduleSessionRunning: AnyObject {
         cwd: String,
         instruction: String,
         accessMode: AgentHostAccessMode
-    ) async throws -> String
+    ) async throws -> ScheduleTaskExecution
 }
 
 @MainActor
@@ -89,7 +95,7 @@ final class ScheduleAgentExecutor: ScheduleTaskExecuting {
         self.fallbackDirectory = fallbackDirectory ?? Self.defaultFallbackDirectory()
     }
 
-    func execute(_ task: ScheduledTask) async throws -> String {
+    func execute(_ task: ScheduledTask) async throws -> ScheduleTaskExecution {
         let workingDirectory: URL
         if let projectPath = task.projectPath, !projectPath.isEmpty {
             workingDirectory = URL(fileURLWithPath: projectPath, isDirectory: true)
@@ -139,7 +145,7 @@ extension SessionStore: ScheduleSessionRunning {
         cwd: String,
         instruction: String,
         accessMode: AgentHostAccessMode
-    ) async throws -> String {
+    ) async throws -> ScheduleTaskExecution {
         let record = try await createDraft(
             cwd: cwd,
             sessionDirectory: nil,
@@ -149,7 +155,12 @@ extension SessionStore: ScheduleSessionRunning {
         try await selectAccessMode(accessMode, sessionId: record.id)
         _ = try await submitPrompt(sessionId: record.id, text: instruction)
         try await waitForScheduledCompletion(sessionID: record.id)
-        return record.id
+        let resultText: String? = records[record.id]?.transcript.reversed().compactMap { message -> String? in
+            guard message.role == .assistant else { return nil }
+            let text = PiChatMessage(message: message).copyableText
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+        }.first
+        return ScheduleTaskExecution(sessionID: record.id, resultText: resultText)
     }
 
     private func waitForScheduledCompletion(
@@ -311,8 +322,13 @@ final class ScheduleRunner {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let sessionID = try await self.executor.execute(task)
-                self.store.completeRun(record.id, sessionID: sessionID, at: self.now())
+                let execution = try await self.executor.execute(task)
+                self.store.completeRun(
+                    record.id,
+                    sessionID: execution.sessionID,
+                    resultText: execution.resultText,
+                    at: self.now()
+                )
             } catch {
                 self.store.failRun(
                     record.id,

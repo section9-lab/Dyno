@@ -117,6 +117,7 @@ final class ScheduleRunnerTests: XCTestCase {
 
         XCTAssertEqual(executor.executedTaskIDs, [task.id])
         XCTAssertNil(store.records.first?.scheduledAt)
+        XCTAssertEqual(store.records.first?.resultText, "Scheduled task completed.")
     }
 
     func testStartedRunnerExecutesWhenClockPassesScheduledTime() async throws {
@@ -187,9 +188,10 @@ final class ScheduleRunnerTests: XCTestCase {
             fallbackDirectory: fallback
         )
 
-        let sessionID = try await executor.execute(makeTask())
+        let execution = try await executor.execute(makeTask())
 
-        XCTAssertEqual(sessionID, "scheduled-session")
+        XCTAssertEqual(execution.sessionID, "scheduled-session")
+        XCTAssertEqual(execution.resultText, "Scheduled task completed.")
         XCTAssertEqual(client.cwd, fallback.path)
         XCTAssertEqual(client.instruction, "Analyze the current project.")
         XCTAssertEqual(client.accessMode, .readOnly)
@@ -259,10 +261,13 @@ private final class FakeScheduleExecutor: ScheduleTaskExecuting {
         self.error = error
     }
 
-    func execute(_ task: ScheduledTask) async throws -> String {
+    func execute(_ task: ScheduledTask) async throws -> ScheduleTaskExecution {
         executedTaskIDs.append(task.id)
         if let error { throw error }
-        return "scheduled-session"
+        return ScheduleTaskExecution(
+            sessionID: "scheduled-session",
+            resultText: "Scheduled task completed."
+        )
     }
 }
 
@@ -285,11 +290,14 @@ private final class FakeScheduleSessionClient: ScheduleSessionRunning {
         cwd: String,
         instruction: String,
         accessMode: AgentHostAccessMode
-    ) async throws -> String {
+    ) async throws -> ScheduleTaskExecution {
         self.cwd = cwd
         self.instruction = instruction
         self.accessMode = accessMode
-        return "scheduled-session"
+        return ScheduleTaskExecution(
+            sessionID: "scheduled-session",
+            resultText: "Scheduled task completed."
+        )
     }
 }
 

@@ -150,9 +150,10 @@ final class SessionStoreTests: XCTestCase {
             )
         )
 
-        let sessionID = try await execution.value
+        let executionResult = try await execution.value
 
-        XCTAssertEqual(sessionID, "session-one")
+        XCTAssertEqual(executionResult.sessionID, "session-one")
+        XCTAssertNil(executionResult.resultText)
         XCTAssertNil(store.selectedWorkSessionIdByProjectPath["/tmp/project"])
         let selectedAccessModes = await host.selectedAccessModes
         XCTAssertEqual(selectedAccessModes, [.readOnly])

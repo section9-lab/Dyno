@@ -8,14 +8,8 @@ struct ScheduleView: View {
     @AppStorage(SchedulePreferences.keepAwakeKey) private var keepMacAwake = false
     @Environment(\.locale) private var locale
     @State private var selectedSection = ScheduleSection.tasks
-    @State private var sortOrder = ScheduleSortOrder.newest
     @State private var editor: ScheduleEditorPresentation?
     @State private var deletedTask: ScheduledTask?
-    @State private var isSortMenuHovering = false
-
-    private var sortedTasks: [ScheduledTask] {
-        sortOrder.apply(to: store.tasks)
-    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -137,53 +131,6 @@ struct ScheduleView: View {
                 sectionButton(.tasks, title: L10n.string("schedule.my_schedules"))
                 sectionButton(.history, title: L10n.string("schedule.history"))
             }
-
-            Spacer(minLength: 16)
-
-            if selectedSection == .tasks, !store.tasks.isEmpty {
-                Menu {
-                    ForEach(ScheduleSortOrder.allCases) { option in
-                        Button {
-                            sortOrder = option
-                        } label: {
-                            if sortOrder == option {
-                                Label(sortTitle(option), systemImage: "checkmark")
-                            } else {
-                                Text(sortTitle(option))
-                            }
-                        }
-                    }
-                } label: {
-                    ScheduleSortMenuLabel(title: sortTitle(sortOrder))
-                }
-                .menuStyle(.borderlessButton)
-                .buttonStyle(.plain)
-                .frame(width: 128, height: 36)
-                .background(
-                    adaptiveRoundedShape(cornerRadius: 10)
-                        .fill(
-                            isSortMenuHovering
-                                ? AppPalette.raisedSurface
-                                : AppPalette.translucentSurface
-                        )
-                        .shadow(
-                            color: AppPalette.subtleShadow.opacity(
-                                isSortMenuHovering ? 0.42 : 0.24
-                            ),
-                            radius: isSortMenuHovering ? 5 : 3,
-                            y: isSortMenuHovering ? 2 : 1
-                        )
-                )
-                .overlay(
-                    adaptiveRoundedShape(cornerRadius: 10)
-                        .stroke(
-                            Color.primary.opacity(isSortMenuHovering ? 0.15 : 0.10),
-                            lineWidth: 1
-                        )
-                )
-                .onHover { isSortMenuHovering = $0 }
-                .animation(.easeOut(duration: 0.14), value: isSortMenuHovering)
-            }
         }
     }
 
@@ -212,7 +159,7 @@ struct ScheduleView: View {
     private var content: some View {
         switch selectedSection {
         case .tasks:
-            if sortedTasks.isEmpty {
+            if store.tasks.isEmpty {
                 taskEmptyState
             } else {
                 taskGrid
@@ -234,7 +181,7 @@ struct ScheduleView: View {
             alignment: .leading,
             spacing: 16
         ) {
-            ForEach(sortedTasks) { task in
+            ForEach(store.tasks) { task in
                 ScheduleCard(
                     task: task,
                     locale: locale,
@@ -321,14 +268,6 @@ struct ScheduleView: View {
             ?? URL(fileURLWithPath: path).lastPathComponent
     }
 
-    private func sortTitle(_ option: ScheduleSortOrder) -> String {
-        switch option {
-        case .newest: return L10n.string("schedule.sort.newest")
-        case .name: return L10n.string("schedule.sort.name")
-        case .time: return L10n.string("schedule.sort.time")
-        }
-    }
-
     private func historyDate(_ date: Date) -> String {
         date.formatted(
             Date.FormatStyle(date: .abbreviated, time: .shortened)
@@ -340,23 +279,6 @@ struct ScheduleView: View {
 private enum ScheduleSection {
     case tasks
     case history
-}
-
-private struct ScheduleSortMenuLabel: View {
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 11, weight: .semibold))
-
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(Color.primary.opacity(0.68))
-        .frame(height: 36)
-    }
 }
 
 private struct ScheduleEditorPresentation: Identifiable {
@@ -518,43 +440,84 @@ private struct ScheduleCard: View {
 private struct ScheduleHistoryRow: View {
     let record: ScheduleRunRecord
     let dateText: String
+    @State private var isExpanded = false
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle().fill(statusColor.opacity(0.13))
-                Image(systemName: statusIcon)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(statusColor.opacity(0.86))
+        VStack(spacing: 0) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle().fill(statusColor.opacity(0.13))
+                        Image(systemName: statusIcon)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(statusColor.opacity(0.86))
+                    }
+                    .frame(width: 30, height: 30)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(record.taskName)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.primary.opacity(0.84))
+
+                        Text(summaryText)
+                            .font(.system(size: 12))
+                            .foregroundStyle(
+                                record.status == .failed
+                                    ? Color.red.opacity(0.72)
+                                    : Color.primary.opacity(0.46)
+                            )
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    Text(L10n.string(statusKey))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(statusColor.opacity(0.82))
+                        .padding(.horizontal, 9)
+                        .frame(height: 24)
+                        .background(statusColor.opacity(0.10), in: Capsule())
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.34))
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 64)
+                .contentShape(Rectangle())
             }
-            .frame(width: 30, height: 30)
+            .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(record.taskName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.84))
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal, 16)
 
-                Text(record.errorMessage ?? dateText)
-                    .font(.system(size: 12))
-                    .foregroundStyle(
-                        record.status == .failed
-                            ? Color.red.opacity(0.72)
-                            : Color.primary.opacity(0.46)
-                    )
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(detailTitle)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.46))
+
+                    Text(verbatim: detailText)
+                        .font(.system(size: 13))
+                        .foregroundStyle(
+                            record.status == .failed
+                                ? Color.red.opacity(0.78)
+                                : Color.primary.opacity(0.68)
+                        )
+                        .lineSpacing(3)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
             }
-
-            Spacer(minLength: 12)
-
-            Text(L10n.string(statusKey))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(statusColor.opacity(0.82))
-                .padding(.horizontal, 9)
-                .frame(height: 24)
-                .background(statusColor.opacity(0.10), in: Capsule())
         }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 64)
         .background(
             adaptiveRoundedShape(cornerRadius: 14)
                 .fill(AppPalette.translucentSurface)
@@ -563,6 +526,28 @@ private struct ScheduleHistoryRow: View {
             adaptiveRoundedShape(cornerRadius: 14)
                 .stroke(Color.primary.opacity(0.075), lineWidth: 1)
         )
+        .animation(.easeOut(duration: 0.16), value: isExpanded)
+    }
+
+    private var summaryText: String {
+        record.errorMessage ?? record.resultText ?? dateText
+    }
+
+    private var detailTitle: String {
+        record.status == .failed
+            ? L10n.string("schedule.run.error_title")
+            : L10n.string("schedule.run.result_title")
+    }
+
+    private var detailText: String {
+        switch record.status {
+        case .running:
+            return L10n.string("schedule.run.running")
+        case .completed:
+            return record.resultText ?? L10n.string("schedule.run.result_unavailable")
+        case .failed:
+            return record.errorMessage ?? L10n.string("schedule.run.error_unavailable")
+        }
     }
 
     private var statusColor: Color {

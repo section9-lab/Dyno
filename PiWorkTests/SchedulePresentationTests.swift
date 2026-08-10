@@ -2,42 +2,6 @@ import XCTest
 @testable import PiWork
 
 final class SchedulePresentationTests: XCTestCase {
-    func testNameSortUsesLocalizedCaseInsensitiveOrder() {
-        let tasks = [
-            makeTask(name: "Zulu", createdAt: Date(timeIntervalSince1970: 1)),
-            makeTask(name: "alpha", createdAt: Date(timeIntervalSince1970: 2))
-        ]
-
-        let sorted = ScheduleSortOrder.name.apply(to: tasks)
-
-        XCTAssertEqual(sorted.map(\.name), ["alpha", "Zulu"])
-    }
-
-    func testNewestSortUsesCreationDateDescending() {
-        let tasks = [
-            makeTask(name: "Older", createdAt: Date(timeIntervalSince1970: 1)),
-            makeTask(name: "Newer", createdAt: Date(timeIntervalSince1970: 2))
-        ]
-
-        let sorted = ScheduleSortOrder.newest.apply(to: tasks)
-
-        XCTAssertEqual(sorted.map(\.name), ["Newer", "Older"])
-    }
-
-    func testTimeSortUsesHourAndMinute() {
-        let calendar = Calendar(identifier: .gregorian)
-        let later = calendar.date(from: DateComponents(hour: 18, minute: 30))!
-        let earlier = calendar.date(from: DateComponents(hour: 9, minute: 30))!
-        let tasks = [
-            makeTask(name: "Later", time: later),
-            makeTask(name: "Earlier", time: earlier)
-        ]
-
-        let sorted = ScheduleSortOrder.time.apply(to: tasks, calendar: calendar)
-
-        XCTAssertEqual(sorted.map(\.name), ["Earlier", "Later"])
-    }
-
     func testRecurrencesExposeStableLocalizationKeys() {
         XCTAssertEqual(ScheduleRecurrence.daily.localizationKey, "schedule.recurrence.daily")
         XCTAssertEqual(
@@ -62,7 +26,7 @@ final class SchedulePresentationTests: XCTestCase {
         XCTAssertTrue(source.contains("ScheduleView("))
     }
 
-    func testSortMenuUsesCustomPlainRoundedControl() throws {
+    func testScheduleToolbarOmitsTaskSortingControl() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -78,9 +42,31 @@ final class SchedulePresentationTests: XCTestCase {
         )
         let toolbar = source[toolbarStart.lowerBound..<toolbarEnd.lowerBound]
 
-        XCTAssertTrue(toolbar.contains("ScheduleSortMenuLabel("))
-        XCTAssertTrue(toolbar.contains(".buttonStyle(.plain)"))
-        XCTAssertTrue(toolbar.contains(".frame(width: 128, height: 36)"))
+        XCTAssertFalse(toolbar.contains("ScheduleSortMenuLabel("))
+        XCTAssertFalse(toolbar.contains("ScheduleSortOrder"))
+        XCTAssertFalse(toolbar.contains("Menu {"))
+    }
+
+    func testRunHistoryExpandsPersistedResultsInPlace() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Schedule/Views/ScheduleView.swift"
+            ),
+            encoding: .utf8
+        )
+        let rowStart = try XCTUnwrap(source.range(of: "private struct ScheduleHistoryRow"))
+        let rowEnd = try XCTUnwrap(
+            source.range(of: "private enum ScheduleWeekday", range: rowStart.upperBound..<source.endIndex)
+        )
+        let row = source[rowStart.lowerBound..<rowEnd.lowerBound]
+
+        XCTAssertTrue(row.contains("@State private var isExpanded = false"))
+        XCTAssertTrue(row.contains("record.resultText"))
+        XCTAssertTrue(row.contains("Text(verbatim: detailText)"))
+        XCTAssertTrue(row.contains(".textSelection(.enabled)"))
     }
 
     func testScheduleCardsUseAdaptiveColumnsFromTwoAtMinimumWindowWidth() throws {
@@ -106,21 +92,4 @@ final class SchedulePresentationTests: XCTestCase {
         )
     }
 
-    private func makeTask(
-        name: String,
-        time: Date = Date(timeIntervalSince1970: 0),
-        createdAt: Date = Date(timeIntervalSince1970: 0)
-    ) -> ScheduledTask {
-        ScheduledTask(
-            id: UUID(),
-            name: name,
-            instruction: "Instruction",
-            recurrence: .daily,
-            time: time,
-            projectPath: nil,
-            isEnabled: true,
-            createdAt: createdAt,
-            updatedAt: createdAt
-        )
-    }
 }

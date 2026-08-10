@@ -117,10 +117,16 @@ final class ScheduleStoreTests: XCTestCase {
         XCTAssertEqual(store.records.first?.startedAt, runDate)
         XCTAssertEqual(store.records.first?.status, .running)
 
-        store.completeRun(record.id, sessionID: "scheduled-session", at: finishDate)
+        store.completeRun(
+            record.id,
+            sessionID: "scheduled-session",
+            resultText: "Project analysis completed.",
+            at: finishDate
+        )
 
         XCTAssertEqual(store.records.first?.status, .completed)
         XCTAssertEqual(store.records.first?.sessionID, "scheduled-session")
+        XCTAssertEqual(store.records.first?.resultText, "Project analysis completed.")
         XCTAssertEqual(store.records.first?.finishedAt, finishDate)
     }
 

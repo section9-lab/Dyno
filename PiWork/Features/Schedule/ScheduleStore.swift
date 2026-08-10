@@ -16,37 +16,6 @@ enum ScheduleRecurrence: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum ScheduleSortOrder: String, CaseIterable, Identifiable {
-    case newest
-    case name
-    case time
-
-    var id: String { rawValue }
-
-    func apply(
-        to tasks: [ScheduledTask],
-        calendar: Calendar = .current
-    ) -> [ScheduledTask] {
-        tasks.sorted { lhs, rhs in
-            switch self {
-            case .newest:
-                return lhs.createdAt > rhs.createdAt
-            case .name:
-                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            case .time:
-                let leftMinutes = calendar.component(.hour, from: lhs.time) * 60
-                    + calendar.component(.minute, from: lhs.time)
-                let rightMinutes = calendar.component(.hour, from: rhs.time) * 60
-                    + calendar.component(.minute, from: rhs.time)
-                if leftMinutes == rightMinutes {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return leftMinutes < rightMinutes
-            }
-        }
-    }
-}
-
 struct ScheduledTask: Codable, Equatable, Identifiable {
     let id: UUID
     var name: String
@@ -152,6 +121,7 @@ struct ScheduleRunRecord: Codable, Equatable, Identifiable {
     var scheduledAt: Date?
     var finishedAt: Date?
     var sessionID: String?
+    var resultText: String?
     var errorMessage: String?
     var status: ScheduleRunStatus
 }
@@ -255,6 +225,7 @@ final class ScheduleStore: ObservableObject {
             scheduledAt: scheduledAt,
             finishedAt: nil,
             sessionID: nil,
+            resultText: nil,
             errorMessage: nil,
             status: .running
         )
@@ -266,11 +237,13 @@ final class ScheduleStore: ObservableObject {
     func completeRun(
         _ recordID: UUID,
         sessionID: String,
+        resultText: String?,
         at date: Date = Date()
     ) {
         guard let index = records.firstIndex(where: { $0.id == recordID }) else { return }
         records[index].status = .completed
         records[index].sessionID = sessionID
+        records[index].resultText = resultText
         records[index].finishedAt = date
         records[index].errorMessage = nil
         persist()
