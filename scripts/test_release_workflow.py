@@ -79,6 +79,19 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("actions/download-artifact", workflow)
         self.assertIn("gh release create", workflow)
 
+    def test_release_frees_build_storage_before_creating_dmg(self):
+        workflow = self.workflow_text()
+
+        self.assertIn("- name: Reclaim build storage", workflow)
+        cleanup = workflow.index("- name: Reclaim build storage")
+        package = workflow.index("- name: Create ad-hoc signed DMG")
+
+        self.assertLess(cleanup, package)
+        self.assertIn('-derivedDataPath "$derived_data_path"', workflow)
+        self.assertIn('rm -rf "$DERIVED_DATA_PATH"', workflow)
+        self.assertIn('mv "$app_path" "$staging_path/PiWork.app"', workflow)
+        self.assertIn('rm -rf "$ARCHIVE_PATH"', workflow)
+
     def test_release_cli_targets_repository_without_checkout(self):
         workflow = self.workflow_text()
 

@@ -68,12 +68,14 @@ jobs:
       - name: Build archive
         run: |
           archive_path="$RUNNER_TEMP/PiWork-${{ matrix.suffix }}.xcarchive"
+          derived_data_path="$RUNNER_TEMP/DerivedData-${{ matrix.suffix }}"
           xcodebuild \
             -project pi-work.xcodeproj \
             -scheme PiWork \
             -configuration Release \
             -destination "generic/platform=macOS" \
             -archivePath "$archive_path" \
+            -derivedDataPath "$derived_data_path" \
             ARCHS="${{ matrix.arch }}" \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \
@@ -81,6 +83,7 @@ jobs:
             MARKETING_VERSION="$PROJECT_VERSION" \
             archive
           echo "ARCHIVE_PATH=$archive_path" >> "$GITHUB_ENV"
+          echo "DERIVED_DATA_PATH=$derived_data_path" >> "$GITHUB_ENV"
 
       - name: Apply ad-hoc application signature
         run: |
@@ -97,6 +100,11 @@ jobs:
             exit 1
           fi
 
+      - name: Reclaim build storage
+        run: |
+          rm -rf "$DERIVED_DATA_PATH"
+          df -h "$RUNNER_TEMP"
+
       - name: Create ad-hoc signed DMG
         run: |
           app_path="$APP_PATH"
@@ -104,7 +112,8 @@ jobs:
           dmg_path="$RUNNER_TEMP/PiWork-${PROJECT_VERSION}-macos-${{ matrix.suffix }}.dmg"
 
           mkdir -p "$staging_path"
-          ditto "$app_path" "$staging_path/PiWork.app"
+          mv "$app_path" "$staging_path/PiWork.app"
+          rm -rf "$ARCHIVE_PATH"
           ln -s /Applications "$staging_path/Applications"
           hdiutil create \
             -volname "PiWork $PROJECT_VERSION" \
