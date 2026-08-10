@@ -50,7 +50,6 @@ struct ContentView: View {
                             workSessionsByProjectPath: sessionStore.workSessionsByProjectPath,
                             activeSessionIDs: activeSessionIDs,
                             selectedWorkSidebarItem: workSession.sidebarItem,
-                            onSelectWorkProject: selectWorkProject,
                             onSelectWorkSession: openWorkSession,
                             onDeleteWorkSession: deleteWorkSession,
                             onDeleteWorkProject: deleteWorkProject,
@@ -245,43 +244,6 @@ struct ContentView: View {
             agentError = nil
         } catch {
             bootstrappedWorkProjectPaths.remove(project.path)
-            agentError = String(describing: error)
-        }
-    }
-
-    private func selectWorkProject(_ project: PiProject) {
-        selectedTab = .work
-        selectedCustomDestination = nil
-        workSession.selectProject(project)
-        Task { await openPreferredWorkSession(for: project) }
-    }
-
-    private func openPreferredWorkSession(for project: PiProject) async {
-        await bootstrapWorkProjectIfNeeded(project)
-        do {
-            let sessions = sessionStore.workSessionsByProjectPath[project.path] ?? []
-            if let selectedId = sessionStore.selectedWorkSessionIdByProjectPath[project.path],
-               let selected = sessions.first(where: { $0.id == selectedId }) {
-                try await sessionStore.openSession(
-                    selected,
-                    profile: .work,
-                    sessionDirectory: nil
-                )
-            } else if let recent = sessions.first {
-                try await sessionStore.openSession(
-                    recent,
-                    profile: .work,
-                    sessionDirectory: nil
-                )
-            } else {
-                _ = try await sessionStore.createDraft(
-                    cwd: project.path,
-                    sessionDirectory: nil,
-                    profile: .work
-                )
-            }
-            agentError = nil
-        } catch {
             agentError = String(describing: error)
         }
     }

@@ -195,7 +195,7 @@ final class SidebarHoverActionsTests: XCTestCase {
         XCTAssertFalse(sidebarBody.contains(".background(.regularMaterial)"))
     }
 
-    func testWorkScrollingIsLimitedToProjectFolderSection() throws {
+    func testWorkProjectHeaderStaysOutsideScrollableProjectList() throws {
         let source = try sidebarSource()
         let sidebarBody = try XCTUnwrap(
             source.components(separatedBy: "    var body: some View {").dropFirst().first?
@@ -208,12 +208,27 @@ final class SidebarHoverActionsTests: XCTestCase {
         let navigationOffset = try XCTUnwrap(
             workBranch.range(of: "navigationRow(.schedule)")
         ).lowerBound
-        let projectListOffset = workBranch.range(of: "List(selection: $selectedProject)")?.lowerBound
+        let projectHeaderOffset = try XCTUnwrap(
+            workBranch.range(of: "LinkedFoldersHeader(onAddFolder: onAddFolder)")
+        ).lowerBound
+        let projectListOffset = try XCTUnwrap(
+            workBranch.range(of: "List {")
+        ).lowerBound
 
-        XCTAssertNotNil(projectListOffset)
-        if let projectListOffset {
-            XCTAssertLessThan(navigationOffset, projectListOffset)
-        }
+        XCTAssertLessThan(navigationOffset, projectHeaderOffset)
+        XCTAssertLessThan(projectHeaderOffset, projectListOffset)
+        XCTAssertFalse(workBranch.contains("} header: {\n                            LinkedFoldersHeader"))
+    }
+
+    func testWorkProjectListDoesNotSelectProjectsWhenFoldersAreToggled() throws {
+        let source = try sidebarSource()
+        let workBranch = try XCTUnwrap(
+            source.components(separatedBy: "            case .work:").last?
+                .components(separatedBy: "\n            UserFooterView()").first
+        )
+
+        XCTAssertTrue(workBranch.contains("List {"))
+        XCTAssertFalse(workBranch.contains("List(selection: $selectedProject)"))
     }
 
     func testSidebarTabsKeepRaisedWhiteSelectionIndependentFromGrayRows() throws {
@@ -419,7 +434,7 @@ final class SidebarHoverActionsTests: XCTestCase {
         XCTAssertFalse(sessionRow.contains(".padding(.leading, 46)"))
     }
 
-    func testProjectRowUsesFullWidthFolderButtonForDisclosure() throws {
+    func testProjectRowOnlyTogglesDisclosureUntilNewSessionIsRequested() throws {
         let source = try sidebarSource()
         let folderRow = try XCTUnwrap(
             source.components(separatedBy: "private struct FolderRow").last?
@@ -428,7 +443,8 @@ final class SidebarHoverActionsTests: XCTestCase {
 
         XCTAssertTrue(folderRow.contains("Image(systemName: \"folder\")"))
         XCTAssertTrue(folderRow.contains("onToggle()"))
-        XCTAssertTrue(folderRow.contains("onSelect()"))
+        XCTAssertFalse(folderRow.contains("onSelect()"))
+        XCTAssertFalse(source.contains("onSelectWorkProject"))
         XCTAssertTrue(folderRow.contains(".frame(maxWidth: .infinity"))
         XCTAssertFalse(folderRow.contains("chevron.right"))
     }

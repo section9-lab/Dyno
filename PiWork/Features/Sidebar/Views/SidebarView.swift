@@ -59,7 +59,6 @@ struct SidebarView: View {
     var workSessionsByProjectPath: [String: [AgentHostSessionSummary]] = [:]
     var activeSessionIDs: Set<String> = []
     var selectedWorkSidebarItem: WorkSidebarItem? = nil
-    var onSelectWorkProject: (PiProject) -> Void = { _ in }
     var onSelectWorkSession: (PiProject, AgentHostSessionSummary) -> Void = { _, _ in }
     var onDeleteWorkSession: (PiProject, AgentHostSessionSummary) -> Void = { _, _ in }
     var onDeleteWorkProject: (PiProject) -> Void = { _ in }
@@ -122,7 +121,12 @@ struct SidebarView: View {
                     }
                     .padding(.top, 8)
 
-                    List(selection: $selectedProject) {
+                    LinkedFoldersHeader(onAddFolder: onAddFolder)
+                        .padding(.horizontal, 14)
+                        .padding(.top, 14)
+                        .padding(.bottom, 2)
+
+                    List {
                         Section {
                             ForEach(projectStore.projects) { project in
                                 let sessions = workSessionsByProjectPath[project.path] ?? []
@@ -133,11 +137,6 @@ struct SidebarView: View {
                                         && selectedWorkSidebarItem == .project(project.id),
                                     isExpanded: isExpanded,
                                     onToggle: { toggleProject(project.id) },
-                                    onSelect: {
-                                        selectedCustomDestination = nil
-                                        onSelectCustomDestination(nil)
-                                        onSelectWorkProject(project)
-                                    },
                                     onNewSession: {
                                         expandProject(project.id)
                                         onNewProjectSession(project)
@@ -169,8 +168,6 @@ struct SidebarView: View {
                                     }
                                 }
                             }
-                        } header: {
-                            LinkedFoldersHeader(onAddFolder: onAddFolder)
                         }
                     }
                     .listStyle(.sidebar)
@@ -333,7 +330,6 @@ private struct FolderRow: View {
     let isSelected: Bool
     let isExpanded: Bool
     let onToggle: () -> Void
-    let onSelect: () -> Void
     let onNewSession: () -> Void
     let onDelete: () -> Void
     @State private var isHovering = false
@@ -343,7 +339,6 @@ private struct FolderRow: View {
         HStack(spacing: 4) {
             Button {
                 onToggle()
-                onSelect()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "folder")
