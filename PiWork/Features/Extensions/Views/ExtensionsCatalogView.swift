@@ -389,6 +389,7 @@ private struct InstalledExtensionsButton: View {
 private struct InstalledExtensionsPopover: View {
     @ObservedObject var store: InstalledExtensionsStore
     @State private var pendingRemoval: AgentHostInstalledExtensionPackage?
+    @State private var isPiWebAccessConfigurationPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -478,6 +479,9 @@ private struct InstalledExtensionsPopover: View {
                                     }
                                 },
                                 onUpdate: { Task { await store.update(package) } },
+                                onConfigure: {
+                                    isPiWebAccessConfigurationPresented = true
+                                },
                                 onRemove: { pendingRemoval = package }
                             )
 
@@ -521,6 +525,9 @@ private struct InstalledExtensionsPopover: View {
                 secondaryButton: .cancel(Text(L10n.string("common.cancel")))
             )
         }
+        .sheet(isPresented: $isPiWebAccessConfigurationPresented) {
+            PiWebAccessConfigurationView(store: store)
+        }
     }
 }
 
@@ -529,6 +536,7 @@ private struct InstalledExtensionRow: View {
     let isWorking: Bool
     let onSetEnabled: (Bool) -> Void
     let onUpdate: () -> Void
+    let onConfigure: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
@@ -575,20 +583,22 @@ private struct InstalledExtensionRow: View {
 
             Spacer(minLength: 4)
 
-            Toggle(
-                L10n.string("extensions.installed.enabled"),
-                isOn: Binding(
-                    get: { package.enabled },
-                    set: onSetEnabled
+            if !package.isRequiredPiWebAccess {
+                Toggle(
+                    L10n.string("extensions.installed.enabled"),
+                    isOn: Binding(
+                        get: { package.enabled },
+                        set: onSetEnabled
+                    )
                 )
-            )
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .disabled(isWorking)
-            .help(package.enabled
-                ? L10n.string("extensions.installed.disable_help")
-                : L10n.string("extensions.installed.enable_help"))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(isWorking)
+                .help(package.enabled
+                    ? L10n.string("extensions.installed.disable_help")
+                    : L10n.string("extensions.installed.enable_help"))
+            }
 
             if isWorking {
                 ProgressView()
@@ -596,7 +606,16 @@ private struct InstalledExtensionRow: View {
                     .frame(width: 26, height: 26)
             } else {
                 HStack(spacing: 3) {
-                    if let installedPath = package.installedPath {
+                    if package.isRequiredPiWebAccess {
+                        Button(action: onConfigure) {
+                            Label(L10n.string("extensions.pi_web_access.configure"), systemImage: "slider.horizontal.3")
+                                .font(.system(size: 11, weight: .medium))
+                                .padding(.horizontal, 8)
+                                .frame(height: 26)
+                        }
+                        .help(L10n.string("extensions.pi_web_access.configure"))
+                        .accessibilityLabel(L10n.string("extensions.pi_web_access.configure"))
+                    } else if let installedPath = package.installedPath {
                         Button {
                             NSWorkspace.shared.activateFileViewerSelecting([
                                 URL(fileURLWithPath: installedPath)
@@ -617,13 +636,15 @@ private struct InstalledExtensionRow: View {
                     .help(L10n.string("extensions.installed.update"))
                     .accessibilityLabel(L10n.string("extensions.installed.update"))
 
-                    Button(action: onRemove) {
-                        Image(systemName: "trash")
-                            .foregroundStyle(Color.red.opacity(0.82))
-                            .frame(width: 26, height: 26)
+                    if !package.isRequiredPiWebAccess {
+                        Button(action: onRemove) {
+                            Image(systemName: "trash")
+                                .foregroundStyle(Color.red.opacity(0.82))
+                                .frame(width: 26, height: 26)
+                        }
+                        .help(L10n.string("extensions.installed.remove"))
+                        .accessibilityLabel(L10n.string("extensions.installed.remove"))
                     }
-                    .help(L10n.string("extensions.installed.remove"))
-                    .accessibilityLabel(L10n.string("extensions.installed.remove"))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.primary.opacity(0.58))
@@ -634,7 +655,77 @@ private struct InstalledExtensionRow: View {
     }
 }
 
+private struct PiWebAccessConfigurationView: View {
+    @ObservedObject var store: InstalledExtensionsStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var provider = "auto"
+    @State private var workflow = "auto-summary"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.string("extensions.pi_web_access.title"))
+                    .font(.system(size: 20, weight: .semibold))
+                Text(L10n.string("extensions.pi_web_access.subtitle"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.primary.opacity(0.58))
+            }
+
+            Form {
+                Picker(L10n.string("extensions.pi_web_access.provider"), selection: $provider) {
+                    Text(L10n.string("extensions.pi_web_access.provider_auto"))
+                        .tag("auto")
+                    Text(L10n.string("extensions.pi_web_access.provider_duckduckgo"))
+                        .tag("duckduckgo")
+                }
+
+                Picker(L10n.string("extensions.pi_web_access.result_mode"), selection: $workflow) {
+                    Text(L10n.string("extensions.pi_web_access.result_mode_summary"))
+                        .tag("auto-summary")
+                    Text(L10n.string("extensions.pi_web_access.result_mode_raw"))
+                        .tag("none")
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Text(L10n.string("extensions.pi_web_access.privacy_note"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.primary.opacity(0.48))
+
+                Spacer()
+
+                Button(L10n.string("common.cancel")) { dismiss() }
+                Button(L10n.string("common.done")) {
+                    Task {
+                        await store.updatePiWebAccessConfiguration(
+                            provider: provider,
+                            workflow: workflow
+                        )
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isLoadingPiWebAccessConfiguration)
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+        .task {
+            await store.loadPiWebAccessConfiguration()
+            if let configuration = store.piWebAccessConfiguration {
+                provider = configuration.provider
+                workflow = configuration.workflow
+            }
+        }
+    }
+}
+
 private extension AgentHostInstalledExtensionPackage {
+    var isRequiredPiWebAccess: Bool {
+        source == "npm:pi-web-access"
+    }
+
     var displayName: String {
         for prefix in ["npm:", "git:"] where source.hasPrefix(prefix) {
             return String(source.dropFirst(prefix.count))

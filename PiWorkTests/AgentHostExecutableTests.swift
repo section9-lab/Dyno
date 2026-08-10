@@ -30,6 +30,20 @@ final class AgentHostExecutableTests: XCTestCase {
         XCTAssertFalse(result.path.contains("/.pi/"))
     }
 
+    func testBundledHostSharesItsIsolatedAgentDirectoryWithExtensions() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Core/Agent/AgentHostService.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("\"PI_CODING_AGENT_DIR\": agentDirectory.path"))
+    }
+
     func testBuildStagesTheSelfContainedAgentHostAndBunPackageManager() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

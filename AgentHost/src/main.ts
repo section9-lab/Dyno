@@ -1,6 +1,6 @@
 import packageMetadata from "../package.json";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   flushRawStdout,
   takeOverStdout,
@@ -19,6 +19,10 @@ import {
   createExtensionPackagesCoordinator,
   type ExtensionPackageScope,
 } from "./extension-packages.ts";
+import {
+  PiWebAccessSettingsCoordinator,
+  type PiWebAccessConfiguration,
+} from "./pi-web-access-settings.ts";
 import {
   PROTOCOL_VERSION,
   createHostHelloRecord,
@@ -63,6 +67,7 @@ let modelRuntimePromise: Promise<ModelRuntime> | undefined;
 let providerAuthCoordinatorPromise: Promise<ProviderAuthCoordinator> | undefined;
 let agentSettingsCoordinator: AgentSettingsCoordinator | undefined;
 let extensionPackagesCoordinator: ExtensionPackagesCoordinator | undefined;
+let piWebAccessSettingsCoordinator: PiWebAccessSettingsCoordinator | undefined;
 const sessionRegistry = new SessionRegistry((record) => {
   writeHostRecord({
     version: PROTOCOL_VERSION,
@@ -99,6 +104,8 @@ writeHostRecord(
       "extensions.setEnabled",
       "extensions.update",
       "extensions.remove",
+      "extensions.piWebAccess.getConfiguration",
+      "extensions.piWebAccess.updateConfiguration",
       "git.branches",
       "session.createDraft",
       "session.open",
@@ -227,6 +234,32 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
       ok: true,
       result: {
         ...snapshot,
+        reload: await sessionRegistry.reloadExtensions(),
+      },
+    };
+  }
+
+  if (request.method === "extensions.piWebAccess.getConfiguration") {
+    return {
+      version: PROTOCOL_VERSION,
+      kind: "response",
+      id: request.id,
+      ok: true,
+      result: await getPiWebAccessSettingsCoordinator().get(),
+    };
+  }
+
+  if (request.method === "extensions.piWebAccess.updateConfiguration") {
+    const configuration = await getPiWebAccessSettingsCoordinator().update(
+      parsePiWebAccessConfigurationPatch(request.params),
+    );
+    return {
+      version: PROTOCOL_VERSION,
+      kind: "response",
+      id: request.id,
+      ok: true,
+      result: {
+        ...configuration,
         reload: await sessionRegistry.reloadExtensions(),
       },
     };
@@ -381,6 +414,7 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
       throw new Error("session.createDraft requires a string cwd and optional string sessionDirectory");
     }
 
+    await getExtensionPackagesCoordinator().list();
     const draft = sessionCatalog.createDraft(cwd, sessionDirectory);
     const handle = await createPiSessionHandle({
       sessionManager: draft.manager,
@@ -414,6 +448,7 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
       throw new Error("session.open requires string path, optional sessionDirectory, and a valid profile");
     }
 
+    await getExtensionPackagesCoordinator().list();
     const manager = sessionCatalog.open(path, sessionDirectory);
     const existing = sessionRegistry.descriptor(manager.getSessionId());
     if (existing) {
@@ -722,6 +757,13 @@ function getExtensionPackagesCoordinator(): ExtensionPackagesCoordinator {
   return extensionPackagesCoordinator;
 }
 
+function getPiWebAccessSettingsCoordinator(): PiWebAccessSettingsCoordinator {
+  piWebAccessSettingsCoordinator ??= new PiWebAccessSettingsCoordinator(
+    agentDirectory(Bun.env) ?? getAgentDir(),
+  );
+  return piWebAccessSettingsCoordinator;
+}
+
 function parseExtensionPackageTarget(
   params: Record<string, unknown> | undefined,
 ): { source: string; scope: ExtensionPackageScope } {
@@ -745,6 +787,23 @@ function parseCatalogExtensionSource(
     throw new Error("Catalog extensions must use an npm source");
   }
   return source;
+}
+
+function parsePiWebAccessConfigurationPatch(
+  params: Record<string, unknown> | undefined,
+): Partial<PiWebAccessConfiguration> {
+  const provider = params?.provider;
+  const workflow = params?.workflow;
+  if (provider !== undefined && provider !== "auto" && provider !== "duckduckgo") {
+    throw new Error("pi-web-access provider must be auto or duckduckgo");
+  }
+  if (workflow !== undefined && workflow !== "auto-summary" && workflow !== "none") {
+    throw new Error("pi-web-access workflow must be auto-summary or none");
+  }
+  if (provider === undefined && workflow === undefined) {
+    throw new Error("pi-web-access configuration requires a provider or workflow");
+  }
+  return { provider, workflow };
 }
 
 function isAccessMode(value: unknown): value is AccessMode {

@@ -662,6 +662,11 @@ struct AgentHostInstalledExtensionsResult: Decodable, Equatable {
     let packages: [AgentHostInstalledExtensionPackage]
 }
 
+struct AgentHostPiWebAccessConfiguration: Codable, Equatable {
+    let provider: String
+    let workflow: String
+}
+
 enum AgentHostSlashCommandSource: String, Decodable, Equatable {
     case extensionCommand = "extension"
     case skill

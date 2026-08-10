@@ -152,6 +152,13 @@ protocol AgentSettingsServicing: Actor {
 }
 
 protocol InstalledExtensionsServicing: Actor {
+    func getPiWebAccessConfiguration(
+        requestID: String
+    ) async throws -> AgentHostPiWebAccessConfiguration
+    func updatePiWebAccessConfiguration(
+        _ configuration: AgentHostPiWebAccessConfiguration,
+        requestID: String
+    ) async throws -> AgentHostPiWebAccessConfiguration
     func listInstalledExtensions(
         requestID: String
     ) async throws -> [AgentHostInstalledExtensionPackage]
@@ -236,6 +243,7 @@ actor AgentHostService: AgentHostServicing,
             environment: [
                 "PI_WORK_AUTH_PATH": authenticationFile.path,
                 "PI_WORK_AGENT_DIR": agentDirectory.path,
+                "PI_CODING_AGENT_DIR": agentDirectory.path,
                 "PI_WORK_BUN_PATH": bunExecutableURL.path
             ],
             handshakeTimeout: 15
@@ -481,6 +489,29 @@ actor AgentHostService: AgentHostServicing,
             as: AgentHostInstalledExtensionsResult.self
         )
         return result.packages
+    }
+
+    func getPiWebAccessConfiguration(
+        requestID: String = UUID().uuidString
+    ) async throws -> AgentHostPiWebAccessConfiguration {
+        try await request(
+            id: requestID,
+            method: "extensions.piWebAccess.getConfiguration",
+            params: AgentHostEmptyParameters(),
+            as: AgentHostPiWebAccessConfiguration.self
+        )
+    }
+
+    func updatePiWebAccessConfiguration(
+        _ configuration: AgentHostPiWebAccessConfiguration,
+        requestID: String = UUID().uuidString
+    ) async throws -> AgentHostPiWebAccessConfiguration {
+        try await request(
+            id: requestID,
+            method: "extensions.piWebAccess.updateConfiguration",
+            params: configuration,
+            as: AgentHostPiWebAccessConfiguration.self
+        )
     }
 
     func installExtension(

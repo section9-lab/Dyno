@@ -32,7 +32,10 @@ import {
   type SessionThinkingState,
 } from "./session-registry.ts";
 import { normalizeModel, supportsFastMode } from "./model-catalog.ts";
-import { webFetchTool } from "./web-fetch-tool.ts";
+import {
+  createPiWorkResourceLoader,
+  type PiWorkProfile,
+} from "./pi-work-context-extension.ts";
 
 type PiAgentSession = Pick<
   AgentSession,
@@ -63,6 +66,7 @@ type PiModel = NonNullable<AgentSession["model"]>;
 
 const oneMillionContextWindow = 1_050_000;
 const gitBranchEntryType = "pi-work.git-branch";
+const builtInPiToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
 function selectedGitBranch(sessionManager: SessionManager): string | undefined {
   const entries = sessionManager.getEntries();
@@ -93,7 +97,22 @@ function oneMillionContextConfiguration(
   };
 }
 
-export type SessionProfile = "chat" | "work";
+export type SessionProfile = PiWorkProfile;
+type ExtensionToolSelection = "none" | "all" | "pi-web-access";
+
+function extensionToolNames(
+  session: PiAgentSession,
+  selection: ExtensionToolSelection,
+): string[] {
+  if (selection === "none") return [];
+  return session.getAllTools()
+    .filter(({ sourceInfo }) => (
+      sourceInfo.source !== "builtin"
+      && sourceInfo.source !== "sdk"
+      && (selection === "all" || sourceInfo.source === "npm:pi-web-access")
+    ))
+    .map(({ name }) => name);
+}
 
 export async function createPiSessionHandle(
   options: {
@@ -103,6 +122,8 @@ export async function createPiSessionHandle(
     accessMode?: AccessMode;
     agentDir?: string;
     settingsManager?: SettingsManager;
+    now?: () => Date;
+    timeZone?: string;
   },
   createSession: CreateSession = createAgentSession,
 ): Promise<PiSessionHandle> {
@@ -120,26 +141,31 @@ export async function createPiSessionHandle(
     cwd: options.sessionManager.getCwd(),
     mode: accessMode,
   });
+  createOptions.resourceLoader = await createPiWorkResourceLoader({
+    cwd: options.sessionManager.getCwd(),
+    profile: options.profile,
+    agentDir: options.agentDir,
+    settingsManager: options.settingsManager,
+    now: options.now,
+    timeZone: options.timeZone,
+    selectedGitBranch: () => selectedGitBranch(options.sessionManager),
+  });
   if (options.profile === "chat") {
-    createOptions.tools = [webFetchTool.name];
-    createOptions.customTools = [webFetchTool];
+    createOptions.excludeTools = builtInPiToolNames;
   } else {
     createOptions.customTools = [
       ...createPolicyControlledTools(
         options.sessionManager.getCwd(),
         accessController,
       ),
-      webFetchTool,
     ];
   }
 
   const { session } = await createSession(createOptions);
-  const extensionToolNames = options.profile === "work"
-    ? session.getAllTools()
-      .filter(({ sourceInfo }) => sourceInfo.source !== "builtin" && sourceInfo.source !== "sdk")
-      .map(({ name }) => name)
-    : [];
-  const alwaysActiveToolNames = [webFetchTool.name, ...extensionToolNames];
+  const extensionSelection: ExtensionToolSelection = options.profile === "chat"
+    ? "pi-web-access"
+    : "all";
+  const alwaysActiveToolNames = extensionToolNames(session, extensionSelection);
   session.setActiveToolsByName([
     ...activeToolsForMode(accessMode),
     ...alwaysActiveToolNames,
@@ -148,8 +174,8 @@ export async function createPiSessionHandle(
     session,
     options.sessionManager,
     accessController,
-    [webFetchTool.name],
-    options.profile === "work",
+    [],
+    extensionSelection,
   );
 }
 
@@ -164,25 +190,18 @@ export class PiSessionHandle implements SessionHandle {
       mode: "full",
     }),
     private readonly alwaysActiveToolNames: readonly string[] = [],
-    private readonly includeExtensionTools = false,
+    private readonly extensionToolSelection: ExtensionToolSelection = "none",
   ) {
     const streamFunction = session.agent.streamFunction;
     session.agent.streamFunction = (model, context, streamOptions) => {
-      const branch = selectedGitBranch(this.sessionManager);
-      const nextContext = branch
-        ? {
-            ...context,
-            systemPrompt: `${context.systemPrompt}\n\nThe user selected ${JSON.stringify(branch)} as this session's target Git branch in pi-work. You are responsible for checking and managing the Git working state.`,
-          }
-        : context;
       if (!supportsFastMode(model)) {
-        return streamFunction(model, nextContext, streamOptions);
+        return streamFunction(model, context, streamOptions);
       }
       const options = {
         ...streamOptions,
         serviceTier: this.fastModeEnabled ? "priority" : "default",
       };
-      return streamFunction(model, nextContext, options);
+      return streamFunction(model, context, options);
     };
   }
 
@@ -410,15 +429,14 @@ export class PiSessionHandle implements SessionHandle {
   }
 
   private refreshActiveTools(): void {
-    const extensionToolNames = this.includeExtensionTools
-      ? this.session.getAllTools()
-        .filter(({ sourceInfo }) => sourceInfo.source !== "builtin" && sourceInfo.source !== "sdk")
-        .map(({ name }) => name)
-      : [];
+    const refreshedExtensionToolNames = extensionToolNames(
+      this.session,
+      this.extensionToolSelection,
+    );
     this.session.setActiveToolsByName([
       ...activeToolsForMode(this.accessController.mode),
       ...this.alwaysActiveToolNames,
-      ...extensionToolNames,
+      ...refreshedExtensionToolNames,
     ]);
   }
 }

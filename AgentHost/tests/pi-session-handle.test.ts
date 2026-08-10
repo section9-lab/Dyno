@@ -548,28 +548,6 @@ describe("PiSessionHandle", () => {
     );
   });
 
-  test("passes the selected Git branch to the coding task system prompt", () => {
-    const manager = SessionManager.inMemory("/tmp/project");
-    let receivedSystemPrompt = "";
-    const agent = {
-      streamFunction: (
-        _model: unknown,
-        context: { systemPrompt: string },
-      ) => {
-        receivedSystemPrompt = context.systemPrompt;
-        return undefined as never;
-      },
-    };
-    const handle = new PiSessionHandle(makePiSession({ agent }), manager);
-    handle.setGitBranch("feature/session-picker");
-
-    agent.streamFunction(testModel, { systemPrompt: "Base instructions" });
-
-    expect(receivedSystemPrompt).toContain("Base instructions");
-    expect(receivedSystemPrompt).toContain("feature/session-picker");
-    expect(receivedSystemPrompt).toContain("target Git branch");
-  });
-
   test("derives Fast and 1M context support from the active Pi model", () => {
     const manager = SessionManager.inMemory("/tmp/project");
     const handle = new PiSessionHandle(
@@ -846,14 +824,14 @@ describe("PiSessionHandle", () => {
       piSession,
       manager,
       accessController,
-      ["web_fetch"],
-      true,
+      [],
+      "all",
     );
 
     await handle.reload();
 
     expect(activeToolSelections.at(-1)).toEqual([
-      "read", "bash", "edit", "write", "web_fetch", "new_extension_tool",
+      "read", "bash", "edit", "write", "new_extension_tool",
     ]);
   });
 
@@ -886,6 +864,82 @@ describe("PiSessionHandle", () => {
 });
 
 describe("createPiSessionHandle", () => {
+  async function injectedSystemPrompt(
+    profile: "chat" | "work",
+    manager: SessionManager,
+  ): Promise<string> {
+    let receivedOptions: Parameters<typeof createPiSessionHandle>[0] & {
+      resourceLoader?: AgentSession["resourceLoader"];
+    } | undefined;
+
+    await createPiSessionHandle(
+      {
+        sessionManager: manager,
+        profile,
+        agentDir: "/tmp/pi-work-context-agent",
+        settingsManager: SettingsManager.inMemory(),
+        now: () => new Date("2026-08-10T16:30:00.000Z"),
+        timeZone: "Asia/Shanghai",
+      },
+      async (options) => {
+        receivedOptions = options as typeof receivedOptions;
+        return { session: makePiSession({ sessionId: manager.getSessionId() }) };
+      },
+    );
+
+    const resourceLoader = receivedOptions?.resourceLoader;
+    expect(resourceLoader).toBeDefined();
+    if (!resourceLoader) return "";
+
+    const extension = resourceLoader.getExtensions().extensions.find(
+      (candidate) => candidate.path === "<inline:pi-work-context>",
+    );
+    expect(extension).toBeDefined();
+    const handler = extension?.handlers.get("before_agent_start")?.[0];
+    expect(handler).toBeDefined();
+    if (!handler) return "";
+
+    const result = await handler({
+      type: "before_agent_start",
+      prompt: "Hello",
+      images: undefined,
+      systemPrompt: "Base instructions",
+      systemPromptOptions: {},
+    }, {});
+    return (result as { systemPrompt?: string } | undefined)?.systemPrompt ?? "";
+  }
+
+  test("adds the minimal Chat context through Pi's extension API", async () => {
+    const manager = SessionManager.inMemory("/tmp/pi-work-chat");
+
+    const systemPrompt = await injectedSystemPrompt("chat", manager);
+
+    expect(systemPrompt).toBe([
+      "Base instructions",
+      "",
+      "<pi_work_context>",
+      "profile: chat",
+      "current_date: 2026-08-11",
+      "timezone: Asia/Shanghai",
+      "purpose: General conversation and web research.",
+      "</pi_work_context>",
+    ].join("\n"));
+  });
+
+  test("adds the minimal Work context and selected Git branch through Pi's extension API", async () => {
+    const manager = SessionManager.inMemory("/tmp/pi-work-project");
+    manager.appendCustomEntry("pi-work.git-branch", { branch: "feature/session-picker" });
+
+    const systemPrompt = await injectedSystemPrompt("work", manager);
+
+    expect(systemPrompt).toContain("profile: work");
+    expect(systemPrompt).toContain("current_date: 2026-08-11");
+    expect(systemPrompt).toContain("timezone: Asia/Shanghai");
+    expect(systemPrompt).toContain("purpose: Coding and project work.");
+    expect(systemPrompt).toContain("feature/session-picker");
+    expect(systemPrompt).toContain("target Git branch");
+  });
+
   test("injects pi-work's isolated settings into each Pi session", async () => {
     const manager = SessionManager.inMemory("/tmp/pi-work-chat");
     const settingsManager = SettingsManager.inMemory({ retry: { enabled: false } });
@@ -908,12 +962,26 @@ describe("createPiSessionHandle", () => {
     expect(receivedOptions?.settingsManager).toBe(settingsManager);
   });
 
-  test("installs only web_fetch for a Chat session", async () => {
+  test("activates pi-web-access tools without built-in tools for a Chat session", async () => {
     const manager = SessionManager.inMemory("/tmp/pi-work-chat");
     let receivedOptions: Record<string, unknown> | undefined;
     const activeToolSelections: string[][] = [];
     const piSession = makePiSession({
       sessionId: manager.getSessionId(),
+      getAllTools: () => [
+        {
+          name: "web_search",
+          sourceInfo: { source: "npm:pi-web-access" },
+        },
+        {
+          name: "fetch_content",
+          sourceInfo: { source: "npm:pi-web-access" },
+        },
+        {
+          name: "other_extension_tool",
+          sourceInfo: { source: "npm:other-extension" },
+        },
+      ],
       setActiveToolsByName: (names: string[]) => activeToolSelections.push(names),
     });
 
@@ -929,19 +997,25 @@ describe("createPiSessionHandle", () => {
     expect(receivedOptions?.cwd).toBe("/tmp/pi-work-chat");
     expect(receivedOptions?.sessionManager).toBe(manager);
     expect(receivedOptions?.noTools).toBeUndefined();
-    expect(receivedOptions?.tools).toEqual(["web_fetch"]);
-    expect(receivedOptions?.customTools).toHaveLength(1);
-    expect(activeToolSelections).toEqual([["web_fetch"]]);
+    expect(receivedOptions?.tools).toBeUndefined();
+    expect(receivedOptions?.excludeTools).toEqual([
+      "read", "bash", "edit", "write", "grep", "find", "ls",
+    ]);
+    expect(receivedOptions?.customTools).toBeUndefined();
+    expect(activeToolSelections).toEqual([["web_search", "fetch_content"]]);
     expect(handle.snapshot().accessMode).toBe("none");
   });
 
-  test("installs policy-controlled tools and web_fetch for a Work session", async () => {
+  test("installs policy-controlled tools and extension tools for a Work session", async () => {
     const manager = SessionManager.inMemory("/tmp/pi-work-project");
     let receivedOptions: Record<string, unknown> | undefined;
     const activeToolSelections: string[][] = [];
     const piSession = makePiSession({
       sessionId: manager.getSessionId(),
       getAllTools: () => [{
+        name: "web_search",
+        sourceInfo: { source: "npm:pi-web-access" },
+      }, {
         name: "extension_tool",
         sourceInfo: { source: "npm:example-extension" },
       }],
@@ -958,16 +1032,16 @@ describe("createPiSessionHandle", () => {
 
     expect(receivedOptions?.noTools).toBeUndefined();
     expect(receivedOptions?.tools).toBeUndefined();
-    expect(receivedOptions?.customTools).toHaveLength(8);
+    expect(receivedOptions?.customTools).toHaveLength(7);
     expect(activeToolSelections).toEqual([[
-      "read", "bash", "edit", "write", "web_fetch", "extension_tool",
+      "read", "bash", "edit", "write", "web_search", "extension_tool",
     ]]);
     expect(handle.snapshot().accessMode).toBe("ask");
     expect(handle.snapshot().pendingApprovals).toEqual([]);
 
     handle.setAccessMode("readOnly");
     expect(activeToolSelections.at(-1)).toEqual([
-      "read", "grep", "find", "ls", "web_fetch", "extension_tool",
+      "read", "grep", "find", "ls", "web_search", "extension_tool",
     ]);
   });
 });

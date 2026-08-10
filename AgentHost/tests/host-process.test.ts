@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
+Bun.env.PI_WORK_SKIP_REQUIRED_EXTENSION_INSTALL = "1";
+
 function appendTestAssistant(manager: SessionManager, text: string, timestamp: number): void {
   manager.appendMessage({
     role: "assistant",
@@ -645,6 +647,8 @@ describe("agent host process", () => {
           "extensions.setEnabled",
           "extensions.update",
           "extensions.remove",
+          "extensions.piWebAccess.getConfiguration",
+          "extensions.piWebAccess.updateConfiguration",
           "git.branches",
           "session.createDraft",
           "session.open",

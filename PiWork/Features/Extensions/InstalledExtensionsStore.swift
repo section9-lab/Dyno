@@ -7,6 +7,8 @@ final class InstalledExtensionsStore: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var activePackageIDs: Set<String> = []
     @Published private(set) var errorMessage: String?
+    @Published private(set) var piWebAccessConfiguration: AgentHostPiWebAccessConfiguration?
+    @Published private(set) var isLoadingPiWebAccessConfiguration = false
 
     private let service: any InstalledExtensionsServicing
     private var hasLoaded = false
@@ -77,6 +79,38 @@ final class InstalledExtensionsStore: ObservableObject {
                 scope: package.scope,
                 requestID: UUID().uuidString
             )
+        }
+    }
+
+    func loadPiWebAccessConfiguration() async {
+        guard !isLoadingPiWebAccessConfiguration else { return }
+        isLoadingPiWebAccessConfiguration = true
+        defer { isLoadingPiWebAccessConfiguration = false }
+        do {
+            piWebAccessConfiguration = try await service.getPiWebAccessConfiguration(
+                requestID: UUID().uuidString
+            )
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func updatePiWebAccessConfiguration(
+        provider: String,
+        workflow: String
+    ) async {
+        guard !isLoadingPiWebAccessConfiguration else { return }
+        isLoadingPiWebAccessConfiguration = true
+        defer { isLoadingPiWebAccessConfiguration = false }
+        do {
+            piWebAccessConfiguration = try await service.updatePiWebAccessConfiguration(
+                AgentHostPiWebAccessConfiguration(provider: provider, workflow: workflow),
+                requestID: UUID().uuidString
+            )
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

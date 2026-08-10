@@ -71,6 +71,41 @@ final class ExtensionsCatalogTests: XCTestCase {
         XCTAssertFalse(source.contains("extensions.category.themes"))
     }
 
+    func testRequiredPiWebAccessExtensionCannotBeDisabledOrRemoved() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent(
+                    "PiWork/Features/Extensions/Views/ExtensionsCatalogView.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("isRequiredPiWebAccess"))
+        XCTAssertTrue(source.contains("if !package.isRequiredPiWebAccess"))
+    }
+
+    func testRequiredPiWebAccessExtensionProvidesAConfigurationEntryPoint() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent(
+                    "PiWork/Features/Extensions/Views/ExtensionsCatalogView.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("PiWebAccessConfigurationView"))
+        XCTAssertTrue(source.contains("onConfigure: {"))
+        XCTAssertTrue(
+            source.contains(
+                "Label(L10n.string(\"extensions.pi_web_access.configure\"), systemImage: \"slider.horizontal.3\")"
+            )
+        )
+    }
+
     func testExtensionsCatalogGridAdaptsColumnsToTheAvailableWidth() throws {
         let source = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
@@ -464,9 +499,26 @@ private actor StubInstalledExtensionsService: InstalledExtensionsServicing {
 
     private var packages: [AgentHostInstalledExtensionPackage]
     private var actions: [Action] = []
+    private var piWebAccessConfiguration = AgentHostPiWebAccessConfiguration(
+        provider: "auto",
+        workflow: "auto-summary"
+    )
 
     init(packages: [AgentHostInstalledExtensionPackage]) {
         self.packages = packages
+    }
+
+    func getPiWebAccessConfiguration(requestID: String)
+        async throws -> AgentHostPiWebAccessConfiguration {
+        piWebAccessConfiguration
+    }
+
+    func updatePiWebAccessConfiguration(
+        _ configuration: AgentHostPiWebAccessConfiguration,
+        requestID: String
+    ) async throws -> AgentHostPiWebAccessConfiguration {
+        piWebAccessConfiguration = configuration
+        return configuration
     }
 
     func listInstalledExtensions(requestID: String) async throws
