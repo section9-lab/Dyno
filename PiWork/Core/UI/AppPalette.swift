@@ -25,6 +25,18 @@ enum AppPalette {
         endPoint: UnitPoint(x: 0.95, y: 1.0)
     )
 
+    /// Opaque top edge of the conversation backdrop. The transcript masks
+    /// this surface vertically so scrolled content disappears beneath the
+    /// floating window controls before fading back into view.
+    static let transcriptTopFadeSurface = LinearGradient(
+        colors: [
+            dynamic(light: 0xF6F8FA, dark: 0x1B1F26),
+            dynamic(light: 0xEDF2FA, dark: 0x191F28)
+        ],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+
     /// The floating sidebar panel, a touch lighter than the content area at
     /// the same height so it reads as sitting above it.
     static let sidebarSurface = LinearGradient(

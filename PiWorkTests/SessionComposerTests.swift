@@ -1,5 +1,8 @@
 import AppKit
+import ImageIO
+import ObjectiveC
 import SwiftUI
+import UniformTypeIdentifiers
 import XCTest
 @testable import PiWork
 
@@ -62,7 +65,7 @@ final class SessionComposerTests: XCTestCase {
             role: .assistant,
             content: [
                 .text("完成"),
-                .image(mimeType: "image/png"),
+                .image(mimeType: "image/png", data: nil),
                 .toolCall(id: "tool-one", name: "read", argumentsSummary: "README.md")
             ],
             timestamp: "2026-08-09T00:00:00.000Z",
@@ -612,8 +615,261 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertEqual(SessionComposerState.primaryAction(draft: "", isExecuting: false), .none)
         XCTAssertEqual(SessionComposerState.primaryAction(draft: "  \n", isExecuting: false), .none)
         XCTAssertEqual(SessionComposerState.primaryAction(draft: "整理项目", isExecuting: false), .send)
+        XCTAssertEqual(
+            SessionComposerState.primaryAction(
+                draft: "",
+                hasAttachments: true,
+                isExecuting: false
+            ),
+            .send
+        )
         XCTAssertEqual(SessionComposerState.primaryAction(draft: "", isExecuting: true), .stop)
         XCTAssertEqual(SessionComposerState.primaryAction(draft: "后续消息", isExecuting: true), .stop)
+        XCTAssertEqual(
+            SessionComposerState.primaryAction(
+                draft: "",
+                hasAttachments: true,
+                isExecuting: true
+            ),
+            .stop
+        )
+    }
+
+    func testImagePasteboardReaderPrefersImageDataOverText() throws {
+        let pasteboard = NSPasteboard(name: .init("pi-work-image-paste-test-\(UUID())"))
+        pasteboard.clearContents()
+        defer { pasteboard.clearContents() }
+
+        let imageData = try makeComposerTestImageData(width: 8, height: 8)
+        let item = NSPasteboardItem()
+        item.setString("https://example.com/image.png", forType: .string)
+        item.setData(imageData, forType: .png)
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+
+        XCTAssertEqual(
+            ComposerImagePasteboard.sources(from: pasteboard),
+            [ComposerImageSource(data: imageData)]
+        )
+    }
+
+    func testImagePasteboardReaderIgnoresTextOnlyPasteboard() {
+        let pasteboard = NSPasteboard(name: .init("pi-work-text-paste-test-\(UUID())"))
+        pasteboard.clearContents()
+        defer { pasteboard.clearContents() }
+        pasteboard.setString("普通文本", forType: .string)
+
+        XCTAssertTrue(ComposerImagePasteboard.sources(from: pasteboard).isEmpty)
+    }
+
+    func testImagePasteboardReaderLoadsFinderImageFiles() throws {
+        let imageData = try makeComposerTestImageData(width: 8, height: 8)
+        let imageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pi-work-paste-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        try imageData.write(to: imageURL)
+        defer { try? FileManager.default.removeItem(at: imageURL) }
+
+        let pasteboard = NSPasteboard(name: .init("pi-work-file-paste-test-\(UUID())"))
+        pasteboard.clearContents()
+        defer { pasteboard.clearContents() }
+        let item = NSPasteboardItem()
+        item.setString(imageURL.absoluteString, forType: .fileURL)
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+
+        XCTAssertEqual(
+            ComposerImagePasteboard.sources(from: pasteboard),
+            [ComposerImageSource(data: imageData)]
+        )
+    }
+
+    func testImageProcessorNormalizesDeduplicatesAndResizesImages() throws {
+        let imageData = try makeComposerTestImageData(width: 2_200, height: 1_100)
+
+        let attachments = try ComposerImageProcessor.process([
+            ComposerImageSource(data: imageData),
+            ComposerImageSource(data: imageData)
+        ])
+
+        let attachment = try XCTUnwrap(attachments.first)
+        XCTAssertEqual(attachments.count, 1)
+        XCTAssertEqual(attachment.mimeType, "image/png")
+        XCTAssertLessThanOrEqual(max(attachment.pixelWidth, attachment.pixelHeight), 2_000)
+        XCTAssertNotNil(CGImageSourceCreateWithData(attachment.data as CFData, nil))
+    }
+
+    func testImageProcessorRejectsMoreThanFiveDistinctImages() throws {
+        let sources = try (0..<6).map { index in
+            ComposerImageSource(
+                data: try makeComposerTestImageData(
+                    width: 8,
+                    height: 8,
+                    red: CGFloat(index) / 6
+                )
+            )
+        }
+
+        XCTAssertThrowsError(try ComposerImageProcessor.process(sources)) { error in
+            XCTAssertEqual(error as? ComposerImageAttachmentError, .tooManyImages)
+        }
+    }
+
+    func testComposerTextViewOffersPasteboardToAttachmentHandler() {
+        let pasteboard = NSPasteboard(name: .init("pi-work-editor-paste-test-\(UUID())"))
+        let textView = ComposerTextView()
+        var receivedPasteboardName: NSPasteboard.Name?
+        textView.onPasteboard = { receivedPasteboard in
+            receivedPasteboardName = receivedPasteboard.name
+            return true
+        }
+
+        XCTAssertTrue(textView.consumePasteboard(pasteboard))
+        XCTAssertEqual(receivedPasteboardName, pasteboard.name)
+    }
+
+    func testComposerTextViewOverridesPasteCommandValidation() throws {
+        let baseMethod = try XCTUnwrap(
+            class_getInstanceMethod(
+                NSTextView.self,
+                #selector(NSUserInterfaceValidations.validateUserInterfaceItem(_:))
+            )
+        )
+        let composerMethod = try XCTUnwrap(
+            class_getInstanceMethod(
+                ComposerTextView.self,
+                #selector(NSUserInterfaceValidations.validateUserInterfaceItem(_:))
+            )
+        )
+
+        XCTAssertNotEqual(
+            method_getImplementation(composerMethod),
+            method_getImplementation(baseMethod)
+        )
+    }
+
+    func testAttachmentSendAvailabilityRequiresReadyVisionModel() {
+        XCTAssertTrue(
+            SessionComposerState.canSend(
+                baseCanSend: true,
+                hasAttachments: false,
+                isProcessingAttachments: false,
+                selectedModelSupportsImages: false
+            )
+        )
+        XCTAssertTrue(
+            SessionComposerState.canSend(
+                baseCanSend: true,
+                hasAttachments: true,
+                isProcessingAttachments: false,
+                selectedModelSupportsImages: true
+            )
+        )
+        XCTAssertFalse(
+            SessionComposerState.canSend(
+                baseCanSend: true,
+                hasAttachments: true,
+                isProcessingAttachments: false,
+                selectedModelSupportsImages: false
+            )
+        )
+        XCTAssertFalse(
+            SessionComposerState.canSend(
+                baseCanSend: true,
+                hasAttachments: true,
+                isProcessingAttachments: true,
+                selectedModelSupportsImages: true
+            )
+        )
+    }
+
+    func testPromptHistoryExcludesImagePlaceholdersAndImageOnlyPrompts() {
+        let imageOnly = PiChatMessage(
+            id: "image-only",
+            role: .user,
+            parts: [.image(id: "image-one", mimeType: "image/png", data: nil)],
+            timestamp: nil,
+            isStreaming: false
+        )
+        let mixed = PiChatMessage(
+            id: "mixed",
+            role: .user,
+            parts: [
+                .text(id: "text-one", text: "分析这张图"),
+                .image(id: "image-two", mimeType: "image/png", data: nil)
+            ],
+            timestamp: nil,
+            isStreaming: false
+        )
+
+        XCTAssertEqual(SessionComposerState.promptHistory(in: [imageOnly, mixed]), ["分析这张图"])
+    }
+
+    func testConversationSurfaceConnectsImagePastePreviewAndSend() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("ComposerImagePasteboard.sources(from: pasteboard)"))
+        XCTAssertTrue(source.contains("private var imageAttachmentStrip"))
+        XCTAssertTrue(source.contains("selectedModelSupportsImages"))
+        XCTAssertTrue(source.contains("images: promptImages"))
+        XCTAssertTrue(source.contains("let textView = ComposerTextView"))
+    }
+
+    func testImageThumbnailOpensDismissiblePreview() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            source.contains(
+                "@State private var previewedImageAttachment: ComposerImageAttachment?"
+            )
+        )
+        XCTAssertTrue(source.contains("previewedImageAttachment = attachment"))
+        XCTAssertTrue(source.contains(".sheet(item: $previewedImageAttachment)"))
+        XCTAssertTrue(source.contains("private struct ComposerImagePreview: View"))
+        XCTAssertTrue(source.contains(".keyboardShortcut(.cancelAction)"))
+        XCTAssertTrue(
+            source.contains(
+                ".accessibilityIdentifier(\"image-attachment-preview\")"
+            )
+        )
+    }
+
+    func testSentUserImagesRenderAsClickableThumbnailsBelowText() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let presentationSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/ChatPresentation.swift"
+            ),
+            encoding: .utf8
+        )
+        let viewSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(presentationSource.contains("var imageAttachments:"))
+        XCTAssertTrue(presentationSource.contains("data == nil"))
+        XCTAssertTrue(viewSource.contains("ForEach(message.imageAttachments)"))
+        XCTAssertTrue(viewSource.contains("previewedMessageImage = image"))
+        XCTAssertTrue(viewSource.contains("ComposerImagePreview(data: image.data)"))
     }
 
     func testOnlyWorkSessionsExposeProjectSelection() {
@@ -631,6 +887,10 @@ final class SessionComposerTests: XCTestCase {
         )
     }
 
+    func testWorkAccessModePickerOnlyOffersAskAndFullAccess() {
+        XCTAssertEqual(AgentHostAccessMode.workChoices, [.ask, .full])
+    }
+
     func testConversationSurfaceExposesAccessAndApprovalControls() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -646,7 +906,7 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertTrue(source.contains("deny-approval"))
     }
 
-    func testConversationUsesHalfHeightTopControlClearance() throws {
+    func testConversationDoesNotReserveSpaceForFloatingSidebarToggle() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -655,8 +915,37 @@ final class SessionComposerTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("Color.clear.frame(height: 32)"))
+        XCTAssertFalse(source.contains("Color.clear.frame(height: 32)"))
         XCTAssertFalse(source.contains("Color.clear.frame(height: 64)"))
+    }
+
+    func testComposerUsesCompactVerticalInsets() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let bodyStart = try XCTUnwrap(source.range(of: "var body: some View"))
+        let bodyEnd = try XCTUnwrap(
+            source.range(of: ".overlay(alignment: .top)", range: bodyStart.upperBound..<source.endIndex)
+        )
+        let editorStart = try XCTUnwrap(source.range(of: "private var editor: some View"))
+        let editorEnd = try XCTUnwrap(
+            source.range(
+                of: "private var imageAttachmentStrip",
+                range: editorStart.upperBound..<source.endIndex
+            )
+        )
+        let bodySource = source[bodyStart.lowerBound..<bodyEnd.lowerBound]
+        let editorSource = source[editorStart.lowerBound..<editorEnd.lowerBound]
+
+        XCTAssertTrue(bodySource.contains(".padding(.bottom, 16)"))
+        XCTAssertTrue(editorSource.contains(".padding(.top, 10)"))
+        XCTAssertTrue(editorSource.contains(".padding(.bottom, 8)"))
     }
 
     func testSuggestionCardsUseCompactLandscapeHeight() throws {
@@ -704,7 +993,7 @@ final class SessionComposerTests: XCTestCase {
         )
     }
 
-    func testTranscriptSoftensTopScrollBoundaryWithGradientMaterial() throws {
+    func testTranscriptTopFadeStartsOpaqueAndEndsTransparent() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -712,22 +1001,61 @@ final class SessionComposerTests: XCTestCase {
             contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
             encoding: .utf8
         )
-        let transcriptStart = try XCTUnwrap(source.range(of: "private var transcript"))
+        let bodyStart = try XCTUnwrap(source.range(of: "var body: some View"))
+        let transcriptStart = try XCTUnwrap(
+            source.range(
+                of: "private var transcript: some View",
+                range: bodyStart.upperBound..<source.endIndex
+            )
+        )
         let transcriptEnd = try XCTUnwrap(
             source.range(of: "private var emptySession", range: transcriptStart.upperBound..<source.endIndex)
         )
+        let bodySource = source[bodyStart.lowerBound..<transcriptStart.lowerBound]
         let transcriptSource = source[transcriptStart.lowerBound..<transcriptEnd.lowerBound]
 
-        XCTAssertTrue(transcriptSource.contains(".overlay(alignment: .top)"))
-        XCTAssertTrue(transcriptSource.contains(".fill(.ultraThinMaterial)"))
-        XCTAssertTrue(transcriptSource.contains("LinearGradient("))
-        XCTAssertTrue(transcriptSource.contains(".frame(height: 16)"))
-        XCTAssertTrue(transcriptSource.contains(".opacity(0.32)"))
-        XCTAssertFalse(transcriptSource.contains(".frame(height: 24)"))
-        XCTAssertTrue(transcriptSource.contains(".allowsHitTesting(false)"))
+        XCTAssertTrue(bodySource.contains(".overlay(alignment: .top)"))
+        XCTAssertTrue(bodySource.contains("AppPalette.transcriptTopFadeSurface"))
+        XCTAssertTrue(bodySource.contains("LinearGradient("))
+        XCTAssertTrue(bodySource.contains("colors: [.black, .clear]"))
+        XCTAssertEqual(bodySource.components(separatedBy: ".frame(height: 32)").count - 1, 2)
+        XCTAssertFalse(bodySource.contains(".frame(height: 64)"))
+        XCTAssertTrue(bodySource.contains(".ignoresSafeArea(edges: .top)"))
+        XCTAssertFalse(bodySource.contains(".offset(y: -64)"))
+        XCTAssertFalse(bodySource.contains(".fill(.ultraThinMaterial)"))
+        XCTAssertFalse(bodySource.contains(".opacity(0.32)"))
+        XCTAssertTrue(bodySource.contains(".allowsHitTesting(false)"))
+        XCTAssertFalse(transcriptSource.contains("AppPalette.transcriptTopFadeSurface"))
     }
 
-    func testAccessModeMenuHasVisibleAnimatedHoverFeedback() throws {
+    func testOpeningWorkSessionShowsTranscriptSkeletonUntilHistoryLoads() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let chatSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let contentSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/App/Root/ContentView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(chatSource.contains("if isLoadingSession {"))
+        XCTAssertTrue(chatSource.contains("SessionTranscriptSkeleton()"))
+        XCTAssertTrue(chatSource.contains("accessibilityReduceMotion"))
+        XCTAssertTrue(chatSource.contains("repeatForever(autoreverses: false)"))
+        XCTAssertTrue(contentSource.contains(
+            "openingWorkSessionID = sessionStore.records[session.id] == nil ? session.id : nil"
+        ))
+        XCTAssertTrue(contentSource.contains("isLoadingSession: isOpeningSelectedWorkSession"))
+    }
+
+    func testAccessModePickerUsesSameRoundedInteractionAsModelPicker() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -741,14 +1069,40 @@ final class SessionComposerTests: XCTestCase {
         )
         let menuSource = source[menuStart.lowerBound..<menuEnd.lowerBound]
 
+        XCTAssertTrue(source.contains("@State private var isAccessPickerPresented = false"))
+        XCTAssertTrue(menuSource.contains("isAccessPickerPresented.toggle()"))
+        XCTAssertTrue(menuSource.contains("RoundedInteractionButtonStyle("))
+        XCTAssertTrue(menuSource.contains("isSelected: isAccessPickerPresented"))
         XCTAssertTrue(menuSource.contains(
-            ".fill(Color.primary.opacity(isAccessMenuHovering ? 0.08 : 0))"
+            ".popover(isPresented: $isAccessPickerPresented, arrowEdge: .top)"
         ))
-        XCTAssertTrue(menuSource.contains(
-            ".stroke(Color.primary.opacity(isAccessMenuHovering ? 0.10 : 0), lineWidth: 1)"
-        ))
-        XCTAssertTrue(menuSource.contains(
-            ".animation(.easeOut(duration: 0.12), value: isAccessMenuHovering)"
+        XCTAssertTrue(menuSource.contains("onSelectAccessMode(accessMode)"))
+        XCTAssertTrue(menuSource.contains("isAccessPickerPresented = false"))
+        XCTAssertFalse(menuSource.contains("Menu {"))
+        XCTAssertFalse(source.contains("MenuHoverTrackingView"))
+        XCTAssertFalse(source.contains("MenuHoverTrackingNSView"))
+    }
+
+    func testAccessModePickerUsesCompactMenuRows() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+        let pickerStart = try XCTUnwrap(source.range(of: "private func accessModePickerContent"))
+        let pickerEnd = try XCTUnwrap(
+            source.range(of: "@ViewBuilder", range: pickerStart.upperBound..<source.endIndex)
+        )
+        let pickerSource = source[pickerStart.lowerBound..<pickerEnd.lowerBound]
+
+        XCTAssertTrue(pickerSource.contains(".frame(width: 184)"))
+        XCTAssertTrue(pickerSource.contains("minHeight: 34"))
+        XCTAssertTrue(pickerSource.contains("RoundedInteractionButtonStyle(cornerRadius: 7)"))
+        XCTAssertFalse(pickerSource.contains("isSelected: accessMode == selectedAccessMode"))
+        XCTAssertTrue(pickerSource.contains(
+            "Text(accessMode.composerTitle)\n                        Spacer(minLength: 8)\n                        Image(systemName: \"checkmark\")"
         ))
     }
 
@@ -899,9 +1253,39 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertTrue(source.contains("Image(model.providerIconAssetName)"))
         XCTAssertTrue(source.contains(".renderingMode(.template)"))
         XCTAssertTrue(source.contains(".foregroundStyle(Color.primary)"))
-        XCTAssertTrue(source.contains(".frame(width: 272)"))
+        XCTAssertTrue(source.contains(".frame(width: 260)"))
+        XCTAssertFalse(source.contains(".frame(width: 272)"))
         XCTAssertFalse(source.contains(".frame(width: 330)"))
         XCTAssertFalse(source.contains("Image(systemName: model.providerIconName)"))
+    }
+
+    func testModelPickerUsesCompactSearchAndMenuRows() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+        let contentStart = try XCTUnwrap(source.range(of: "private var modelPickerContent"))
+        let rowStart = try XCTUnwrap(
+            source.range(of: "private func modelPickerRow", range: contentStart.upperBound..<source.endIndex)
+        )
+        let fastButtonStart = try XCTUnwrap(
+            source.range(of: "private func fastModeButton", range: rowStart.upperBound..<source.endIndex)
+        )
+        let contentSource = source[contentStart.lowerBound..<rowStart.lowerBound]
+        let rowSource = source[rowStart.lowerBound..<fastButtonStart.lowerBound]
+
+        XCTAssertTrue(contentSource.contains("RoundedRectangle(cornerRadius: 8, style: .continuous)"))
+        XCTAssertFalse(contentSource.contains("Divider()"))
+        XCTAssertTrue(contentSource.contains(".frame(width: 260)"))
+        XCTAssertTrue(rowSource.contains("minHeight: 34"))
+        XCTAssertTrue(rowSource.contains("RoundedInteractionButtonStyle(cornerRadius: 7)"))
+        XCTAssertFalse(rowSource.contains("isSelected: model == selectedModel"))
+        XCTAssertTrue(rowSource.contains(
+            "Text(model.displayName)\n                        .lineLimit(1)\n                    Spacer(minLength: 8)\n                    Image(systemName: \"checkmark\")"
+        ))
     }
 
     func testComposerModelPickerOmitsCurrentModelIcon() throws {
@@ -936,7 +1320,8 @@ final class SessionComposerTests: XCTestCase {
         )
         let rowSource = source[rowStart.lowerBound..<fastButtonStart.lowerBound]
 
-        XCTAssertTrue(rowSource.contains("isSelected: model == selectedModel"))
+        XCTAssertFalse(rowSource.contains("isSelected: model == selectedModel"))
+        XCTAssertTrue(rowSource.contains("RoundedInteractionButtonStyle(cornerRadius: 7)"))
         XCTAssertFalse(rowSource.contains(".background("))
         XCTAssertTrue(rowSource.contains("fastModeButton(for: model)"))
     }
@@ -961,6 +1346,7 @@ final class SessionComposerTests: XCTestCase {
         let switchSource = source[switchStart.lowerBound..<providerIconStart.lowerBound]
 
         XCTAssertTrue(fastButtonSource.contains("FastModeCapsuleSwitch("))
+        XCTAssertTrue(fastButtonSource.contains(".opacity(model.supportsFastMode ? 1 : 0)"))
         XCTAssertTrue(fastButtonSource.contains(".buttonStyle(.plain)"))
         XCTAssertFalse(fastButtonSource.contains("isModelPickerPresented = false"))
         XCTAssertTrue(switchSource.contains("Capsule()"))
@@ -1321,6 +1707,40 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertLessThanOrEqual(editorHeight, 120)
     }
 
+}
+
+private func makeComposerTestImageData(
+    width: Int,
+    height: Int,
+    red: CGFloat = 0.4
+) throws -> Data {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let context = try XCTUnwrap(
+        CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+    )
+    context.setFillColor(red: red, green: 0.35, blue: 0.75, alpha: 0.8)
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    let image = try XCTUnwrap(context.makeImage())
+    let data = NSMutableData()
+    let destination = try XCTUnwrap(
+        CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        )
+    )
+    CGImageDestinationAddImage(destination, image, nil)
+    XCTAssertTrue(CGImageDestinationFinalize(destination))
+    return data as Data
 }
 
 private func makeHostModel(provider: String, id: String, name: String) -> AgentHostModel {

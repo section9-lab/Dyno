@@ -270,6 +270,17 @@
 "chat.approval.deny" = "拒絕";
 "chat.approval.allow_once" = "允許一次";
 "chat.image_attachment" = "[圖片 · %@]";
+"chat.image.preview" = "圖片附件";
+"chat.image.remove" = "移除圖片";
+"chat.image.processing" = "正在處理…";
+"chat.image.model_unsupported" = "目前選擇的模型不支援圖片。";
+"chat.image.error.processing" = "請等待目前圖片處理完成。";
+"chat.image.error.unsupported" = "不支援這種圖片格式。";
+"chat.image.error.source_too_large" = "每張原始圖片不得超過 50 MB。";
+"chat.image.error.dimensions_too_large" = "這張圖片的像素數過大。";
+"chat.image.error.image_too_large" = "無法將這張圖片壓縮至 4.5 MB 以下。";
+"chat.image.error.too_many" = "最多可加入 5 張圖片。";
+"chat.image.error.total_too_large" = "圖片附件總大小不得超過 12 MB。";
 "chat.skill.used" = "已使用技能 · %@";
 "chat.message.copy" = "複製回覆";
 "chat.message.copied" = "已複製";
@@ -289,6 +300,7 @@
 "chat.steps.expand" = "展開步驟";
 "chat.steps.collapse" = "收合步驟";
 "chat.scroll_to_latest" = "跳到最新訊息";
+"chat.session_loading" = "正在載入對話";
 "access.none.title" = "無存取權";
 "access.read_only.title" = "唯讀";
 "access.ask.title" = "每次詢問";

@@ -270,6 +270,17 @@
 "chat.approval.deny" = "Deny";
 "chat.approval.allow_once" = "Allow Once";
 "chat.image_attachment" = "[Image · %@]";
+"chat.image.preview" = "Image attachment";
+"chat.image.remove" = "Remove image";
+"chat.image.processing" = "Processing…";
+"chat.image.model_unsupported" = "The selected model does not support images.";
+"chat.image.error.processing" = "Wait for the current images to finish processing.";
+"chat.image.error.unsupported" = "This image format is not supported.";
+"chat.image.error.source_too_large" = "Each source image must be 50 MB or smaller.";
+"chat.image.error.dimensions_too_large" = "This image has too many pixels.";
+"chat.image.error.image_too_large" = "This image could not be compressed below 4.5 MB.";
+"chat.image.error.too_many" = "You can attach up to 5 images.";
+"chat.image.error.total_too_large" = "Attachments must total 12 MB or less.";
 "chat.skill.used" = "Used skill · %@";
 "chat.message.copy" = "Copy response";
 "chat.message.copied" = "Copied";
@@ -289,6 +300,7 @@
 "chat.steps.expand" = "Expand steps";
 "chat.steps.collapse" = "Collapse steps";
 "chat.scroll_to_latest" = "Jump to latest message";
+"chat.session_loading" = "Loading conversation";
 "access.none.title" = "No Access";
 "access.read_only.title" = "Read Only";
 "access.ask.title" = "Ask Every Time";

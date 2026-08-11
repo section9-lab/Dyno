@@ -783,10 +783,28 @@ struct AgentHostSessionRenameParameters: Encodable, Equatable {
     let title: String
 }
 
+struct AgentHostPromptImage: Encodable, Equatable {
+    let mimeType: String
+    let data: Data
+}
+
 struct AgentHostSessionPromptParameters: Encodable, Equatable {
     let sessionId: String
     let turnId: String
     let text: String
+    let images: [AgentHostPromptImage]
+
+    init(
+        sessionId: String,
+        turnId: String,
+        text: String,
+        images: [AgentHostPromptImage] = []
+    ) {
+        self.sessionId = sessionId
+        self.turnId = turnId
+        self.text = text
+        self.images = images
+    }
 }
 
 struct AgentHostResponseError: Decodable, Equatable {
@@ -1004,7 +1022,7 @@ enum AgentHostSessionMessageContent: Decodable, Equatable {
     case text(String)
     case skill(name: String)
     case thinking(text: String, redacted: Bool)
-    case image(mimeType: String)
+    case image(mimeType: String, data: Data?)
     case toolCall(id: String, name: String, argumentsSummary: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -1014,6 +1032,7 @@ enum AgentHostSessionMessageContent: Decodable, Equatable {
         case thinking
         case redacted
         case mimeType
+        case data
         case id
         case argumentsSummary
     }
@@ -1043,7 +1062,8 @@ enum AgentHostSessionMessageContent: Decodable, Equatable {
             )
         case .image:
             self = .image(
-                mimeType: try container.decode(String.self, forKey: .mimeType)
+                mimeType: try container.decode(String.self, forKey: .mimeType),
+                data: try container.decodeIfPresent(Data.self, forKey: .data)
             )
         case .toolCall:
             self = .toolCall(

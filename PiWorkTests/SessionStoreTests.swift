@@ -59,6 +59,28 @@ final class SessionStoreTests: XCTestCase {
         await store.stop()
     }
 
+    func testPromptForwardsImagesToTheAgentHost() async throws {
+        let host = FakeAgentHost()
+        await host.setSnapshot(makeStoreSnapshot())
+        let store = SessionStore(service: host)
+        try await store.start()
+        try await store.openSession(makeSummary(), profile: .chat, sessionDirectory: nil)
+        let image = AgentHostPromptImage(
+            mimeType: "image/png",
+            data: Data([0x89, 0x50, 0x4E, 0x47])
+        )
+
+        _ = try await store.submitPrompt(
+            sessionId: "session-one",
+            text: "Inspect this",
+            images: [image]
+        )
+
+        let promptImages = await host.promptImages
+        XCTAssertEqual(promptImages, [[image]])
+        await store.stop()
+    }
+
     func testCreateDraftSelectsAnOpenSessionWithoutCallingOpenAgain() async throws {
         let host = FakeAgentHost()
         await host.setSnapshot(makeStoreSnapshot())
@@ -625,6 +647,7 @@ private actor FakeAgentHost: AgentHostServicing {
     private(set) var openSessionRequestIDs: [String] = []
     private(set) var snapshotCount = 0
     private(set) var promptTexts: [String] = []
+    private(set) var promptImages: [[AgentHostPromptImage]] = []
     private(set) var renamedTitles: [String] = []
     private(set) var selectedModelIds: [String] = []
     private(set) var selectedThinkingLevels: [AgentHostThinkingLevel] = []
@@ -879,9 +902,11 @@ private actor FakeAgentHost: AgentHostServicing {
         sessionId: String,
         turnId: String,
         text: String,
+        images: [AgentHostPromptImage],
         requestID: String
     ) async throws -> AgentHostSessionPromptResult {
         promptTexts.append(text)
+        promptImages.append(images)
         if shouldRejectPrompts {
             throw FakeAgentHostError.promptRejected
         }

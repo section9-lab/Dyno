@@ -1,3 +1,5 @@
+import type { ImageContent } from "@earendil-works/pi-ai";
+
 import type {
   AccessApprovalDecision,
   AccessApprovalRequest,
@@ -102,7 +104,7 @@ export type SessionMessageContent =
   | { type: "text"; text: string }
   | { type: "skill"; name: string }
   | { type: "thinking"; thinking: string; redacted: boolean }
-  | { type: "image"; mimeType: string }
+  | { type: "image"; mimeType: string; data?: string }
   | { type: "toolCall"; id: string; name: string; argumentsSummary: string };
 
 export type SessionMessage = {
@@ -164,7 +166,7 @@ export interface SessionHandle {
   ): Promise<SessionModelOptionSelection>;
   setAccessMode(mode: AccessMode): AccessMode;
   resolveApproval(requestId: string, decision: AccessApprovalDecision): void;
-  prompt(text: string): Promise<void>;
+  prompt(text: string, images?: ImageContent[]): Promise<void>;
   abort(): Promise<void>;
   reload(): Promise<void>;
   dispose(): void;
@@ -411,7 +413,12 @@ export class SessionRegistry {
     return { sessionId, requestId, decision };
   }
 
-  prompt(sessionId: string, turnId: string, text: string): PromptAccepted {
+  prompt(
+    sessionId: string,
+    turnId: string,
+    text: string,
+    images: ImageContent[] = [],
+  ): PromptAccepted {
     const managed = this.sessions.get(sessionId);
     if (!managed) {
       throw new SessionRegistryError("session_not_found", `Session not found: ${sessionId}`);
@@ -419,11 +426,17 @@ export class SessionRegistry {
     if (managed.activeTurnId || managed.reloading) {
       throw new SessionRegistryError("session_busy", `Session is already running: ${sessionId}`);
     }
+    if (images.length > 0 && managed.handle.snapshot().model?.supportsImages !== true) {
+      throw new SessionRegistryError(
+        "model_does_not_support_images",
+        "Selected model does not support images",
+      );
+    }
 
     managed.activeTurnId = turnId;
     managed.assistantGenerationIndex = -1;
     this.emitState(managed, turnId, "running");
-    void managed.handle.prompt(text).then(async () => {
+    void managed.handle.prompt(text, images).then(async () => {
       if (managed.closed) return;
       managed.activeTurnId = undefined;
       if (managed.reloadPending) await this.reloadPendingSession(managed);

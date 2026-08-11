@@ -13,15 +13,20 @@ struct ChatView: View {
     let mode: SidebarTab
     let projects: [PiProject]
     let hostError: String?
+    let isLoadingSession: Bool
     let onSelectProject: (PiProject) -> Void
     let onAddFolder: () -> Void
 
     @State private var draft = ""
     @State private var selectedSlashCommand: AgentHostSlashCommand?
     @State private var slashCommands: [AgentHostSlashCommand] = []
+    @State private var imageAttachments: [ComposerImageAttachment] = []
+    @State private var isProcessingImageAttachments = false
+    @State private var imageProcessingID: UUID?
     @State private var actionError: String?
     @State private var gitBranches = AgentHostGitBranchesResult.unavailable
     @State private var isFollowingTranscriptTail = true
+    @State private var isTranscriptAutoFollowPaused = false
     @State private var isAdjustingTranscriptScroll = false
     @State private var transcriptScrollRequest = 0
 
@@ -31,6 +36,7 @@ struct ChatView: View {
         selectedProject: Binding<PiProject?>,
         sessionStore: SessionStore,
         hostError: String? = nil,
+        isLoadingSession: Bool = false,
         onSelectProject: @escaping (PiProject) -> Void = { _ in },
         onAddFolder: @escaping () -> Void
     ) {
@@ -39,19 +45,29 @@ struct ChatView: View {
         self._selectedProject = selectedProject
         self._sessionStore = ObservedObject(wrappedValue: sessionStore)
         self.hostError = hostError
+        self.isLoadingSession = isLoadingSession
         self.onSelectProject = onSelectProject
         self.onAddFolder = onAddFolder
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 32)
-
-            if messages.isEmpty {
-                emptySession
-            } else {
-                transcript
+            Group {
+                if isLoadingSession {
+                    SessionTranscriptSkeleton()
+                        .transition(.opacity)
+                } else if messages.isEmpty {
+                    emptySession
+                        .transition(.opacity)
+                } else {
+                    transcript
+                        .transition(.opacity)
+                }
             }
+            .animation(
+                accessibilityReduceMotion ? nil : .easeOut(duration: 0.18),
+                value: isLoadingSession
+            )
 
             if let error = errorMessage {
                 Text(error)
@@ -70,6 +86,9 @@ struct ChatView: View {
                 selectedSlashCommand: $selectedSlashCommand,
                 slashCommands: slashCommands,
                 promptHistory: promptHistory,
+                imageAttachments: imageAttachments,
+                isProcessingImageAttachments: isProcessingImageAttachments,
+                selectedModelSupportsImages: selectedModelSupportsImages,
                 isExecuting: isExecuting,
                 canSend: canSend,
                 availableModels: availableModels,
@@ -92,12 +111,35 @@ struct ChatView: View {
                 onSelectThinkingLevel: selectThinkingLevel,
                 onSelectModelOption: selectModelOption,
                 onSelectAccessMode: selectAccessMode,
+                onPasteboard: handlePasteboard,
+                onRemoveImage: removeImageAttachment,
                 onSend: send,
                 onStop: stopGeneration
             )
             .frame(maxWidth: 900)
             .padding(.horizontal, 28)
-            .padding(.bottom, 24)
+            .padding(.bottom, 16)
+        }
+        .overlay(alignment: .top) {
+            if !isLoadingSession, !messages.isEmpty {
+                VStack(spacing: 0) {
+                    AppPalette.transcriptTopFadeSurface
+                        .frame(height: 32)
+
+                    AppPalette.transcriptTopFadeSurface
+                        .mask(
+                            LinearGradient(
+                                colors: [.black, .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(height: 32)
+                }
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .task(id: activeSessionId) {
             await loadSlashCommands()
@@ -106,6 +148,7 @@ struct ChatView: View {
             await loadGitBranches()
         }
         .onChange(of: activeSessionId) { _ in
+            isTranscriptAutoFollowPaused = false
             isFollowingTranscriptTail = true
             transcriptScrollRequest &+= 1
         }
@@ -115,7 +158,7 @@ struct ChatView: View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 12) {
                         ForEach(messages) { message in
                             ChatMessageRow(message: message) { approval, decision in
                                 resolve(approval: approval, decision: decision)
@@ -141,23 +184,13 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
+                    .background {
+                        TranscriptUserScrollObserver {
+                            pauseTranscriptAutoFollow()
+                        }
+                    }
                 }
                 .coordinateSpace(name: TranscriptLayout.coordinateSpace)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .mask(
-                            LinearGradient(
-                                colors: [.black, .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(height: 16)
-                        .opacity(0.32)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
                 .overlay(alignment: .bottom) {
                     if !isFollowingTranscriptTail {
                         Button {
@@ -191,7 +224,7 @@ struct ChatView: View {
                     value: isFollowingTranscriptTail
                 )
                 .onPreferenceChange(TranscriptBottomPreferenceKey.self) { bottomY in
-                    guard !isAdjustingTranscriptScroll else { return }
+                    guard !isAdjustingTranscriptScroll, !isTranscriptAutoFollowPaused else { return }
                     isFollowingTranscriptTail = TranscriptScrollPresentation.isNearBottom(
                         bottomY: bottomY,
                         viewportHeight: viewport.size.height,
@@ -199,7 +232,7 @@ struct ChatView: View {
                     )
                 }
                 .onChange(of: transcriptScrollToken) { _ in
-                    guard isFollowingTranscriptTail else { return }
+                    guard isFollowingTranscriptTail, !isTranscriptAutoFollowPaused else { return }
                     scrollToTranscriptTail(using: proxy)
                 }
                 .onChange(of: transcriptScrollRequest) { _ in
@@ -215,12 +248,19 @@ struct ChatView: View {
     }
 
     private func scrollToTranscriptTail(using proxy: ScrollViewProxy) {
+        isTranscriptAutoFollowPaused = false
+        isFollowingTranscriptTail = true
         isAdjustingTranscriptScroll = true
         proxy.scrollTo(TranscriptLayout.tailID, anchor: .bottom)
         DispatchQueue.main.async {
-            isFollowingTranscriptTail = true
             isAdjustingTranscriptScroll = false
         }
+    }
+
+    private func pauseTranscriptAutoFollow() {
+        guard !isTranscriptAutoFollowPaused else { return }
+        isTranscriptAutoFollowPaused = true
+        isFollowingTranscriptTail = false
     }
 
     private var emptySession: some View {
@@ -258,6 +298,114 @@ struct ChatView: View {
         }
     }
 
+    private struct SessionTranscriptSkeleton: View {
+        @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+
+        @State private var shimmerProgress: CGFloat = -0.35
+
+        var body: some View {
+            ScrollView {
+                skeletonContent
+                    .overlay {
+                        if !accessibilityReduceMotion {
+                            GeometryReader { geometry in
+                                LinearGradient(
+                                    colors: [
+                                        .clear,
+                                        Color.primary.opacity(0.1),
+                                        .clear
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .frame(width: max(120, geometry.size.width * 0.24))
+                                .offset(x: geometry.size.width * shimmerProgress)
+                            }
+                            .mask(skeletonContent)
+                            .allowsHitTesting(false)
+                        }
+                    }
+                    .onAppear {
+                        guard !accessibilityReduceMotion else { return }
+                        shimmerProgress = -0.35
+                        withAnimation(
+                            .linear(duration: 1.3)
+                                .repeatForever(autoreverses: false)
+                        ) {
+                            shimmerProgress = 1.35
+                        }
+                    }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L10n.string("chat.session_loading"))
+        }
+
+        private var skeletonContent: some View {
+            VStack(alignment: .leading, spacing: 26) {
+                HStack {
+                    Spacer(minLength: 80)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        SkeletonLine(relativeWidth: 0.72, height: 13)
+                        SkeletonLine(relativeWidth: 0.46, height: 10)
+                    }
+                    .frame(maxWidth: 340)
+                }
+
+                VStack(alignment: .leading, spacing: 9) {
+                    SkeletonLine(relativeWidth: 0.9, height: 13)
+                    SkeletonLine(relativeWidth: 0.78, height: 13)
+                    SkeletonLine(relativeWidth: 0.58, height: 13)
+                    SkeletonLine(relativeWidth: 0.12, height: 8)
+                        .padding(.top, 2)
+                }
+
+                HStack(spacing: 9) {
+                    Circle()
+                        .fill(Color.primary.opacity(0.075))
+                        .frame(width: 16, height: 16)
+                    SkeletonLine(relativeWidth: 0.31, height: 11)
+                }
+                .frame(maxWidth: 330, alignment: .leading)
+
+                HStack {
+                    Spacer(minLength: 120)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        SkeletonLine(relativeWidth: 0.84, height: 13)
+                        SkeletonLine(relativeWidth: 0.54, height: 10)
+                    }
+                    .frame(maxWidth: 390)
+                }
+
+                VStack(alignment: .leading, spacing: 9) {
+                    SkeletonLine(relativeWidth: 0.86, height: 13)
+                    SkeletonLine(relativeWidth: 0.94, height: 13)
+                    SkeletonLine(relativeWidth: 0.69, height: 13)
+                    SkeletonLine(relativeWidth: 0.42, height: 13)
+                }
+            }
+            .frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .padding(.bottom, 20)
+            .blur(radius: 0.35)
+        }
+    }
+
+    private struct SkeletonLine: View {
+        let relativeWidth: CGFloat
+        let height: CGFloat
+
+        var body: some View {
+            GeometryReader { geometry in
+                RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+                    .fill(Color.primary.opacity(0.075))
+                    .frame(width: geometry.size.width * relativeWidth, height: height)
+            }
+            .frame(height: height)
+        }
+    }
+
     private func send() {
         let text = SessionComposerState.submissionText(
             draft: draft,
@@ -266,24 +414,74 @@ struct ChatView: View {
         guard
             SessionComposerState.primaryAction(
                 draft: text,
+                hasAttachments: !imageAttachments.isEmpty,
                 isExecuting: isExecuting
             ) == .send,
             canSend
         else { return }
 
+        let promptImages = imageAttachments.map(\.promptImage)
         draft = ""
         selectedSlashCommand = nil
+        imageAttachments = []
         guard let sessionId = activeSessionId else { return }
+        isTranscriptAutoFollowPaused = false
         isFollowingTranscriptTail = true
         transcriptScrollRequest &+= 1
         actionError = nil
         Task {
             do {
-                try await sessionStore.submitPrompt(sessionId: sessionId, text: text)
+                try await sessionStore.submitPrompt(
+                    sessionId: sessionId,
+                    text: text,
+                    images: promptImages
+                )
             } catch {
                 actionError = String(describing: error)
             }
         }
+    }
+
+    private func handlePasteboard(_ pasteboard: NSPasteboard) -> Bool {
+        let sources = ComposerImagePasteboard.sources(from: pasteboard)
+        guard !sources.isEmpty else { return false }
+        guard !isProcessingImageAttachments else {
+            actionError = L10n.string("chat.image.error.processing")
+            return true
+        }
+
+        let processingID = UUID()
+        let existingAttachments = imageAttachments
+        imageProcessingID = processingID
+        isProcessingImageAttachments = true
+        actionError = nil
+
+        Task { @MainActor in
+            do {
+                let attachments = try await Task.detached(priority: .userInitiated) {
+                    try ComposerImageProcessor.process(
+                        sources,
+                        existingAttachments: existingAttachments
+                    )
+                }.value
+                guard imageProcessingID == processingID else { return }
+                imageAttachments.append(contentsOf: attachments)
+                imageProcessingID = nil
+                isProcessingImageAttachments = false
+                actionError = nil
+            } catch {
+                guard imageProcessingID == processingID else { return }
+                imageProcessingID = nil
+                isProcessingImageAttachments = false
+                actionError = (error as? ComposerImageAttachmentError)?.message
+                    ?? L10n.string("chat.image.error.unsupported")
+            }
+        }
+        return true
+    }
+
+    private func removeImageAttachment(_ id: UUID) {
+        imageAttachments.removeAll { $0.id == id }
     }
 
     private func loadSlashCommands() async {
@@ -505,12 +703,7 @@ struct ChatView: View {
     }
 
     private var promptHistory: [String] {
-        messages.compactMap { message in
-            guard message.role == .user else { return nil }
-            return message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? nil
-                : message.text
-        }
+        SessionComposerState.promptHistory(in: messages)
     }
 
     private var isExecuting: Bool {
@@ -522,9 +715,19 @@ struct ChatView: View {
 
     private var canSend: Bool {
         guard let model = activeRecord?.model else { return false }
-        return sessionStore.availableModels.contains {
+        let baseCanSend = sessionStore.availableModels.contains {
             $0.provider == model.provider && $0.id == model.id
         }
+        return SessionComposerState.canSend(
+            baseCanSend: baseCanSend,
+            hasAttachments: !imageAttachments.isEmpty,
+            isProcessingAttachments: isProcessingImageAttachments,
+            selectedModelSupportsImages: selectedModelSupportsImages
+        )
+    }
+
+    private var selectedModelSupportsImages: Bool {
+        activeRecord?.model?.supportsImages == true
     }
 
     private var availableModels: [PiModelOption] {
@@ -559,6 +762,70 @@ private struct TranscriptBottomPreferenceKey: PreferenceKey {
     }
 }
 
+private struct TranscriptUserScrollObserver: NSViewRepresentable {
+    let onUserScroll: () -> Void
+
+    func makeNSView(context: Context) -> TranscriptUserScrollObserverView {
+        let view = TranscriptUserScrollObserverView()
+        view.onUserScroll = onUserScroll
+        return view
+    }
+
+    func updateNSView(_ nsView: TranscriptUserScrollObserverView, context: Context) {
+        nsView.onUserScroll = onUserScroll
+    }
+}
+
+private final class TranscriptUserScrollObserverView: NSView {
+    var onUserScroll: () -> Void = {}
+
+    private weak var observedScrollView: NSScrollView?
+    private var observer: NSObjectProtocol?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observeEnclosingScrollViewOnNextRunLoop()
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        observeEnclosingScrollViewOnNextRunLoop()
+    }
+
+    deinit {
+        removeObserver()
+    }
+
+    private func observeEnclosingScrollViewOnNextRunLoop() {
+        DispatchQueue.main.async { [weak self] in
+            self?.observeEnclosingScrollView()
+        }
+    }
+
+    private func observeEnclosingScrollView() {
+        let scrollView = enclosingScrollView
+        guard observedScrollView !== scrollView else { return }
+        removeObserver()
+        guard let scrollView else { return }
+        observedScrollView = scrollView
+        observer = NotificationCenter.default.addObserver(
+            forName: NSScrollView.willStartLiveScrollNotification,
+            object: scrollView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.onUserScroll()
+        }
+    }
+
+    private func removeObserver() {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        observer = nil
+        observedScrollView = nil
+    }
+}
+
 private struct SessionComposer: View {
     let mode: SidebarTab
     let projects: [PiProject]
@@ -567,6 +834,9 @@ private struct SessionComposer: View {
     @Binding var selectedSlashCommand: AgentHostSlashCommand?
     let slashCommands: [AgentHostSlashCommand]
     let promptHistory: [String]
+    let imageAttachments: [ComposerImageAttachment]
+    let isProcessingImageAttachments: Bool
+    let selectedModelSupportsImages: Bool
     let isExecuting: Bool
     let canSend: Bool
     let availableModels: [PiModelOption]
@@ -589,6 +859,8 @@ private struct SessionComposer: View {
     let onSelectThinkingLevel: (AgentHostThinkingLevel) -> Void
     let onSelectModelOption: (AgentHostModelOption, Bool) -> Void
     let onSelectAccessMode: (AgentHostAccessMode) -> Void
+    let onPasteboard: (NSPasteboard) -> Bool
+    let onRemoveImage: (UUID) -> Void
     let onSend: () -> Void
     let onStop: () -> Void
 
@@ -607,11 +879,12 @@ private struct SessionComposer: View {
     @State private var isThinkingPickerPresented = false
     @State private var thinkingSliderValue = 0.0
     @State private var isThinkingMenuHovering = false
-    @State private var isAccessMenuHovering = false
+    @State private var isAccessPickerPresented = false
     @State private var highlightedSlashCommandIndex = 0
     @State private var isSlashCommandPanelDismissed = false
     @State private var editorFocusRequest = 0
     @State private var promptHistoryNavigation = SessionComposerPromptHistoryNavigation()
+    @State private var previewedImageAttachment: ComposerImageAttachment?
 
     var body: some View {
         VStack(spacing: 9) {
@@ -629,6 +902,9 @@ private struct SessionComposer: View {
         }
         .onChange(of: slashCommands.map(\.id)) { _ in
             highlightedSlashCommandIndex = 0
+        }
+        .sheet(item: $previewedImageAttachment) { attachment in
+            ComposerImagePreview(data: attachment.data)
         }
     }
 
@@ -1094,6 +1370,20 @@ private struct SessionComposer: View {
 
     private var editor: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if !imageAttachments.isEmpty || isProcessingImageAttachments {
+                imageAttachmentStrip
+            }
+
+            if !imageAttachments.isEmpty, !selectedModelSupportsImages {
+                Label(
+                    L10n.string("chat.image.model_unsupported"),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("image-model-unsupported")
+            }
+
             ZStack(alignment: .topLeading) {
                 GrowingTextEditor(
                     text: $draft,
@@ -1101,6 +1391,7 @@ private struct SessionComposer: View {
                     leadingExclusionWidth: selectedSlashCommandTokenWidth,
                     focusRequest: editorFocusRequest,
                     onEditorCommand: handleEditorCommand,
+                    onPasteboard: onPasteboard,
                     onSubmit: submitPrompt
                 )
                 .frame(height: editorHeight)
@@ -1139,8 +1430,74 @@ private struct SessionComposer: View {
             .frame(height: 42)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+    }
+
+    private var imageAttachmentStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(imageAttachments) { attachment in
+                    ZStack(alignment: .topTrailing) {
+                        Button {
+                            previewedImageAttachment = attachment
+                        } label: {
+                            Group {
+                                if let preview = NSImage(data: attachment.data) {
+                                    Image(nsImage: preview)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    Image(systemName: "photo")
+                                        .foregroundStyle(Color.secondary)
+                                }
+                            }
+                            .frame(width: 54, height: 54)
+                            .background(Color.primary.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.string("chat.image.preview"))
+                        .accessibilityLabel(L10n.string("chat.image.preview"))
+                        .accessibilityIdentifier("preview-image-\(attachment.id.uuidString)")
+
+                        Button {
+                            onRemoveImage(attachment.id)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Color.primary.opacity(0.8))
+                                .frame(width: 18, height: 18)
+                                .background(.regularMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: 5, y: -5)
+                        .help(L10n.string("chat.image.remove"))
+                        .accessibilityLabel(L10n.string("chat.image.remove"))
+                        .accessibilityIdentifier("remove-image-\(attachment.id.uuidString)")
+                    }
+                    .padding(.top, 5)
+                    .padding(.trailing, 5)
+                }
+
+                if isProcessingImageAttachments {
+                    VStack(spacing: 5) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(L10n.string("chat.image.processing"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.secondary)
+                    }
+                    .frame(width: 64, height: 54)
+                    .accessibilityIdentifier("processing-image-attachments")
+                }
+            }
+        }
+        .frame(height: 64)
     }
 
     private var selectedSlashCommandTokenWidth: CGFloat {
@@ -1219,9 +1576,12 @@ private struct SessionComposer: View {
             }
             .font(.system(size: 13))
             .padding(.horizontal, 10)
-            .frame(height: 40)
-
-            Divider()
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.055))
+            )
+            .padding(6)
 
             ScrollView(.vertical) {
                 if filteredModels.isEmpty {
@@ -1242,7 +1602,7 @@ private struct SessionComposer: View {
             .frame(height: modelPickerListHeight)
             .accessibilityIdentifier("model-picker-scroll-view")
         }
-        .frame(width: 272)
+        .frame(width: 260)
         .onAppear {
             DispatchQueue.main.async {
                 isModelSearchFocused = true
@@ -1257,27 +1617,22 @@ private struct SessionComposer: View {
                 isModelPickerPresented = false
             } label: {
                 HStack(spacing: 8) {
+                    ModelProviderIcon(model: model)
+                    Text(model.displayName)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .semibold))
                         .opacity(model == selectedModel ? 1 : 0)
                         .frame(width: 14)
-                    ModelProviderIcon(model: model)
-                    Text(model.displayName)
-                        .lineLimit(1)
-                    Spacer(minLength: 12)
                 }
                 .font(.system(size: 13))
                 .foregroundStyle(Color.primary.opacity(0.84))
                 .padding(.leading, 9)
                 .padding(.trailing, 4)
-                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
             }
-            .buttonStyle(
-                RoundedInteractionButtonStyle(
-                    cornerRadius: 8,
-                    isSelected: model == selectedModel
-                )
-            )
+            .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 7))
 
             fastModeButton(for: model)
         }
@@ -1294,8 +1649,9 @@ private struct SessionComposer: View {
                 isOn: isEnabled,
                 isAvailable: model.supportsFastMode
             )
-            .frame(width: 38, height: 36)
+            .frame(width: 34, height: 34)
             .contentShape(Rectangle())
+            .opacity(model.supportsFastMode ? 1 : 0)
         }
         .buttonStyle(.plain)
         .disabled(!model.supportsFastMode)
@@ -1327,7 +1683,7 @@ private struct SessionComposer: View {
             ),
             1
         )
-        return CGFloat(rowCount * 38 + 10)
+        return CGFloat(rowCount * 36 + 10)
     }
 
     private func thinkingLevelMenu(
@@ -1469,19 +1825,8 @@ private struct SessionComposer: View {
     }
 
     private func accessModeMenu(_ selectedAccessMode: AgentHostAccessMode) -> some View {
-        Menu {
-            ForEach(AgentHostAccessMode.workChoices) { accessMode in
-                Button {
-                    onSelectAccessMode(accessMode)
-                } label: {
-                    HStack {
-                        Label(accessMode.composerTitle, systemImage: accessMode.composerIcon)
-                        if accessMode == selectedAccessMode {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
+        Button {
+            isAccessPickerPresented.toggle()
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: selectedAccessMode.composerIcon)
@@ -1489,33 +1834,66 @@ private struct SessionComposer: View {
                 Text(selectedAccessMode.composerTitle)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(isAccessMenuHovering ? 0.68 : 0.42))
+                    .foregroundStyle(Color.primary.opacity(0.42))
             }
             .font(.system(size: 14))
             .foregroundStyle(
                 selectedAccessMode == .full
                     ? Color.orange
-                    : Color.primary.opacity(isAccessMenuHovering ? 0.92 : 0.82)
+                    : Color.primary.opacity(0.82)
             )
             .padding(.horizontal, 8)
             .frame(height: 32)
-            .background(
-                adaptiveRoundedShape(cornerRadius: 9)
-                    .fill(Color.primary.opacity(isAccessMenuHovering ? 0.08 : 0))
-            )
-            .overlay(
-                adaptiveRoundedShape(cornerRadius: 9)
-                    .stroke(Color.primary.opacity(isAccessMenuHovering ? 0.10 : 0), lineWidth: 1)
-            )
-            .contentShape(adaptiveRoundedShape(cornerRadius: 9))
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(
+            RoundedInteractionButtonStyle(
+                cornerRadius: 9,
+                isSelected: isAccessPickerPresented
+            )
+        )
         .fixedSize()
         .help(selectedAccessMode.composerDescription)
         .accessibilityLabel(L10n.format("chat.access_help", selectedAccessMode.composerTitle))
         .accessibilityIdentifier("session-access-mode")
-        .onHover { isAccessMenuHovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: isAccessMenuHovering)
+        .popover(isPresented: $isAccessPickerPresented, arrowEdge: .top) {
+            accessModePickerContent(selectedAccessMode)
+        }
+    }
+
+    private func accessModePickerContent(
+        _ selectedAccessMode: AgentHostAccessMode
+    ) -> some View {
+        VStack(spacing: 2) {
+            ForEach(AgentHostAccessMode.workChoices) { accessMode in
+                Button {
+                    onSelectAccessMode(accessMode)
+                    isAccessPickerPresented = false
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: accessMode.composerIcon)
+                            .frame(width: 16)
+                        Text(accessMode.composerTitle)
+                        Spacer(minLength: 8)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .opacity(accessMode == selectedAccessMode ? 1 : 0)
+                            .frame(width: 14)
+                    }
+                    .font(.system(size: 13))
+                    .foregroundStyle(
+                        accessMode == .full
+                            ? Color.orange
+                            : Color.primary.opacity(0.84)
+                    )
+                    .padding(.horizontal, 9)
+                    .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
+                }
+                .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 7))
+                .help(accessMode.composerDescription)
+            }
+        }
+        .padding(5)
+        .frame(width: 184)
     }
 
     @ViewBuilder
@@ -1548,6 +1926,7 @@ private struct SessionComposer: View {
                 draft: draft,
                 selectedCommand: selectedSlashCommand
             ),
+            hasAttachments: !imageAttachments.isEmpty,
             isExecuting: isExecuting
         )
     }
@@ -1636,6 +2015,60 @@ private struct ContextUsageIndicator: View {
     }
 }
 
+private struct ComposerImagePreview: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let data: Data
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.88)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
+
+            Group {
+                if let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 44))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                }
+            }
+            .padding(36)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel(L10n.string("chat.image.preview"))
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Color.black.opacity(0.55), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .help(L10n.string("common.done"))
+            .accessibilityLabel(L10n.string("common.done"))
+            .padding(16)
+        }
+        .frame(
+            minWidth: 560,
+            idealWidth: 800,
+            maxWidth: 1_000,
+            minHeight: 420,
+            idealHeight: 600,
+            maxHeight: 800
+        )
+        .accessibilityIdentifier("image-attachment-preview")
+    }
+}
+
 private struct FastModeCapsuleSwitch: View {
     let isOn: Bool
     let isAvailable: Bool
@@ -1686,6 +2119,7 @@ private struct GrowingTextEditor: NSViewRepresentable {
     let leadingExclusionWidth: CGFloat
     let focusRequest: Int
     let onEditorCommand: (SessionComposerEditorCommand) -> Bool
+    let onPasteboard: (NSPasteboard) -> Bool
     let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -1701,7 +2135,7 @@ private struct GrowingTextEditor: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.scrollerStyle = .overlay
 
-        let textView = NSTextView(frame: NSRect(
+        let textView = ComposerTextView(frame: NSRect(
             x: 0,
             y: 0,
             width: 1,
@@ -1725,6 +2159,10 @@ private struct GrowingTextEditor: NSViewRepresentable {
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
+        let coordinator = context.coordinator
+        textView.onPasteboard = { [weak coordinator] pasteboard in
+            coordinator?.parent.onPasteboard(pasteboard) == true
+        }
 
         scrollView.documentView = textView
         context.coordinator.updateExclusionPath(in: textView)
@@ -2003,7 +2441,10 @@ private struct ChatMessageRow: View {
     let onResolve: (AgentHostApprovalRequest, AgentHostApprovalDecision) -> Void
 
     @State private var isMessageCopied = false
+    @State private var isAssistantMetadataHovered = false
+    @State private var isCopyButtonHovered = false
     @State private var copyFeedbackResetTask: Task<Void, Never>?
+    @State private var previewedMessageImage: PiChatImageAttachment?
 
     var body: some View {
         switch message.role {
@@ -2021,10 +2462,17 @@ private struct ChatMessageRow: View {
                             .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
                     }
 
+                    if !message.imageAttachments.isEmpty {
+                        sentImageAttachments
+                    }
+
                     ForEach(message.usedSkills) { skill in
                         SkillUsageRow(skill: skill)
                     }
                 }
+            }
+            .sheet(item: $previewedMessageImage) { image in
+                ComposerImagePreview(data: image.data)
             }
         case .assistant:
             HStack(alignment: .top) {
@@ -2032,7 +2480,7 @@ private struct ChatMessageRow: View {
                 Spacer(minLength: 60)
             }
         case .tool:
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 11) {
                 ForEach(assistantBlocks) { block in
                     assistantBlock(block)
                 }
@@ -2044,9 +2492,51 @@ private struct ChatMessageRow: View {
         }
     }
 
+    private var sentImageAttachments: some View {
+        HStack(spacing: 8) {
+            ForEach(message.imageAttachments) { image in
+                Button {
+                    previewedMessageImage = image
+                } label: {
+                    Group {
+                        if let preview = NSImage(data: image.data) {
+                            Image(nsImage: preview)
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            Image(systemName: "photo")
+                                .foregroundStyle(Color.secondary)
+                        }
+                    }
+                    .frame(
+                        width: sentImageThumbnailSize.width,
+                        height: sentImageThumbnailSize.height
+                    )
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help(L10n.string("chat.image.preview"))
+                .accessibilityLabel(L10n.string("chat.image.preview"))
+                .accessibilityIdentifier("message-image-\(image.id)")
+            }
+        }
+        .frame(maxWidth: 360, alignment: .trailing)
+    }
+
+    private var sentImageThumbnailSize: CGSize {
+        message.imageAttachments.count == 1
+            ? CGSize(width: 180, height: 112)
+            : CGSize(width: 64, height: 64)
+    }
+
     private var assistantTimeline: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 11) {
                 ForEach(assistantBlocks) { block in
                     assistantBlock(block)
                 }
@@ -2057,7 +2547,7 @@ private struct ChatMessageRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+        .padding(.vertical, 3)
         .onDisappear {
             copyFeedbackResetTask?.cancel()
         }
@@ -2078,12 +2568,23 @@ private struct ChatMessageRow: View {
                 Image(systemName: MessageCopyFeedback.iconName(isCopied: isMessageCopied))
                     .font(.system(size: 11, weight: .medium))
                     .frame(width: 24, height: 22)
+                    .background(
+                        adaptiveRoundedShape(cornerRadius: 7)
+                            .fill(Color.primary.opacity(isCopyButtonHovered ? 0.08 : 0))
+                    )
+                    .shadow(
+                        color: isCopyButtonHovered ? AppPalette.subtleShadow : Color.clear,
+                        radius: 4,
+                        y: 1
+                    )
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(Color.secondary)
             .help(copyMessageLabel)
             .accessibilityLabel(copyMessageLabel)
+            .onHover { isCopyButtonHovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: isCopyButtonHovered)
 
             if let timestamp = message.timestamp {
                 Text(timestamp, style: .time)
@@ -2094,6 +2595,9 @@ private struct ChatMessageRow: View {
 
             Spacer(minLength: 8)
         }
+        .opacity(isAssistantMetadataHovered ? 1 : 0)
+        .allowsHitTesting(isAssistantMetadataHovered)
+        .accessibilityHidden(!isAssistantMetadataHovered)
     }
 
     private var copyMessageLabel: String {
@@ -2133,6 +2637,15 @@ private struct ChatMessageRow: View {
                     .textSelection(.enabled)
                 if id == assistantMetadataAnchorID {
                     assistantMetadata
+                }
+            }
+            .padding(.leading, 6)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                guard id == assistantMetadataAnchorID else { return }
+                isAssistantMetadataHovered = hovering
+                if !hovering {
+                    isCopyButtonHovered = false
                 }
             }
         case .thinking(let thinking):
@@ -2369,20 +2882,11 @@ private struct AssistantToolGroupView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(Color.orange)
                 .frame(width: 16, height: 16)
-        case .failed:
-            Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(Color.red)
+        case .failed, .completed:
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.32))
                 .frame(width: 16, height: 16)
-        case .completed:
-            ZStack {
-                Circle()
-                    .fill(Color.primary.opacity(0.075))
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8.5, weight: .bold))
-                    .foregroundStyle(Color.primary.opacity(0.36))
-            }
-            .frame(width: 16, height: 16)
         case .cancelled:
             Image(systemName: "minus.circle.fill")
                 .font(.system(size: 13))
@@ -2397,8 +2901,8 @@ private struct AssistantToolGroupView: View {
             return L10n.format("chat.steps.running", completed, total)
         case .approvalRequired:
             return L10n.string("chat.steps.approval_required")
-        case .failed(let total, let failed):
-            return L10n.format("chat.steps.failed", total, failed)
+        case .failed(let total, _):
+            return L10n.format("chat.steps.completed", total)
         case .completed(let total):
             return L10n.format("chat.steps.completed", total)
         case .cancelled(let total):
@@ -2512,32 +3016,14 @@ private struct AssistantToolStepRow: View {
     }
 
     private var showsExceptionalStatus: Bool {
-        tool.state == .awaitingApproval || tool.isError == true
+        tool.state == .awaitingApproval
     }
 
-    @ViewBuilder
     private var statusIcon: some View {
-        switch tool.state {
-        case .running:
-            ProgressView()
-                .controlSize(.mini)
-                .frame(width: 14, height: 14)
-        case .awaitingApproval:
-            Image(systemName: "hand.raised.fill")
-                .font(.system(size: 10.5))
-                .foregroundStyle(Color.orange)
-                .frame(width: 14, height: 14)
-        case .completed:
-            Image(systemName: tool.isError == true ? "xmark.circle.fill" : "checkmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(statusColor)
-                .frame(width: 14, height: 14)
-        case .cancelled:
-            Image(systemName: "minus.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.primary.opacity(0.3))
-                .frame(width: 14, height: 14)
-        }
+        Image(systemName: presentation.iconName)
+            .font(.system(size: 12))
+            .foregroundStyle(statusColor)
+            .frame(width: 14, height: 14)
     }
 
     private var statusText: String {
@@ -2639,6 +3125,19 @@ private struct ToolCallPresentation {
 
     var title: String {
         tool.name.replacingOccurrences(of: "_", with: " ")
+    }
+
+    var iconName: String {
+        switch tool.name {
+        case "read": return "book"
+        case "bash": return "terminal"
+        case "write", "edit": return "square.and.pencil"
+        case "grep", "find": return "magnifyingglass"
+        case "ls": return "folder"
+        case "web_search": return "magnifyingglass"
+        case "web_fetch", "fetch_content": return "globe"
+        default: return "wrench.and.screwdriver"
+        }
     }
 
     var summary: String {

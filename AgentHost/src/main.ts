@@ -25,8 +25,10 @@ import {
 } from "./pi-web-access-settings.ts";
 import {
   PROTOCOL_VERSION,
+  PromptImagesError,
   createHostHelloRecord,
   encodeRecord,
+  parsePromptImages,
   type HostRequest,
   type HostResponse,
 } from "./protocol.ts";
@@ -119,6 +121,7 @@ writeHostRecord(
       "session.setAccessMode",
       "session.resolveApproval",
       "session.prompt",
+      "session.promptImages",
       "session.abort",
       "session.close",
       "session.delete",
@@ -646,13 +649,14 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
     if (typeof sessionId !== "string" || typeof turnId !== "string" || typeof text !== "string") {
       throw new Error("session.prompt requires string sessionId, turnId, and text");
     }
+    const images = parsePromptImages(request.params?.images);
 
     return {
       version: PROTOCOL_VERSION,
       kind: "response",
       id: request.id,
       ok: true,
-      result: sessionRegistry.prompt(sessionId, turnId, text),
+      result: sessionRegistry.prompt(sessionId, turnId, text, images),
     };
   }
 
@@ -895,6 +899,7 @@ async function handleLine(line: string): Promise<void> {
       ok: false,
       error: {
         code: error instanceof HostRequestError
+          || error instanceof PromptImagesError
           || error instanceof SessionRegistryError
           || error instanceof AccessPolicyError
           || error instanceof ProviderAuthCoordinatorError

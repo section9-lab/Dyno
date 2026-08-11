@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { ImageContent } from "@earendil-works/pi-ai";
 
 import {
   SessionRegistry,
@@ -13,6 +14,7 @@ import {
 
 class ControllableSession implements SessionHandle {
   readonly prompts: string[] = [];
+  readonly promptImages: ImageContent[][] = [];
   abortCount = 0;
   disposeCount = 0;
   reloadCount = 0;
@@ -146,8 +148,9 @@ class ControllableSession implements SessionHandle {
     this.approvalResolutions.push({ requestId, decision });
   }
 
-  prompt(text: string): Promise<void> {
+  prompt(text: string, images: ImageContent[] = []): Promise<void> {
     this.prompts.push(text);
+    this.promptImages.push(images);
     return new Promise((resolve, reject) => {
       this.finishPrompt = resolve;
       this.rejectPrompt = reject;
@@ -434,6 +437,35 @@ describe("SessionRegistry", () => {
         contextUsage: session.currentContextUsage,
       },
     });
+  });
+
+  test("forwards prompt images to the session handle", () => {
+    const session = new ControllableSession("session-one");
+    const registry = new SessionRegistry(() => {});
+    registry.register(session);
+    const image: ImageContent = {
+      type: "image",
+      mimeType: "image/png",
+      data: "iVBORw0KGgo=",
+    };
+
+    registry.prompt("session-one", "turn-one", "Inspect this", [image]);
+
+    expect(session.promptImages).toEqual([[image]]);
+  });
+
+  test("rejects prompt images when the selected model does not support them", () => {
+    const session = new ControllableSession("session-one");
+    session.selectedModel = { ...session.selectedModel, supportsImages: false };
+    const registry = new SessionRegistry(() => {});
+    registry.register(session);
+
+    expect(() => registry.prompt("session-one", "turn-one", "Inspect this", [{
+      type: "image",
+      mimeType: "image/png",
+      data: "iVBORw0KGgo=",
+    }])).toThrow("Selected model does not support images");
+    expect(session.prompts).toEqual([]);
   });
 
   test("aborts only the requested session", async () => {

@@ -2,6 +2,10 @@ import XCTest
 @testable import PiWork
 
 final class AgentHostServiceTests: XCTestCase {
+    func testCoreCapabilitiesRequirePromptImages() {
+        XCTAssertTrue(AgentHostService.coreCapabilities.contains("session.promptImages"))
+    }
+
     func testListsSlashCommandsFromTheRequestedLiveSession() async throws {
         let markerURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("pi-work-agent-host-commands-\(UUID().uuidString)")
@@ -158,6 +162,7 @@ final class AgentHostServiceTests: XCTestCase {
                     "session.delete",
                     "session.open",
                     "session.prompt",
+                    "session.promptImages",
                     "session.rename",
                     "session.resolveApproval",
                     "session.setAccessMode",
@@ -208,6 +213,7 @@ final class AgentHostServiceTests: XCTestCase {
             "session.setModelOption",
             "session.setThinkingLevel",
             "session.prompt",
+            "session.promptImages",
             "session.abort",
             "session.close",
             "session.delete"

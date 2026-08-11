@@ -81,9 +81,33 @@ enum SessionComposerState {
         return min(projectPickerPopoverWidth / (2 * composerWidth), 1)
     }
 
-    static func primaryAction(draft: String, isExecuting: Bool) -> SessionComposerPrimaryAction {
+    static func primaryAction(
+        draft: String,
+        hasAttachments: Bool = false,
+        isExecuting: Bool
+    ) -> SessionComposerPrimaryAction {
         if isExecuting { return .stop }
-        return draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .none : .send
+        return draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hasAttachments
+            ? .none
+            : .send
+    }
+
+    static func canSend(
+        baseCanSend: Bool,
+        hasAttachments: Bool,
+        isProcessingAttachments: Bool,
+        selectedModelSupportsImages: Bool
+    ) -> Bool {
+        guard baseCanSend, !isProcessingAttachments else { return false }
+        return !hasAttachments || selectedModelSupportsImages
+    }
+
+    static func promptHistory(in messages: [PiChatMessage]) -> [String] {
+        messages.compactMap { message in
+            guard message.role == .user else { return nil }
+            let text = message.copyableText
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+        }
     }
 
     static func editorHeight(for contentHeight: CGFloat) -> CGFloat {
@@ -294,7 +318,7 @@ extension AgentHostAccessMode {
         }
     }
 
-    static let workChoices: [AgentHostAccessMode] = [.readOnly, .ask, .full]
+    static let workChoices: [AgentHostAccessMode] = [.ask, .full]
 }
 
 extension AgentHostThinkingLevel {

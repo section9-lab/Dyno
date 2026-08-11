@@ -20,6 +20,12 @@ enum MessageCopyFeedback {
     }
 }
 
+struct PiChatImageAttachment: Identifiable, Equatable {
+    let id: String
+    let mimeType: String
+    let data: Data
+}
+
 struct PiChatMessage: Identifiable, Equatable {
     enum Role: Equatable { case user, assistant, tool, system }
 
@@ -38,8 +44,8 @@ struct PiChatMessage: Identifiable, Equatable {
                 return ""
             case .thinking:
                 return ""
-            case .image(_, let mimeType):
-                return L10n.format("chat.image_attachment", mimeType)
+            case .image(_, let mimeType, let data):
+                return data == nil ? L10n.format("chat.image_attachment", mimeType) : ""
             case .tool(let tool):
                 if tool.state == .completed {
                     return tool.isError == true
@@ -73,6 +79,13 @@ struct PiChatMessage: Identifiable, Equatable {
 
     var hasCopyableText: Bool {
         !copyableText.isEmpty
+    }
+
+    var imageAttachments: [PiChatImageAttachment] {
+        parts.compactMap { part in
+            guard case .image(let id, let mimeType, let data?) = part else { return nil }
+            return PiChatImageAttachment(id: id, mimeType: mimeType, data: data)
+        }
     }
 
     var usedSkills: [SessionSkillRecord] {
@@ -152,8 +165,8 @@ struct PiChatMessage: Identifiable, Equatable {
                         redacted: redacted
                     )
                 )
-            case .image(let mimeType):
-                return .image(id: partID, mimeType: mimeType)
+            case .image(let mimeType, let data):
+                return .image(id: partID, mimeType: mimeType, data: data)
             case .toolCall(let id, let name, let argumentsSummary):
                 return .tool(
                     SessionToolRecord(
@@ -351,7 +364,7 @@ enum AssistantTranscriptPresentation {
                 } else {
                     blocks.append(.text(id: id, text: text))
                 }
-            case .image(let id, let mimeType):
+            case .image(let id, let mimeType, _):
                 appendTools()
                 blocks.append(.image(id: id, mimeType: mimeType))
             }

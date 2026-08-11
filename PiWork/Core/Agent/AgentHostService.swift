@@ -98,6 +98,7 @@ protocol AgentHostServicing: Actor {
         sessionId: String,
         turnId: String,
         text: String,
+        images: [AgentHostPromptImage],
         requestID: String
     ) async throws -> AgentHostSessionPromptResult
     func abort(
@@ -216,6 +217,7 @@ actor AgentHostService: AgentHostServicing,
         "session.setModelOption",
         "session.setThinkingLevel",
         "session.prompt",
+        "session.promptImages",
         "session.abort",
         "session.close",
         "session.delete"
@@ -830,6 +832,7 @@ actor AgentHostService: AgentHostServicing,
         sessionId: String,
         turnId: String,
         text: String,
+        images: [AgentHostPromptImage] = [],
         requestID: String = UUID().uuidString
     ) async throws -> AgentHostSessionPromptResult {
         try await request(
@@ -838,7 +841,8 @@ actor AgentHostService: AgentHostServicing,
             params: AgentHostSessionPromptParameters(
                 sessionId: sessionId,
                 turnId: turnId,
-                text: text
+                text: text,
+                images: images
             ),
             as: AgentHostSessionPromptResult.self
         )

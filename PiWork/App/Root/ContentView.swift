@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var sidebarCollapsed = false
     @State private var didBootstrapChat = false
     @State private var bootstrappedWorkProjectPaths: Set<String> = []
+    @State private var openingWorkSessionID: String?
     @State private var agentError: String?
 
     init(
@@ -82,6 +83,7 @@ struct ContentView: View {
                                 selectedProject: $workSession.selectedProject,
                                 sessionStore: sessionStore,
                                 hostError: agentError,
+                                isLoadingSession: isOpeningSelectedWorkSession,
                                 onSelectProject: startNewSession(for:),
                                 onAddFolder: pickFolder
                             )
@@ -162,11 +164,22 @@ struct ContentView: View {
     }
 
     private var activeWorkSessionId: String {
+        if case .session(_, let sessionID) = workSession.sidebarItem {
+            return sessionID
+        }
         guard let project = workSession.selectedProject else {
             return workSession.sessionID.uuidString
         }
         return sessionStore.selectedWorkSessionIdByProjectPath[project.path]
             ?? workSession.sessionID.uuidString
+    }
+
+    private var isOpeningSelectedWorkSession: Bool {
+        guard selectedTab == .work,
+              case .session(_, let sessionID) = workSession.sidebarItem else {
+            return false
+        }
+        return openingWorkSessionID == sessionID
     }
 
     private func openChatSession(_ session: AgentHostSessionSummary) {
@@ -268,6 +281,7 @@ struct ContentView: View {
     ) {
         selectedTab = .work
         selectedCustomDestination = nil
+        openingWorkSessionID = sessionStore.records[session.id] == nil ? session.id : nil
         workSession.selectSession(session.id, in: project)
         Task {
             do {
@@ -279,6 +293,9 @@ struct ContentView: View {
                 agentError = nil
             } catch {
                 agentError = String(describing: error)
+            }
+            if openingWorkSessionID == session.id {
+                openingWorkSessionID = nil
             }
         }
     }

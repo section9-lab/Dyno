@@ -353,6 +353,60 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertFalse(thinkingSource.contains("withAnimation("))
     }
 
+    func testUserScrollPausesTranscriptAutoFollowUntilExplicitResume() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let scrollStart = try XCTUnwrap(
+            source.range(of: "private func scrollToTranscriptTail")
+        )
+        let scrollEnd = try XCTUnwrap(
+            source.range(of: "private var emptySession", range: scrollStart.upperBound..<source.endIndex)
+        )
+        let scrollSource = source[scrollStart.lowerBound..<scrollEnd.lowerBound]
+
+        XCTAssertTrue(source.contains("@State private var isTranscriptAutoFollowPaused = false"))
+        XCTAssertTrue(source.contains("TranscriptUserScrollObserver"))
+        XCTAssertTrue(source.contains("NSScrollView.willStartLiveScrollNotification"))
+        XCTAssertTrue(source.contains("isTranscriptAutoFollowPaused = true"))
+        XCTAssertTrue(source.contains(
+            "guard !isAdjustingTranscriptScroll, !isTranscriptAutoFollowPaused else { return }"
+        ))
+        XCTAssertTrue(source.contains(
+            "guard isFollowingTranscriptTail, !isTranscriptAutoFollowPaused else { return }"
+        ))
+        XCTAssertTrue(scrollSource.contains("isTranscriptAutoFollowPaused = false"))
+        XCTAssertTrue(scrollSource.contains("isFollowingTranscriptTail = true"))
+        XCTAssertFalse(scrollSource.contains(
+            "DispatchQueue.main.async {\n            isFollowingTranscriptTail = true"
+        ))
+    }
+
+    func testAssistantTextAlignsWithToolAndThinkingIconColumn() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let blockStart = try XCTUnwrap(source.range(of: "private func assistantBlock"))
+        let thinkingCase = try XCTUnwrap(
+            source.range(of: "case .thinking", range: blockStart.upperBound..<source.endIndex)
+        )
+        let textBlockSource = source[blockStart.lowerBound..<thinkingCase.lowerBound]
+
+        XCTAssertTrue(textBlockSource.contains(".padding(.leading, 6)"))
+    }
+
     func testConversationKeepsTranscriptRowsMountedWhileScrolling() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -368,8 +422,28 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         let emptySessionStart = try XCTUnwrap(source.range(of: "private var emptySession: some View"))
         let transcriptSource = String(source[transcriptStart.lowerBound..<emptySessionStart.lowerBound])
 
-        XCTAssertTrue(transcriptSource.contains("VStack(alignment: .leading, spacing: 18)"))
-        XCTAssertFalse(transcriptSource.contains("LazyVStack(alignment: .leading, spacing: 18)"))
+        XCTAssertTrue(transcriptSource.contains("VStack(alignment: .leading, spacing: 12)"))
+        XCTAssertFalse(transcriptSource.contains("LazyVStack(alignment: .leading, spacing: 12)"))
+    }
+
+    func testAssistantTimelineUsesOneThirdTighterVerticalRhythm() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let timelineStart = try XCTUnwrap(source.range(of: "private var assistantTimeline"))
+        let timelineEnd = try XCTUnwrap(
+            source.range(of: "private var assistantBlocks", range: timelineStart.upperBound..<source.endIndex)
+        )
+        let timelineSource = source[timelineStart.lowerBound..<timelineEnd.lowerBound]
+
+        XCTAssertTrue(timelineSource.contains("VStack(alignment: .leading, spacing: 11)"))
+        XCTAssertTrue(timelineSource.contains(".padding(.vertical, 3)"))
     }
 
     func testToolGroupHeaderUsesLeadingAlignedContent() throws {
@@ -403,6 +477,85 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertTrue(
             headerSource.contains(".frame(maxWidth: .infinity, alignment: .leading)")
         )
+    }
+
+    func testToolStepRowsUseIconsThatMatchTheirToolType() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("Image(systemName: presentation.iconName)"))
+        XCTAssertTrue(source.contains("case \"read\": return \"book\""))
+        XCTAssertTrue(source.contains("case \"bash\": return \"terminal\""))
+        XCTAssertTrue(source.contains(
+            "case \"write\", \"edit\": return \"square.and.pencil\""
+        ))
+        XCTAssertTrue(source.contains("case \"grep\", \"find\": return \"magnifyingglass\""))
+        XCTAssertTrue(source.contains("case \"ls\": return \"folder\""))
+        XCTAssertTrue(source.contains("case \"web_search\": return \"magnifyingglass\""))
+        XCTAssertTrue(source.contains(
+            "case \"web_fetch\", \"fetch_content\": return \"globe\""
+        ))
+    }
+
+    func testFailedToolGroupUsesNeutralCheckAndOnlyToolIconShowsFailureInRed() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let toolGroupStart = try XCTUnwrap(
+            source.range(of: "private struct AssistantToolGroupView")
+        )
+        let toolStepStart = try XCTUnwrap(
+            source.range(of: "private struct AssistantToolStepRow")
+        )
+        let toolDetailStart = try XCTUnwrap(
+            source.range(of: "private struct ToolDetailBlock")
+        )
+        let toolGroupSource = String(
+            source[toolGroupStart.lowerBound..<toolStepStart.lowerBound]
+        )
+        let toolStepSource = String(
+            source[toolStepStart.lowerBound..<toolDetailStart.lowerBound]
+        )
+
+        XCTAssertTrue(toolGroupSource.contains("case .failed, .completed:"))
+        XCTAssertTrue(toolGroupSource.contains("Image(systemName: \"checkmark.circle\")"))
+        XCTAssertTrue(toolGroupSource.contains(".font(.system(size: 12, weight: .medium))"))
+        XCTAssertTrue(toolGroupSource.contains(".foregroundStyle(Color.primary.opacity(0.32))"))
+        XCTAssertTrue(toolGroupSource.contains(
+            "case .failed(let total, _):\n            return L10n.format(\"chat.steps.completed\", total)"
+        ))
+        XCTAssertTrue(toolStepSource.contains(
+            "private var showsExceptionalStatus: Bool {\n        tool.state == .awaitingApproval\n    }"
+        ))
+        XCTAssertTrue(toolStepSource.contains("if tool.isError == true { return .red }"))
+    }
+
+    func testWriteAndEditUseTheStandardToolIconSize() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains(".font(.system(size: 12))"))
+        XCTAssertFalse(source.contains("var iconFont: Font"))
     }
 
     func testToolOnlyAssistantMessageHasNoCopyableText() {
@@ -494,6 +647,55 @@ final class AssistantTimelinePresentationTests: XCTestCase {
             source.contains("guard message.hasCopyableText else { return nil }")
         )
         XCTAssertTrue(source.contains("MessageClipboard.copy(message.copyableText)"))
+    }
+
+    func testAssistantMetadataOnlyAppearsWhileItsTextIsHovered() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let rowStart = try XCTUnwrap(source.range(of: "private struct ChatMessageRow"))
+        let rowEnd = try XCTUnwrap(
+            source.range(of: "private struct SkillUsageRow", range: rowStart.upperBound..<source.endIndex)
+        )
+        let rowSource = source[rowStart.lowerBound..<rowEnd.lowerBound]
+
+        XCTAssertTrue(rowSource.contains("@State private var isAssistantMetadataHovered = false"))
+        XCTAssertTrue(rowSource.contains(".opacity(isAssistantMetadataHovered ? 1 : 0)"))
+        XCTAssertTrue(rowSource.contains(".allowsHitTesting(isAssistantMetadataHovered)"))
+        XCTAssertTrue(rowSource.contains(".accessibilityHidden(!isAssistantMetadataHovered)"))
+        XCTAssertTrue(rowSource.contains("isAssistantMetadataHovered = hovering"))
+    }
+
+    func testAssistantCopyButtonShowsSubtleShadowOnlyWhileHovered() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let metadataStart = try XCTUnwrap(source.range(of: "private var assistantMetadata"))
+        let metadataEnd = try XCTUnwrap(
+            source.range(of: "private var copyMessageLabel", range: metadataStart.upperBound..<source.endIndex)
+        )
+        let metadataSource = source[metadataStart.lowerBound..<metadataEnd.lowerBound]
+
+        XCTAssertTrue(source.contains("@State private var isCopyButtonHovered = false"))
+        XCTAssertTrue(metadataSource.contains(
+            "color: isCopyButtonHovered ? AppPalette.subtleShadow : Color.clear"
+        ))
+        XCTAssertTrue(metadataSource.contains(".onHover { isCopyButtonHovered = $0 }"))
+        XCTAssertTrue(metadataSource.contains(
+            ".animation(.easeOut(duration: 0.12), value: isCopyButtonHovered)"
+        ))
     }
 
     private func makeTool(

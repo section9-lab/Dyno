@@ -2,6 +2,43 @@ import XCTest
 @testable import PiWork
 
 final class SessionStoreReducerTests: XCTestCase {
+    func testSubmittingImagePromptImmediatelyIncludesImageMetadata() throws {
+        var reducer = SessionStoreReducer()
+        reducer.apply(
+            snapshot: makeSnapshot(sessionId: "session-one"),
+            profile: .chat,
+            sessionDirectory: nil
+        )
+        let image = AgentHostPromptImage(
+            mimeType: "image/png",
+            data: Data([0x89, 0x50, 0x4E, 0x47])
+        )
+
+        _ = reducer.submitPrompt(
+            sessionId: "session-one",
+            turnId: "turn-one",
+            text: "",
+            images: [image],
+            timestamp: "2026-08-09T00:00:01.000Z"
+        )
+
+        let record = try XCTUnwrap(reducer.records["session-one"])
+        XCTAssertEqual(
+            record.messages.last?.content,
+            [.image(mimeType: "image/png", data: image.data)]
+        )
+        XCTAssertEqual(
+            record.transcript.last?.parts,
+            [
+                .image(
+                    id: "turn:turn-one:user:image:0",
+                    mimeType: "image/png",
+                    data: image.data
+                )
+            ]
+        )
+    }
+
     func testSubmittingSkillPromptImmediatelyKeepsSkillAndCleanUserText() throws {
         var reducer = SessionStoreReducer()
         reducer.apply(

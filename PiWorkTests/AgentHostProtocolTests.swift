@@ -2,6 +2,22 @@ import XCTest
 @testable import PiWork
 
 final class AgentHostProtocolTests: XCTestCase {
+    func testSessionImageContentCarriesOptionalPreviewData() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Core/Agent/AgentHostProtocol.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("case image(mimeType: String, data: Data?)"))
+        XCTAssertTrue(source.contains("case data"))
+        XCTAssertTrue(source.contains("decodeIfPresent(Data.self, forKey: .data)"))
+    }
+
     func testDecodesGitBranchAvailability() throws {
         let data = Data(#"{"available":true,"currentBranch":"main","branches":["main","feature/session-picker"]}"#.utf8)
 
@@ -54,7 +70,7 @@ final class AgentHostProtocolTests: XCTestCase {
     }
 
     func testDecodesNormalizedSessionSnapshot() throws {
-        let data = Data(#"{"session":{"id":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project","title":"Session integration"},"messages":[{"id":"message-one","role":"user","content":[{"type":"text","text":"Inspect this"},{"type":"image","mimeType":"image/png"}],"timestamp":"2026-08-09T00:00:00.000Z"},{"id":"message-two","role":"assistant","content":[{"type":"text","text":"Ready"},{"type":"toolCall","id":"tool-one","name":"read","argumentsSummary":"{\"path\":\"README.md\"}"}],"timestamp":"2026-08-09T00:00:01.000Z","provider":"openai","model":"gpt-test","stopReason":"toolUse"}],"state":"running","sequence":4,"turnId":"turn-one","gitBranch":"feature/session-picker","model":{"provider":"openai","id":"gpt-test","name":"GPT Test","contextWindow":128000,"maxTokens":16384,"reasoning":true,"supportsImages":true,"supportsFastMode":false},"contextUsage":{"tokens":96000,"contextWindow":128000,"percent":75},"thinkingLevel":"high","availableThinkingLevels":["off","low","medium","high","max"],"modelOptions":{"fastMode":{"supported":true,"enabled":false},"oneMillionContext":{"supported":true,"enabled":true}},"accessMode":"ask","pendingApprovals":[{"id":"approval-one","toolCallId":"tool-one","toolName":"bash","summary":"bun test"}]}"#.utf8)
+        let data = Data(#"{"session":{"id":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project","title":"Session integration"},"messages":[{"id":"message-one","role":"user","content":[{"type":"text","text":"Inspect this"},{"type":"image","mimeType":"image/png","data":"iVBORw0KGgo="}],"timestamp":"2026-08-09T00:00:00.000Z"},{"id":"message-two","role":"assistant","content":[{"type":"text","text":"Ready"},{"type":"toolCall","id":"tool-one","name":"read","argumentsSummary":"{\"path\":\"README.md\"}"}],"timestamp":"2026-08-09T00:00:01.000Z","provider":"openai","model":"gpt-test","stopReason":"toolUse"}],"state":"running","sequence":4,"turnId":"turn-one","gitBranch":"feature/session-picker","model":{"provider":"openai","id":"gpt-test","name":"GPT Test","contextWindow":128000,"maxTokens":16384,"reasoning":true,"supportsImages":true,"supportsFastMode":false},"contextUsage":{"tokens":96000,"contextWindow":128000,"percent":75},"thinkingLevel":"high","availableThinkingLevels":["off","low","medium","high","max"],"modelOptions":{"fastMode":{"supported":true,"enabled":false},"oneMillionContext":{"supported":true,"enabled":true}},"accessMode":"ask","pendingApprovals":[{"id":"approval-one","toolCallId":"tool-one","toolName":"bash","summary":"bun test"}]}"#.utf8)
 
         let snapshot = try JSONDecoder().decode(AgentHostSessionSnapshotResult.self, from: data)
 
@@ -101,7 +117,13 @@ final class AgentHostProtocolTests: XCTestCase {
         )
         XCTAssertEqual(
             snapshot.messages[0].content,
-            [.text("Inspect this"), .image(mimeType: "image/png")]
+            [
+                .text("Inspect this"),
+                .image(
+                    mimeType: "image/png",
+                    data: Data(base64Encoded: "iVBORw0KGgo=")
+                )
+            ]
         )
         XCTAssertEqual(
             snapshot.messages[1].content,
@@ -739,6 +761,33 @@ final class AgentHostProtocolTests: XCTestCase {
         XCTAssertEqual(object["id"] as? String, "list-1")
         XCTAssertEqual(object["method"] as? String, "sessions.list")
         XCTAssertEqual((object["params"] as? [String: Any])?["cwd"] as? String, "/tmp/project")
+    }
+
+    func testEncodesPromptImagesAsBase64() throws {
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+        let request = AgentHostRequest(
+            id: "prompt-one",
+            method: "session.prompt",
+            params: AgentHostSessionPromptParameters(
+                sessionId: "session-one",
+                turnId: "turn-one",
+                text: "Inspect this",
+                images: [
+                    AgentHostPromptImage(mimeType: "image/png", data: imageData)
+                ]
+            )
+        )
+
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: request.encodedLine().dropLast()) as? [String: Any]
+        )
+        let params = try XCTUnwrap(object["params"] as? [String: Any])
+        let images = try XCTUnwrap(params["images"] as? [[String: String]])
+
+        XCTAssertEqual(images, [[
+            "mimeType": "image/png",
+            "data": imageData.base64EncodedString()
+        ]])
     }
 
     func testDecodesAssistantContentAsARecognizedSessionEvent() throws {

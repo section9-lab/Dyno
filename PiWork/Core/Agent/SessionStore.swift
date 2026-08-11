@@ -79,12 +79,12 @@ enum SessionTranscriptPart: Equatable, Identifiable {
     case text(id: String, text: String)
     case skill(SessionSkillRecord)
     case thinking(SessionThinkingRecord)
-    case image(id: String, mimeType: String)
+    case image(id: String, mimeType: String, data: Data?)
     case tool(SessionToolRecord)
 
     var id: String {
         switch self {
-        case .text(let id, _), .image(let id, _):
+        case .text(let id, _), .image(let id, _, _):
             return id
         case .skill(let skill):
             return skill.id
@@ -174,6 +174,7 @@ struct SessionStoreReducer {
         sessionId: String,
         turnId: String,
         text: String,
+        images: [AgentHostPromptImage] = [],
         timestamp: String
     ) -> [SessionStoreEffect] {
         guard var record = records[sessionId],
@@ -184,13 +185,13 @@ struct SessionStoreReducer {
         let messageID = "turn:\(turnId):user"
         let invocation = skillInvocation(in: text)
         let visibleText = invocation?.userText ?? text
-        let messageContent: [AgentHostSessionMessageContent] = if let invocation {
+        let textContent: [AgentHostSessionMessageContent] = if let invocation {
             [.skill(name: invocation.name)]
                 + (visibleText.isEmpty ? [] : [.text(visibleText)])
         } else {
-            [.text(text)]
+            text.isEmpty ? [] : [.text(text)]
         }
-        let transcriptParts: [SessionTranscriptPart] = if let invocation {
+        let textParts: [SessionTranscriptPart] = if let invocation {
             [
                 .skill(
                     SessionSkillRecord(
@@ -202,7 +203,17 @@ struct SessionStoreReducer {
                 ? []
                 : [.text(id: "\(messageID):text:0", text: visibleText)])
         } else {
-            [.text(id: "\(messageID):text:0", text: text)]
+            text.isEmpty ? [] : [.text(id: "\(messageID):text:0", text: text)]
+        }
+        let messageContent = textContent + images.map {
+            AgentHostSessionMessageContent.image(mimeType: $0.mimeType, data: $0.data)
+        }
+        let transcriptParts = textParts + images.enumerated().map { index, image in
+            SessionTranscriptPart.image(
+                id: "\(messageID):image:\(index)",
+                mimeType: image.mimeType,
+                data: image.data
+            )
         }
 
         record.messages.append(
@@ -848,8 +859,8 @@ struct SessionStoreReducer {
                             redacted: redacted
                         )
                     )
-                case .image(let mimeType):
-                    return .image(id: partID, mimeType: mimeType)
+                case .image(let mimeType, let data):
+                    return .image(id: partID, mimeType: mimeType, data: data)
                 case .toolCall(let id, let name, let argumentsSummary):
                     let result = toolResults[id]
                     return .tool(
@@ -943,7 +954,7 @@ struct SessionStoreReducer {
                 return ""
             case .thinking:
                 return ""
-            case .image(let mimeType):
+            case .image(let mimeType, _):
                 return "[image: \(mimeType)]"
             case .toolCall(_, let name, let argumentsSummary):
                 return "\(name) \(argumentsSummary)"
@@ -1169,7 +1180,11 @@ final class SessionStore: ObservableObject {
     }
 
     @discardableResult
-    func submitPrompt(sessionId: String, text: String) async throws -> String {
+    func submitPrompt(
+        sessionId: String,
+        text: String,
+        images: [AgentHostPromptImage] = []
+    ) async throws -> String {
         guard records[sessionId] != nil else {
             throw SessionStoreError.sessionNotOpen(sessionId)
         }
@@ -1178,6 +1193,7 @@ final class SessionStore: ObservableObject {
             sessionId: sessionId,
             turnId: turnId,
             text: text,
+            images: images,
             timestamp: Self.timestamp(from: now())
         )
         guard reducer.records[sessionId]?.activeTurnId == turnId else {
@@ -1190,6 +1206,7 @@ final class SessionStore: ObservableObject {
                 sessionId: sessionId,
                 turnId: turnId,
                 text: text,
+                images: images,
                 requestID: UUID().uuidString
             )
             reducer.promptAccepted(sessionId: accepted.sessionId, turnId: accepted.turnId)

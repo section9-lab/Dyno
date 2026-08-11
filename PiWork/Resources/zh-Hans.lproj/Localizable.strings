@@ -270,6 +270,17 @@
 "chat.approval.deny" = "拒绝";
 "chat.approval.allow_once" = "允许一次";
 "chat.image_attachment" = "[图片 · %@]";
+"chat.image.preview" = "图片附件";
+"chat.image.remove" = "移除图片";
+"chat.image.processing" = "正在处理…";
+"chat.image.model_unsupported" = "当前选择的模型不支持图片。";
+"chat.image.error.processing" = "请等待当前图片处理完成。";
+"chat.image.error.unsupported" = "不支持这种图片格式。";
+"chat.image.error.source_too_large" = "每张原始图片不能超过 50 MB。";
+"chat.image.error.dimensions_too_large" = "这张图片的像素数过大。";
+"chat.image.error.image_too_large" = "无法将这张图片压缩到 4.5 MB 以下。";
+"chat.image.error.too_many" = "最多可添加 5 张图片。";
+"chat.image.error.total_too_large" = "图片附件总大小不能超过 12 MB。";
 "chat.skill.used" = "已使用技能 · %@";
 "chat.message.copy" = "复制回复";
 "chat.message.copied" = "已复制";
@@ -289,6 +300,7 @@
 "chat.steps.expand" = "展开步骤";
 "chat.steps.collapse" = "收起步骤";
 "chat.scroll_to_latest" = "跳到最新消息";
+"chat.session_loading" = "正在加载对话";
 "access.none.title" = "无访问";
 "access.read_only.title" = "只读";
 "access.ask.title" = "每次询问";

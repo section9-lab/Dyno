@@ -5,6 +5,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
+import type { ImageContent } from "@earendil-works/pi-ai";
 
 import {
   PiSessionHandle,
@@ -319,7 +320,6 @@ describe("PiSessionHandle", () => {
         role: "user",
         content: [
           { type: "text", text: "Inspect this" },
-          { type: "image", data: "private-base64", mimeType: "image/png" },
         ],
         timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
       },
@@ -369,7 +369,6 @@ describe("PiSessionHandle", () => {
         role: "user",
         content: [
           { type: "text", text: "Inspect this" },
-          { type: "image", mimeType: "image/png" },
         ],
         timestamp: "2026-08-09T00:00:00.000Z",
       },
@@ -397,12 +396,26 @@ describe("PiSessionHandle", () => {
         stopReason: "toolUse",
       },
     ]);
-    expect(JSON.stringify(messages)).not.toContain("private-base64");
     expect(JSON.stringify(messages)).toContain("provider-visible reasoning");
     expect(JSON.stringify(messages)).not.toContain("redacted reasoning");
     expect(JSON.stringify(messages)).not.toContain("secret-signature");
     expect(JSON.stringify(messages)).not.toContain("redacted-signature");
     expect(JSON.stringify(messages)).not.toContain("Do not display");
+  });
+
+  test("preserves user image data for local transcript previews", () => {
+    const data = "iVBORw0KGgo=";
+    const messages = normalizeAgentMessages("session-one", [{
+      role: "user",
+      content: [{ type: "image", data, mimeType: "image/png" }],
+      timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+    }] as never[]);
+
+    expect(messages[0]?.content).toEqual([{
+      type: "image",
+      mimeType: "image/png",
+      data,
+    }]);
   });
 
   test("records an injected skill without exposing its instructions or path", () => {
@@ -756,6 +769,26 @@ describe("PiSessionHandle", () => {
     await handle.prompt("Build the feature");
 
     expect(receivedPrompt).toBe("Build the feature");
+  });
+
+  test("delegates prompt images as Pi prompt options", async () => {
+    let receivedImages: ImageContent[] | undefined;
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      prompt: async (_text: string, options?: { images?: ImageContent[] }) => {
+        receivedImages = options?.images;
+      },
+    });
+    const handle = new PiSessionHandle(piSession, manager);
+    const image: ImageContent = {
+      type: "image",
+      mimeType: "image/png",
+      data: "iVBORw0KGgo=",
+    };
+
+    await handle.prompt("Inspect this", [image]);
+
+    expect(receivedImages).toEqual([image]);
   });
 
   test("rejects a resolved prompt when Pi finishes with an assistant error", async () => {

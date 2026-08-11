@@ -662,6 +662,7 @@ describe("agent host process", () => {
           "session.setAccessMode",
           "session.resolveApproval",
           "session.prompt",
+          "session.promptImages",
           "session.abort",
           "session.close",
           "session.delete",
@@ -874,6 +875,73 @@ describe("agent host process", () => {
           accepted: true,
           sessionId: created.result.session.id,
           turnId: "turn-one",
+        },
+      });
+    } finally {
+      child.stdin.end();
+      await child.exited;
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  test("rejects invalid prompt images through the host protocol", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pi-work-host-prompt-image-test-"));
+    const cwd = join(root, "chat");
+    const sessionDirectory = join(root, "sessions");
+    mkdirSync(cwd, { recursive: true });
+    const child = Bun.spawn({
+      cmd: [process.execPath, "run", join(import.meta.dir, "../src/main.ts")],
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    try {
+      const lines = new JSONLineReader(child.stdout.getReader());
+      await lines.read();
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "create-image-session",
+        method: "session.createDraft",
+        params: { cwd, sessionDirectory, profile: "chat" },
+      })}\n`);
+      await child.stdin.flush();
+      const created = (await lines.read()) as {
+        result: { session: { id: string } };
+      };
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "prompt-invalid-image",
+        method: "session.prompt",
+        params: {
+          sessionId: created.result.session.id,
+          turnId: "turn-one",
+          text: "Inspect this",
+          images: [{ mimeType: "image/gif", data: "R0lGODlh" }],
+        },
+      })}\n`);
+      await child.stdin.flush();
+
+      let response: unknown;
+      for (let index = 0; index < 6; index += 1) {
+        const record = await lines.read() as { kind?: string; id?: string };
+        if (record.kind === "response" && record.id === "prompt-invalid-image") {
+          response = record;
+          break;
+        }
+      }
+
+      expect(response).toEqual({
+        version: 1,
+        kind: "response",
+        id: "prompt-invalid-image",
+        ok: false,
+        error: {
+          code: "invalid_image",
+          message: "Prompt images must use image/png or image/jpeg",
         },
       });
     } finally {

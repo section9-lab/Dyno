@@ -7,6 +7,7 @@ import {
   type SessionManager,
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import type { ImageContent } from "@earendil-works/pi-ai";
 
 import {
   AccessController,
@@ -391,8 +392,8 @@ export class PiSessionHandle implements SessionHandle {
     this.accessController.resolve(requestId, decision);
   }
 
-  async prompt(text: string): Promise<void> {
-    await this.session.prompt(text);
+  async prompt(text: string, images: ImageContent[] = []): Promise<void> {
+    await this.session.prompt(text, images.length > 0 ? { images } : undefined);
     const lastMessage = this.session.messages.at(-1);
     if (lastMessage?.role === "assistant" && lastMessage.stopReason === "error") {
       throw new Error(lastMessage.errorMessage || "Model request failed");
@@ -571,7 +572,11 @@ function normalizeContent(content: unknown): SessionMessageContent[] {
       }];
     }
     if (item.type === "image" && "mimeType" in item && typeof item.mimeType === "string") {
-      return [{ type: "image", mimeType: item.mimeType }];
+      return [{
+        type: "image",
+        mimeType: item.mimeType,
+        ...("data" in item && typeof item.data === "string" ? { data: item.data } : {}),
+      }];
     }
     if (
       item.type === "toolCall"
