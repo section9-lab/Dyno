@@ -2,21 +2,35 @@ import Foundation
 
 struct AgentHostLineFramer {
     private var buffer = Data()
+    private var scannedByteCount = 0
 
     mutating func append(_ chunk: Data) -> [Data] {
         buffer.append(chunk)
         var records: [Data] = []
+        var recordStart = buffer.startIndex
+        var searchStart = buffer.index(
+            buffer.startIndex,
+            offsetBy: min(scannedByteCount, buffer.count)
+        )
 
-        while let newlineIndex = buffer.firstIndex(of: 0x0A) {
-            var record = Data(buffer[..<newlineIndex])
-            buffer.removeSubrange(...newlineIndex)
-            if record.last == 0x0D {
-                record.removeLast()
+        while searchStart < buffer.endIndex,
+              let newlineIndex = buffer[searchStart...].firstIndex(of: 0x0A) {
+            var recordEnd = newlineIndex
+            if recordEnd > recordStart,
+               buffer[buffer.index(before: recordEnd)] == 0x0D {
+                recordEnd = buffer.index(before: recordEnd)
             }
-            if !record.isEmpty {
-                records.append(record)
+            if recordEnd > recordStart {
+                records.append(Data(buffer[recordStart..<recordEnd]))
             }
+            recordStart = buffer.index(after: newlineIndex)
+            searchStart = recordStart
         }
+
+        if recordStart > buffer.startIndex {
+            buffer.removeSubrange(buffer.startIndex..<recordStart)
+        }
+        scannedByteCount = buffer.count
 
         return records
     }
