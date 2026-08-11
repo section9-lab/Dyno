@@ -20,6 +20,7 @@ struct PiWorkApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 900, height: 680)
         .commands {
             CommandGroup(after: .appInfo) {
                 Button(L10n.string("update.check")) {

@@ -3,6 +3,22 @@ import SwiftUI
 @testable import PiWork
 
 final class SidebarHoverActionsTests: XCTestCase {
+    func testMainWindowDefaultsToSlightlyTallerSize() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/PiWorkApp.swift"),
+            encoding: .utf8
+        )
+        let mainScene = try XCTUnwrap(
+            source.components(separatedBy: "WindowGroup {").last?
+                .components(separatedBy: "Settings {").first
+        )
+
+        XCTAssertTrue(mainScene.contains(".defaultSize(width: 900, height: 680)"))
+    }
+
     func testSettingsWindowUsesTheMainWindowChromeStyle() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -393,7 +409,16 @@ final class SidebarHoverActionsTests: XCTestCase {
 
     func testSessionContextMenuDoesNotDrawTheDefaultFocusRing() throws {
         let source = try sidebarSource()
+        let modifierSource = try XCTUnwrap(
+            source.components(separatedBy: "private struct SessionContextMenuModifier").last?
+                .components(separatedBy: "private struct SessionContextMenuFocusModifier").first
+        )
+        let contextMenuRange = try XCTUnwrap(modifierSource.range(of: ".contextMenu {"))
+        let focusModifierRange = try XCTUnwrap(
+            modifierSource.range(of: ".modifier(SessionContextMenuFocusModifier())")
+        )
 
+        XCTAssertLessThan(contextMenuRange.lowerBound, focusModifierRange.lowerBound)
         XCTAssertTrue(source.contains("if #available(macOS 14.0, *)"))
         XCTAssertTrue(source.contains("content.focusEffectDisabled()"))
         XCTAssertTrue(source.contains("content.focusable(false)"))

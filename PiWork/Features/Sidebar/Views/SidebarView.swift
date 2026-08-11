@@ -470,7 +470,6 @@ private struct SessionContextMenuModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(SessionContextMenuFocusModifier())
             .contextMenu {
                 Button(action: copySessionID) {
                     Label {
@@ -490,6 +489,7 @@ private struct SessionContextMenuModifier: ViewModifier {
                     }
                 }
             }
+            .modifier(SessionContextMenuFocusModifier())
     }
 
     private func copySessionID() {
