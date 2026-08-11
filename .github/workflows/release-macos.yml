@@ -115,9 +115,12 @@ jobs:
           mv "$app_path" "$staging_path/PiWork.app"
           rm -rf "$ARCHIVE_PATH"
           ln -s /Applications "$staging_path/Applications"
+          staging_size_mb="$(du -sm "$staging_path" | awk '{ print $1 }')"
+          dmg_size_mb="$((staging_size_mb + 256))"
           hdiutil create \
             -volname "PiWork $PROJECT_VERSION" \
             -srcfolder "$staging_path" \
+            -size "${dmg_size_mb}m" \
             -format UDZO \
             -ov \
             "$dmg_path"

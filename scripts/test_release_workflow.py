@@ -92,6 +92,13 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('mv "$app_path" "$staging_path/PiWork.app"', workflow)
         self.assertIn('rm -rf "$ARCHIVE_PATH"', workflow)
 
+    def test_release_preallocates_dmg_capacity(self):
+        workflow = self.workflow_text()
+
+        self.assertIn('staging_size_mb="$(du -sm "$staging_path" | awk', workflow)
+        self.assertIn('dmg_size_mb="$((staging_size_mb + 256))"', workflow)
+        self.assertIn('-size "${dmg_size_mb}m"', workflow)
+
     def test_release_cli_targets_repository_without_checkout(self):
         workflow = self.workflow_text()
 
