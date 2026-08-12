@@ -3,6 +3,17 @@ import XCTest
 
 @MainActor
 final class SessionStoreTests: XCTestCase {
+    func testSessionCacheEvictsOnlyOldestInactiveSessions() {
+        let candidates = SessionCachePolicy.evictionCandidates(
+            recency: ["oldest", "selected", "running", "older", "newest"],
+            protectedSessionIDs: ["selected"],
+            runningSessionIDs: ["running"],
+            maximumCount: 3
+        )
+
+        XCTAssertEqual(candidates, ["oldest", "older"])
+    }
+
     func testWorkDraftLoadsAndPersistsItsSelectedGitBranch() async throws {
         let host = FakeAgentHost()
         await host.setSnapshot(makeStoreSnapshot(gitBranch: "main"))
@@ -115,6 +126,44 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(Set(requestIDs).count, 2)
         XCTAssertEqual(store.selectedChatSessionId, "session-one")
         XCTAssertNotNil(store.records["session-one"])
+        await store.stop()
+    }
+
+    func testOpenSessionCanCacheHistoryWithoutChangingCurrentSelection() async throws {
+        let host = FakeAgentHost()
+        await host.setSnapshot(makeStoreSnapshot())
+        let store = SessionStore(service: host)
+
+        try await store.openSession(
+            makeSummary(),
+            profile: .work,
+            sessionDirectory: nil,
+            selectSession: false
+        )
+
+        XCTAssertNotNil(store.records["session-one"])
+        XCTAssertNil(store.selectedWorkSessionIdByProjectPath["/tmp/project"])
+        try store.selectOpenSession(
+            sessionId: "session-one",
+            profile: .work,
+            cwd: "/tmp/project"
+        )
+        XCTAssertEqual(store.selectedWorkSessionIdByProjectPath["/tmp/project"], "session-one")
+        await store.stop()
+    }
+
+    func testLoadsFullToolOutputOnlyWhenRequested() async throws {
+        let host = FakeAgentHost()
+        await host.setSnapshot(makeStoreSnapshot())
+        let store = SessionStore(service: host)
+        try await store.openSession(makeSummary(), profile: .work, sessionDirectory: nil)
+
+        let output = try await store.toolOutput(
+            sessionId: "session-one",
+            toolCallId: "tool-one"
+        )
+
+        XCTAssertEqual(output, "full output")
         await store.stop()
     }
 
@@ -784,6 +833,18 @@ private actor FakeAgentHost: AgentHostServicing {
     ) async throws -> AgentHostSessionSnapshotResult {
         snapshotCount += 1
         return snapshotResult
+    }
+
+    func toolOutput(
+        sessionId: String,
+        toolCallId: String,
+        requestID: String
+    ) async throws -> AgentHostSessionToolOutputResult {
+        AgentHostSessionToolOutputResult(
+            sessionId: sessionId,
+            toolCallId: toolCallId,
+            output: "full output"
+        )
     }
 
     func listSlashCommands(

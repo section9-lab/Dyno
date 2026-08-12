@@ -27,6 +27,71 @@ enum WorkSidebarItem: Equatable {
     case session(projectID: UUID, sessionID: String)
 }
 
+struct SessionOpeningTarget: Equatable {
+    let sessionID: String
+    let profile: AgentHostSessionProfile
+    let cwd: String
+    let projectID: UUID?
+
+    init(
+        sessionID: String,
+        profile: AgentHostSessionProfile,
+        cwd: String,
+        projectID: UUID? = nil
+    ) {
+        self.sessionID = sessionID
+        self.profile = profile
+        self.cwd = cwd
+        self.projectID = projectID
+    }
+}
+
+struct SessionOpeningRequest: Equatable {
+    let id: UUID
+    let target: SessionOpeningTarget
+}
+
+struct SessionOpeningState: Equatable {
+    private(set) var request: SessionOpeningRequest?
+
+    var target: SessionOpeningTarget? { request?.target }
+
+    var pendingChatSessionID: String? {
+        target?.profile == .chat ? target?.sessionID : nil
+    }
+
+    var pendingWorkSidebarItem: WorkSidebarItem? {
+        guard target?.profile == .work,
+              let projectID = target?.projectID,
+              let sessionID = target?.sessionID else {
+            return nil
+        }
+        return .session(projectID: projectID, sessionID: sessionID)
+    }
+
+    @discardableResult
+    mutating func begin(_ target: SessionOpeningTarget) -> SessionOpeningRequest {
+        let request = SessionOpeningRequest(id: UUID(), target: target)
+        self.request = request
+        return request
+    }
+
+    func isCurrent(_ request: SessionOpeningRequest) -> Bool {
+        self.request == request
+    }
+
+    @discardableResult
+    mutating func complete(_ request: SessionOpeningRequest) -> Bool {
+        guard isCurrent(request) else { return false }
+        self.request = nil
+        return true
+    }
+
+    mutating func cancel() {
+        request = nil
+    }
+}
+
 struct WorkSessionSelection: Equatable {
     var selectedProject: PiProject?
     private(set) var sessionID: UUID

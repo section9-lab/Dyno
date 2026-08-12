@@ -10,19 +10,18 @@ import SwiftUI
 /// scheme in the environment, including one forced by
 /// `.preferredColorScheme`.
 enum AppPalette {
-    /// Window backdrop: near-white washing into sky blue in light, deep
-    /// slate washing into midnight blue in dark. The axis is mostly vertical
-    /// with a slight trailing bias, keeping both top corners pale and
-    /// concentrating the color in the lower half.
+    /// Window backdrop: near-white washing into pearl blue in light, deep
+    /// graphite washing into blue-gray in dark. The vertical axis keeps the
+    /// tint even across the reading surface, matching the visual reference.
     static let windowGradient = LinearGradient(
         stops: [
-            .init(color: dynamic(light: 0xF6F8FA, dark: 0x1B1F26), location: 0.00),
-            .init(color: dynamic(light: 0xEDF2FA, dark: 0x191F28), location: 0.35),
-            .init(color: dynamic(light: 0xC9DEF5, dark: 0x17273A), location: 0.70),
-            .init(color: dynamic(light: 0x7DB3E8, dark: 0x143050), location: 1.00)
+            .init(color: dynamic(light: 0xF7F8FA, dark: 0x1B202A), location: 0.00),
+            .init(color: dynamic(light: 0xF2F7FA, dark: 0x202838), location: 0.28),
+            .init(color: dynamic(light: 0xE9F2FD, dark: 0x26344A), location: 0.58),
+            .init(color: dynamic(light: 0xE0EBFE, dark: 0x2E3F59), location: 1.00)
         ],
-        startPoint: UnitPoint(x: 0.15, y: 0.0),
-        endPoint: UnitPoint(x: 0.95, y: 1.0)
+        startPoint: .top,
+        endPoint: .bottom
     )
 
     /// Opaque top edge of the conversation backdrop. The transcript masks
@@ -30,8 +29,8 @@ enum AppPalette {
     /// floating window controls before fading back into view.
     static let transcriptTopFadeSurface = LinearGradient(
         colors: [
-            dynamic(light: 0xF6F8FA, dark: 0x1B1F26),
-            dynamic(light: 0xEDF2FA, dark: 0x191F28)
+            dynamic(light: 0xF7F8FA, dark: 0x1B202A),
+            dynamic(light: 0xF5F6FC, dark: 0x202838)
         ],
         startPoint: .leading,
         endPoint: .trailing
@@ -41,8 +40,8 @@ enum AppPalette {
     /// the same height so it reads as sitting above it.
     static let sidebarSurface = LinearGradient(
         colors: [
-            dynamic(light: 0xF8F9FA, dark: 0x272C34),
-            dynamic(light: 0xDEEFFB, dark: 0x22303F)
+            dynamic(light: 0xF8F9FA, dark: 0x272B30),
+            dynamic(light: 0xEEF5FC, dark: 0x29394C)
         ],
         startPoint: .top,
         endPoint: .bottom
@@ -56,29 +55,35 @@ enum AppPalette {
 
     /// Opaque raised card — input pills, floating controls, and the selected
     /// sidebar segment.
-    static let raisedSurface = dynamic(light: 0xFFFFFF, dark: 0x2E343D)
+    static let raisedSurface = dynamic(light: 0xF9FAFB, dark: 0x30363D)
 
     /// Semi-transparent raised card — chat bubbles and similar surfaces, which
     /// let a little of the backdrop through.
     static let translucentSurface = dynamic(
-        light: 0xFFFFFF, lightAlpha: 0.88,
-        dark: 0x2E343D, darkAlpha: 0.88
+        light: 0xF9FAFB, lightAlpha: 0.88,
+        dark: 0x30363D, darkAlpha: 0.88
     )
 
-    /// Neutral gray selection that follows the active row in either theme.
-    static let selectedRowFill = Color.primary.opacity(0.075)
+    /// Restrained slate selection that follows the active row in either theme.
+    static let selectedRowFill = dynamic(
+        light: 0x6B84AA, lightAlpha: 0.14,
+        dark: 0x9BA9B8, darkAlpha: 0.14
+    )
 
-    /// A lighter neutral gray for pointer hover before selection.
-    static let hoverRowFill = Color.primary.opacity(0.055)
+    /// A lighter slate tint for pointer hover before selection.
+    static let hoverRowFill = dynamic(
+        light: 0x6B84AA, lightAlpha: 0.08,
+        dark: 0x9BA9B8, darkAlpha: 0.08
+    )
 
     /// Track behind the sidebar's segmented tab control.
     static let segmentedTrack = dynamic(
-        light: 0x000000, lightAlpha: 0.05,
+        light: 0x6B84AA, lightAlpha: 0.10,
         dark: 0x000000, darkAlpha: 0.22
     )
 
     /// Leading accent bar on the welcome screen's suggestion rows.
-    static let accentBar = dynamic(light: 0x8FB0EB, dark: 0x5E86C9)
+    static let accentBar = dynamic(light: 0x7896C2, dark: 0x839DC4)
 
     /// Drop shadow under raised cards. Dark mode needs a much heavier shadow
     /// for the same sense of elevation.

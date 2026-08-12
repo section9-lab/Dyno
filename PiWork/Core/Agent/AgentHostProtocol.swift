@@ -746,6 +746,11 @@ struct AgentHostSessionIdentifierParameters: Encodable, Equatable {
     let sessionId: String
 }
 
+struct AgentHostSessionToolOutputParameters: Encodable, Equatable {
+    let sessionId: String
+    let toolCallId: String
+}
+
 struct AgentHostGitBranchesParameters: Encodable, Equatable {
     let cwd: String
 }
@@ -865,6 +870,12 @@ struct AgentHostSessionAbortResult: Decodable, Equatable {
 struct AgentHostSessionCloseResult: Decodable, Equatable {
     let closed: Bool
     let sessionId: String
+}
+
+struct AgentHostSessionToolOutputResult: Decodable, Equatable {
+    let sessionId: String
+    let toolCallId: String
+    let output: String
 }
 
 struct AgentHostSessionDeleteResult: Decodable, Equatable {
@@ -1087,6 +1098,8 @@ struct AgentHostSessionMessage: Decodable, Equatable, Identifiable {
     let toolCallId: String?
     let toolName: String?
     let isError: Bool?
+    var toolOutputTruncated: Bool? = nil
+    var toolOutputBytes: Int? = nil
 }
 
 struct AgentHostSessionSnapshotResult: Decodable, Equatable {

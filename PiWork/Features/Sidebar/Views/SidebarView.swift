@@ -54,11 +54,13 @@ struct SidebarView: View {
     var onNewProjectSession: (PiProject) -> Void
     var chatSessions: [AgentHostSessionSummary] = []
     var selectedChatSessionId: String?
+    var pendingChatSessionId: String?
     var onSelectChatSession: (AgentHostSessionSummary) -> Void = { _ in }
     var onDeleteChatSession: (AgentHostSessionSummary) -> Void = { _ in }
     var workSessionsByProjectPath: [String: [AgentHostSessionSummary]] = [:]
     var activeSessionIDs: Set<String> = []
     var selectedWorkSidebarItem: WorkSidebarItem? = nil
+    var pendingWorkSidebarItem: WorkSidebarItem? = nil
     var onSelectWorkSession: (PiProject, AgentHostSessionSummary) -> Void = { _, _ in }
     var onDeleteWorkSession: (PiProject, AgentHostSessionSummary) -> Void = { _, _ in }
     var onDeleteWorkProject: (PiProject) -> Void = { _ in }
@@ -94,7 +96,8 @@ struct SidebarView: View {
                         ForEach(chatSessions) { session in
                             ChatSessionRow(
                                 session: session,
-                                isSelected: selectedChatSessionId == session.id,
+                                showsOpening: pendingChatSessionId == session.id,
+                                isSelected: (pendingChatSessionId ?? selectedChatSessionId) == session.id,
                                 action: {
                                     selectedProject = nil
                                     selectedCustomDestination = nil
@@ -133,8 +136,7 @@ struct SidebarView: View {
                                 let isExpanded = projectDisclosureState.isExpanded(project.id)
                                 FolderRow(
                                     project: project,
-                                    isSelected: selectedProject?.id == project.id
-                                        && selectedWorkSidebarItem == .project(project.id),
+                                    isSelected: displayedWorkSidebarItem == .project(project.id),
                                     isExpanded: isExpanded,
                                     onToggle: { toggleProject(project.id) },
                                     onNewSession: {
@@ -152,8 +154,11 @@ struct SidebarView: View {
                                             WorkSessionRow(
                                                 session: session,
                                                 showsActivity: activeSessionIDs.contains(session.id),
-                                                isSelected: selectedProject?.id == project.id
-                                                    && selectedWorkSidebarItem == .session(
+                                                showsOpening: pendingWorkSidebarItem == .session(
+                                                    projectID: project.id,
+                                                    sessionID: session.id
+                                                ),
+                                                isSelected: displayedWorkSidebarItem == .session(
                                                         projectID: project.id,
                                                         sessionID: session.id
                                                     ),
@@ -186,6 +191,10 @@ struct SidebarView: View {
         .onChange(of: selectedProject?.id) { projectID in
             if projectID != nil { selectedCustomDestination = nil }
         }
+    }
+
+    private var displayedWorkSidebarItem: WorkSidebarItem? {
+        pendingWorkSidebarItem ?? selectedWorkSidebarItem
     }
 
     private func navigationRow(_ destination: SidebarCustomDestination) -> some View {
@@ -296,6 +305,7 @@ private struct SectionLabel: View {
 
 private struct ChatSessionRow: View {
     let session: AgentHostSessionSummary
+    let showsOpening: Bool
     let isSelected: Bool
     let action: () -> Void
     let onDelete: () -> Void
@@ -310,6 +320,11 @@ private struct ChatSessionRow: View {
                     .font(.system(size: 14))
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if showsOpening {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel(Text(L10n.string("chat.session_loading")))
+                }
             }
             .foregroundStyle(Color.primary.opacity(0.78))
             .padding(.horizontal, 11)
@@ -421,6 +436,7 @@ private struct FolderRow: View {
 private struct WorkSessionRow: View {
     let session: AgentHostSessionSummary
     let showsActivity: Bool
+    let showsOpening: Bool
     let isSelected: Bool
     let action: () -> Void
     let onDelete: () -> Void
@@ -432,11 +448,13 @@ private struct WorkSessionRow: View {
                     .font(.system(size: 13))
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                if showsActivity {
+                if showsActivity || showsOpening {
                     ProgressView()
                         .controlSize(.small)
                         .tint(Color.primary.opacity(0.55))
-                        .accessibilityLabel(Text(L10n.string("chat.tool.running")))
+                        .accessibilityLabel(Text(L10n.string(
+                            showsOpening ? "chat.session_loading" : "chat.tool.running"
+                        )))
                 }
             }
             .foregroundStyle(Color.primary.opacity(0.72))

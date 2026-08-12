@@ -35,6 +35,8 @@ struct SessionToolRecord: Equatable, Identifiable {
     let name: String
     let summary: String
     let output: String
+    let outputTruncated: Bool
+    let outputByteCount: Int?
     let state: SessionToolRunState
     let isError: Bool?
     let approval: AgentHostApprovalRequest?
@@ -44,6 +46,8 @@ struct SessionToolRecord: Equatable, Identifiable {
         name: String,
         summary: String,
         output: String = "",
+        outputTruncated: Bool = false,
+        outputByteCount: Int? = nil,
         state: SessionToolRunState,
         isError: Bool?,
         approval: AgentHostApprovalRequest? = nil
@@ -52,6 +56,8 @@ struct SessionToolRecord: Equatable, Identifiable {
         self.name = name
         self.summary = summary
         self.output = output
+        self.outputTruncated = outputTruncated
+        self.outputByteCount = outputByteCount
         self.state = state
         self.isError = isError
         self.approval = approval
@@ -139,6 +145,22 @@ struct SessionStoreReducer {
         profile: AgentHostSessionProfile,
         sessionDirectory: String?
     ) {
+        apply(Self.project(
+            snapshot: snapshot,
+            profile: profile,
+            sessionDirectory: sessionDirectory
+        ))
+    }
+
+    mutating func apply(_ record: SessionRecord) {
+        records[record.id] = record
+    }
+
+    static func project(
+        snapshot: AgentHostSessionSnapshotResult,
+        profile: AgentHostSessionProfile,
+        sessionDirectory: String?
+    ) -> SessionRecord {
         let transcript = makeTranscript(
             from: snapshot.messages,
             pendingApprovals: snapshot.pendingApprovals,
@@ -148,7 +170,7 @@ struct SessionStoreReducer {
             guard case .tool(let tool) = part else { return nil }
             return tool
         }
-        records[snapshot.session.id] = SessionRecord(
+        return SessionRecord(
             descriptor: snapshot.session,
             profile: profile,
             sessionDirectory: sessionDirectory,
@@ -829,7 +851,7 @@ struct SessionStoreReducer {
         }
     }
 
-    private func makeTranscript(
+    private static func makeTranscript(
         from messages: [AgentHostSessionMessage],
         pendingApprovals: [AgentHostApprovalRequest],
         sessionState: AgentHostSessionRunState
@@ -869,6 +891,8 @@ struct SessionStoreReducer {
                             name: name,
                             summary: argumentsSummary,
                             output: result.map(toolOutput) ?? "",
+                            outputTruncated: result?.toolOutputTruncated == true,
+                            outputByteCount: result?.toolOutputBytes,
                             state: result == nil
                                 ? (sessionState == .running ? .running : .cancelled)
                                 : .completed,
@@ -912,6 +936,8 @@ struct SessionStoreReducer {
                         name: tool.name,
                         summary: tool.summary,
                         output: tool.output,
+                        outputTruncated: tool.outputTruncated,
+                        outputByteCount: tool.outputByteCount,
                         state: .awaitingApproval,
                         isError: nil,
                         approval: approval
@@ -945,7 +971,7 @@ struct SessionStoreReducer {
         return transcript
     }
 
-    private func toolOutput(_ message: AgentHostSessionMessage) -> String {
+    private static func toolOutput(_ message: AgentHostSessionMessage) -> String {
         message.content.map { content in
             switch content {
             case .text(let text):
@@ -1008,6 +1034,23 @@ enum SessionStoreError: Error {
     case sessionBusy(String)
 }
 
+enum SessionCachePolicy {
+    static func evictionCandidates(
+        recency: [String],
+        protectedSessionIDs: Set<String>,
+        runningSessionIDs: Set<String>,
+        maximumCount: Int
+    ) -> [String] {
+        let removalCount = max(0, recency.count - maximumCount)
+        guard removalCount > 0 else { return [] }
+        return Array(
+            recency.lazy
+                .filter { !protectedSessionIDs.contains($0) && !runningSessionIDs.contains($0) }
+                .prefix(removalCount)
+        )
+    }
+}
+
 @MainActor
 final class SessionStore: ObservableObject {
     @Published private(set) var records: [String: SessionRecord] = [:]
@@ -1020,6 +1063,7 @@ final class SessionStore: ObservableObject {
 
     private let service: any AgentHostServicing
     private let now: () -> Date
+    private let maximumCachedSessionCount: Int
     private var reducer = SessionStoreReducer()
     private var eventTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
@@ -1028,13 +1072,16 @@ final class SessionStore: ObservableObject {
     private var isStopped = false
     private var selectedSessionIds: Set<String> = []
     private var snapshotRequestsInFlight: Set<String> = []
+    private var sessionRecency: [String] = []
 
     init(
         service: any AgentHostServicing,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        maximumCachedSessionCount: Int = 6
     ) {
         self.service = service
         self.now = now
+        self.maximumCachedSessionCount = maximumCachedSessionCount
     }
 
     func start() async throws {
@@ -1079,11 +1126,15 @@ final class SessionStore: ObservableObject {
     func openSession(
         _ summary: AgentHostSessionSummary,
         profile: AgentHostSessionProfile,
-        sessionDirectory: String?
+        sessionDirectory: String?,
+        selectSession: Bool = true
     ) async throws {
         try await start()
         if let record = records[summary.id] {
-            select(summary.id, profile: record.profile, cwd: record.descriptor.cwd)
+            touchSession(summary.id)
+            if selectSession {
+                select(summary.id, profile: record.profile, cwd: record.descriptor.cwd)
+            }
             return
         }
         do {
@@ -1105,13 +1156,32 @@ final class SessionStore: ObservableObject {
             sessionId: summary.id,
             requestID: UUID().uuidString
         )
-        reducer.apply(
+        let projectedRecord = await project(
             snapshot: snapshot,
             profile: profile,
             sessionDirectory: sessionDirectory
         )
-        select(snapshot.session.id, profile: profile, cwd: snapshot.session.cwd)
+        reducer.apply(projectedRecord)
+        touchSession(projectedRecord.id)
+        if selectSession {
+            select(snapshot.session.id, profile: profile, cwd: snapshot.session.cwd)
+        }
         publishReducerState()
+        await trimSessionCache(protecting: [projectedRecord.id])
+    }
+
+    func selectOpenSession(
+        sessionId: String,
+        profile: AgentHostSessionProfile,
+        cwd: String
+    ) throws {
+        guard let record = records[sessionId],
+              record.profile == profile,
+              record.descriptor.cwd == cwd else {
+            throw SessionStoreError.sessionNotOpen(sessionId)
+        }
+        touchSession(sessionId)
+        select(sessionId, profile: profile, cwd: cwd)
     }
 
     @discardableResult
@@ -1132,16 +1202,19 @@ final class SessionStore: ObservableObject {
             sessionId: summary.id,
             requestID: UUID().uuidString
         )
-        reducer.apply(
+        let projectedRecord = await project(
             snapshot: snapshot,
             profile: profile,
             sessionDirectory: sessionDirectory
         )
+        reducer.apply(projectedRecord)
+        touchSession(projectedRecord.id)
         appendSummaryIfNeeded(summary, profile: profile, cwd: cwd)
         if selectSession {
             select(summary.id, profile: profile, cwd: cwd)
         }
         publishReducerState()
+        await trimSessionCache(protecting: [projectedRecord.id])
         guard let record = records[summary.id] else {
             throw SessionStoreError.sessionNotOpen(summary.id)
         }
@@ -1156,6 +1229,17 @@ final class SessionStore: ObservableObject {
             sessionId: sessionId,
             requestID: UUID().uuidString
         )
+    }
+
+    func toolOutput(sessionId: String, toolCallId: String) async throws -> String {
+        guard records[sessionId] != nil else {
+            throw SessionStoreError.sessionNotOpen(sessionId)
+        }
+        return try await service.toolOutput(
+            sessionId: sessionId,
+            toolCallId: toolCallId,
+            requestID: UUID().uuidString
+        ).output
     }
 
     func gitBranches(cwd: String) async throws -> AgentHostGitBranchesResult {
@@ -1504,12 +1588,15 @@ final class SessionStore: ObservableObject {
                 sessionId: sessionId,
                 requestID: UUID().uuidString
             )
-            reducer.apply(
+            let projectedRecord = await project(
                 snapshot: snapshot,
                 profile: record.profile,
                 sessionDirectory: record.sessionDirectory
             )
-            publishReducerState()
+            if reducer.records[sessionId]?.lastSequence ?? 0 <= projectedRecord.lastSequence {
+                reducer.apply(projectedRecord)
+                publishReducerState()
+            }
         } catch {
             // Connection lifecycle recovery will retry selected sessions after a Host restart.
         }
@@ -1541,11 +1628,12 @@ final class SessionStore: ObservableObject {
                     sessionId: record.id,
                     requestID: UUID().uuidString
                 )
-                reducer.apply(
+                let projectedRecord = await project(
                     snapshot: snapshot,
                     profile: record.profile,
                     sessionDirectory: record.sessionDirectory
                 )
+                reducer.apply(projectedRecord)
                 publishReducerState()
             } catch {
                 // Keep the last projection visible; the UI can offer an explicit retry.
@@ -1586,6 +1674,61 @@ final class SessionStore: ObservableObject {
 
     private func publishReducerState() {
         records = reducer.records
+    }
+
+    private func touchSession(_ sessionId: String) {
+        sessionRecency.removeAll { $0 == sessionId }
+        sessionRecency.append(sessionId)
+    }
+
+    private func trimSessionCache(protecting additionalSessionIDs: Set<String> = []) async {
+        let selectedSessionIDs = Set(
+            [selectedChatSessionId].compactMap { $0 }
+                + Array(selectedWorkSessionIdByProjectPath.values)
+        )
+        let runningSessionIDs = Set(
+            reducer.records.values.compactMap { record in
+                record.runState == .idle || record.runState == .failed ? nil : record.id
+            }
+        )
+        let candidates = SessionCachePolicy.evictionCandidates(
+            recency: sessionRecency.filter { reducer.records[$0] != nil },
+            protectedSessionIDs: selectedSessionIDs.union(additionalSessionIDs),
+            runningSessionIDs: runningSessionIDs,
+            maximumCount: maximumCachedSessionCount
+        )
+        guard !candidates.isEmpty else { return }
+
+        var didEvict = false
+        for sessionId in candidates {
+            do {
+                _ = try await service.closeSession(
+                    sessionId: sessionId,
+                    requestID: UUID().uuidString
+                )
+                reducer.remove(sessionId: sessionId)
+                selectedSessionIds.remove(sessionId)
+                sessionRecency.removeAll { $0 == sessionId }
+                didEvict = true
+            } catch {
+                continue
+            }
+        }
+        if didEvict { publishReducerState() }
+    }
+
+    private func project(
+        snapshot: AgentHostSessionSnapshotResult,
+        profile: AgentHostSessionProfile,
+        sessionDirectory: String?
+    ) async -> SessionRecord {
+        await Task.detached(priority: .userInitiated) {
+            SessionStoreReducer.project(
+                snapshot: snapshot,
+                profile: profile,
+                sessionDirectory: sessionDirectory
+            )
+        }.value
     }
 
     private func updateSummaryTitle(sessionId: String, title: String) {

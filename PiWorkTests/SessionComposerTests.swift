@@ -948,6 +948,37 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertTrue(editorSource.contains(".padding(.bottom, 8)"))
     }
 
+    func testComposerDoesNotGrowForInputMethodCandidatePanel() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let editorSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(editorSource.contains("candidatePanelClearance"))
+        XCTAssertFalse(editorSource.contains("Color.clear\n                .frame(height: isInputMethodComposing"))
+    }
+
+    func testComposerHidesPlaceholderWhileInputMethodIsComposing() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains(
+            "if draft.isEmpty, selectedSlashCommand == nil, !isInputMethodComposing"
+        ))
+    }
+
     func testSuggestionCardsUseCompactLandscapeHeight() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -1004,7 +1035,7 @@ final class SessionComposerTests: XCTestCase {
         let bodyStart = try XCTUnwrap(source.range(of: "var body: some View"))
         let transcriptStart = try XCTUnwrap(
             source.range(
-                of: "private var transcript: some View",
+                of: "private func transcript(",
                 range: bodyStart.upperBound..<source.endIndex
             )
         )
@@ -1028,7 +1059,7 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertFalse(transcriptSource.contains("AppPalette.transcriptTopFadeSurface"))
     }
 
-    func testOpeningWorkSessionShowsTranscriptSkeletonUntilHistoryLoads() throws {
+    func testOpeningWorkSessionShowsTranscriptLoadingMaskUntilHistoryLoads() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -1045,14 +1076,239 @@ final class SessionComposerTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(chatSource.contains("if isLoadingSession {"))
-        XCTAssertTrue(chatSource.contains("SessionTranscriptSkeleton()"))
+        XCTAssertTrue(chatSource.contains("if isSessionTransitioning {"))
+        XCTAssertTrue(chatSource.contains("SessionTranscriptLoadingMask()"))
         XCTAssertTrue(chatSource.contains("accessibilityReduceMotion"))
         XCTAssertTrue(chatSource.contains("repeatForever(autoreverses: false)"))
-        XCTAssertTrue(contentSource.contains(
-            "openingWorkSessionID = sessionStore.records[session.id] == nil ? session.id : nil"
-        ))
-        XCTAssertTrue(contentSource.contains("isLoadingSession: isOpeningSelectedWorkSession"))
+        XCTAssertTrue(contentSource.contains("sessionOpeningState.begin("))
+        XCTAssertTrue(contentSource.contains("await Task.yield()"))
+        XCTAssertTrue(contentSource.contains("isLoadingSession: isOpeningSelectedSession"))
+    }
+
+    func testCachedSessionSelectionBypassesLoadingState() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/App/Root/ContentView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("selectCachedSessionIfAvailable("))
+        XCTAssertTrue(source.contains("guard !selectCachedSessionIfAvailable("))
+    }
+
+    func testSessionSwitchKeepsChatSurfaceIdentityStable() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/App/Root/ContentView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(source.contains(".id(activeSessionIdentity)"))
+    }
+
+    func testUncachedSessionLoadingUsesOverlayMask() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("SessionTranscriptLoadingMask()"))
+        XCTAssertTrue(source.contains("if isSessionTransitioning {\n                    SessionTranscriptLoadingMask()"))
+    }
+
+    func testSessionLoadingMaskIsOpaqueAndDoesNotCreateAnotherScrollView() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let mask = try XCTUnwrap(
+            source.components(separatedBy: "private struct SessionTranscriptLoadingMask").last?
+                .components(separatedBy: "private struct SkeletonLine").first
+        )
+
+        XCTAssertTrue(mask.contains("AppPalette.windowGradient"))
+        XCTAssertFalse(mask.contains("windowBackgroundColor).opacity"))
+        XCTAssertFalse(mask.contains("ScrollView {"))
+    }
+
+    func testSessionLoadingMaskCoversTheFullSizeTitlebarArea() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let mask = try XCTUnwrap(
+            source.components(separatedBy: "private struct SessionTranscriptLoadingMask").last?
+                .components(separatedBy: "private struct SessionComposerLoadingMask").first
+        )
+
+        XCTAssertTrue(mask.contains(".frame(maxWidth: .infinity, maxHeight: .infinity)"))
+        XCTAssertTrue(mask.contains(".ignoresSafeArea(.container, edges: .top)"))
+    }
+
+    func testSessionTransitionHidesUnderlyingTranscriptOverflow() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let chatView = try XCTUnwrap(
+            source.components(separatedBy: "struct ChatView: View {").last
+        )
+        let body = try XCTUnwrap(
+            chatView.components(separatedBy: "var body: some View").dropFirst().first?
+                .components(separatedBy: "private func transcript(").first
+        )
+
+        XCTAssertTrue(body.contains(".opacity(isSessionTransitioning ? 0 : 1)"))
+        XCTAssertTrue(body.contains(".animation(nil, value: isSessionTransitioning)"))
+    }
+
+    func testSessionTransitionBlocksUnderlyingTranscriptAndComposerInteraction() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("private var isSessionTransitioning: Bool"))
+        XCTAssertTrue(source.contains(".allowsHitTesting(!isSessionTransitioning)"))
+        XCTAssertTrue(source.contains(".accessibilityHidden(isSessionTransitioning)"))
+        XCTAssertTrue(source.contains(".disabled(isSessionTransitioning)"))
+        XCTAssertTrue(source.contains("SessionComposerLoadingMask()"))
+    }
+
+    func testSessionTransitionStartsWhenPresentationIdentityChanges() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let transition = try XCTUnwrap(
+            source.components(separatedBy: "private var isSessionTransitioning: Bool {").last?
+                .components(separatedBy: "\n    }").first
+        )
+
+        XCTAssertTrue(source.contains("@State private var readySessionPresentationID: String?"))
+        XCTAssertTrue(transition.contains("readySessionPresentationID != sessionPresentationID"))
+    }
+
+    func testTranscriptUsesStableLayoutForBoundedMessageWindow() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        let transcriptStart = try XCTUnwrap(source.range(of: "private func transcript"))
+        let transcriptEnd = try XCTUnwrap(
+            source.range(
+                of: "private func scrollToTranscriptTail",
+                range: transcriptStart.upperBound..<source.endIndex
+            )
+        )
+        let transcriptSource = source[transcriptStart.lowerBound..<transcriptEnd.lowerBound]
+        XCTAssertTrue(transcriptSource.contains("VStack(alignment: .leading, spacing: 12)"))
+        XCTAssertFalse(transcriptSource.contains("LazyVStack(alignment: .leading, spacing: 12)"))
+    }
+
+    func testChatViewSlicesTranscriptBeforeMappingChatMessages() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let messages = try XCTUnwrap(
+            source.components(separatedBy: "private var messagePresentation:").last?
+                .components(separatedBy: "private func transcriptScrollToken").first
+        )
+
+        XCTAssertTrue(messages.contains("TranscriptProjection.recentMessages("))
+        XCTAssertFalse(source.contains("let visibleMessages = record.transcript.map"))
+    }
+
+    func testSessionPresentationScrollsToNewestMessageBeforeRevealingTranscript() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let task = try XCTUnwrap(
+            source.components(separatedBy: ".task(id: sessionPresentationID) {").last?
+                .components(separatedBy: "\n        }").first
+        )
+        let loop = try XCTUnwrap(task.range(of: "while presentedMessageLimit"))
+        let finalScroll = try XCTUnwrap(
+            task.range(of: "transcriptScrollRequest &+= 1", range: loop.upperBound..<task.endIndex)
+        )
+        let reveal = try XCTUnwrap(
+            task.range(of: "isPreparingSessionPresentation = false", range: loop.upperBound..<task.endIndex)
+        )
+
+        XCTAssertLessThan(finalScroll.lowerBound, reveal.lowerBound)
+    }
+
+    func testTranscriptAutomaticallyLoadsEarlierMessagesNearTop() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("onReachTop:"))
+        XCTAssertTrue(source.contains("loadEarlierMessages("))
+        XCTAssertTrue(source.contains("proxy.scrollTo(anchorID, anchor: .top)"))
+        XCTAssertFalse(source.contains("accessibilityIdentifier(\"load-earlier-messages\")"))
     }
 
     func testAccessModePickerUsesSameRoundedInteractionAsModelPicker() throws {
@@ -1118,6 +1374,50 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertTrue(source.contains("private let assistantMarkdownTheme = Theme.gitHub"))
         XCTAssertTrue(source.contains(".markdownTheme(assistantMarkdownTheme)"))
         XCTAssertFalse(source.contains(".markdownTheme(.gitHub)"))
+    }
+
+    func testAssistantMarkdownUsesQuietThematicBreaks() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains(".thematicBreak {"))
+        XCTAssertTrue(source.contains("Color.primary.opacity(0.12)"))
+        XCTAssertTrue(source.contains(".frame(height: 1)"))
+        XCTAssertTrue(source.contains(".markdownMargin(top: 14, bottom: 14)"))
+    }
+
+    func testAssistantMarkdownUsesTranslucentInlineCodeBackground() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains(".code {"))
+        XCTAssertTrue(source.contains("BackgroundColor(Color.primary.opacity(0.07))"))
+    }
+
+    func testAssistantMarkdownUsesTranslucentTableSurfaces() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains(".table { configuration in"))
+        XCTAssertTrue(source.contains("color: Color.primary.opacity(0.10)"))
+        XCTAssertTrue(source.contains("Color.primary.opacity(0.055)"))
+        XCTAssertTrue(source.contains("Color.primary.opacity(0.025)"))
+        XCTAssertTrue(source.contains("header: Color.primary.opacity(0.075)"))
     }
 
     func testAssistantRepliesRenderAsFlatCopyableTimeline() throws {
@@ -1219,6 +1519,48 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertTrue(source.contains("model-picker-scroll-view"))
         XCTAssertTrue(source.contains("session-thinking-level"))
         XCTAssertTrue(source.contains("availableThinkingLevels"))
+    }
+
+    func testComposerKeepsModelAndThinkingControlsTightlyGrouped() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+        let editorStart = try XCTUnwrap(source.range(of: "private var editor: some View"))
+        let editorEnd = try XCTUnwrap(
+            source.range(
+                of: "private var imageAttachmentStrip",
+                range: editorStart.upperBound..<source.endIndex
+            )
+        )
+        let editorSource = source[editorStart.lowerBound..<editorEnd.lowerBound]
+
+        XCTAssertTrue(editorSource.contains("HStack(spacing: 4) {\n                    modelPicker"))
+        XCTAssertTrue(editorSource.contains("thinkingLevelMenu(selectedThinkingLevel)"))
+    }
+
+    func testThinkingLevelButtonHasNoDefaultFill() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Features/Chat/Views/ChatView.swift"),
+            encoding: .utf8
+        )
+        let menuStart = try XCTUnwrap(source.range(of: "private func thinkingLevelMenu"))
+        let pickerStart = try XCTUnwrap(
+            source.range(
+                of: "private func thinkingLevelPickerContent",
+                range: menuStart.upperBound..<source.endIndex
+            )
+        )
+        let menuSource = source[menuStart.lowerBound..<pickerStart.lowerBound]
+
+        XCTAssertFalse(menuSource.contains(".background("))
+        XCTAssertFalse(menuSource.contains("isThinkingMenuHovering"))
     }
 
     func testSharedChatAndWorkComposerOmitsVoiceInputButton() throws {

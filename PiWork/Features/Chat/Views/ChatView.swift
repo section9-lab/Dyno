@@ -29,6 +29,13 @@ struct ChatView: View {
     @State private var isTranscriptAutoFollowPaused = false
     @State private var isAdjustingTranscriptScroll = false
     @State private var transcriptScrollRequest = 0
+    @State private var transcriptMessageLimit = TranscriptWindow.batchSize
+    @State private var presentedSessionID: String?
+    @State private var readySessionPresentationID: String?
+    @State private var presentedMessageLimit = SessionPresentationBatch.initialCount
+    @State private var isPreparingSessionPresentation = false
+    @State private var loadedToolOutputs: [String: String] = [:]
+    @State private var loadingToolOutputIDs: Set<String> = []
 
     init(
         mode: SidebarTab,
@@ -51,22 +58,35 @@ struct ChatView: View {
     }
 
     var body: some View {
+        let messagePresentation = messagePresentation
+        let allMessages = messagePresentation.messages
         VStack(spacing: 0) {
-            Group {
-                if isLoadingSession {
-                    SessionTranscriptSkeleton()
-                        .transition(.opacity)
-                } else if messages.isEmpty {
-                    emptySession
-                        .transition(.opacity)
-                } else {
-                    transcript
+            ZStack {
+                Group {
+                    if allMessages.isEmpty {
+                        emptySession
+                            .transition(.opacity)
+                    } else {
+                        transcript(
+                            messages: allMessages,
+                            hiddenMessageCount: messagePresentation.hiddenCount
+                        )
+                            .transition(.opacity)
+                    }
+                }
+                .allowsHitTesting(!isSessionTransitioning)
+                .accessibilityHidden(isSessionTransitioning)
+                .opacity(isSessionTransitioning ? 0 : 1)
+                .animation(nil, value: isSessionTransitioning)
+
+                if isSessionTransitioning {
+                    SessionTranscriptLoadingMask()
                         .transition(.opacity)
                 }
             }
             .animation(
                 accessibilityReduceMotion ? nil : .easeOut(duration: 0.18),
-                value: isLoadingSession
+                value: isSessionTransitioning
             )
 
             if let error = errorMessage {
@@ -79,13 +99,14 @@ struct ChatView: View {
             }
 
             SessionComposer(
+                sessionIdentity: sessionPresentationID,
                 mode: mode,
                 projects: projects,
                 selectedProject: $selectedProject,
                 draft: $draft,
                 selectedSlashCommand: $selectedSlashCommand,
                 slashCommands: slashCommands,
-                promptHistory: promptHistory,
+                promptHistory: SessionComposerState.promptHistory(in: allMessages),
                 imageAttachments: imageAttachments,
                 isProcessingImageAttachments: isProcessingImageAttachments,
                 selectedModelSupportsImages: selectedModelSupportsImages,
@@ -117,11 +138,17 @@ struct ChatView: View {
                 onStop: stopGeneration
             )
             .frame(maxWidth: 900)
+            .disabled(isSessionTransitioning)
+            .overlay {
+                if isSessionTransitioning {
+                    SessionComposerLoadingMask()
+                }
+            }
             .padding(.horizontal, 28)
             .padding(.bottom, 16)
         }
         .overlay(alignment: .top) {
-            if !isLoadingSession, !messages.isEmpty {
+            if !isLoadingSession, !isPreparingSessionPresentation, !allMessages.isEmpty {
                 VStack(spacing: 0) {
                     AppPalette.transcriptTopFadeSurface
                         .frame(height: 32)
@@ -147,20 +174,67 @@ struct ChatView: View {
         .task(id: gitBranchLoadID) {
             await loadGitBranches()
         }
-        .onChange(of: activeSessionId) { _ in
+        .task(id: sessionPresentationID) {
+            guard activeSessionId != nil else {
+                presentedSessionID = nil
+                readySessionPresentationID = nil
+                isPreparingSessionPresentation = false
+                return
+            }
+            let presentationID = sessionPresentationID
+            isPreparingSessionPresentation = true
+            await Task.yield()
+
+            draft = ""
+            selectedSlashCommand = nil
+            imageAttachments.removeAll()
+            isProcessingImageAttachments = false
+            imageProcessingID = nil
+            actionError = nil
+            gitBranches = .unavailable
+            transcriptMessageLimit = TranscriptWindow.batchSize
+            presentedMessageLimit = SessionPresentationBatch.initialCount
+            presentedSessionID = activeSessionId
+            loadedToolOutputs.removeAll()
+            loadingToolOutputIDs.removeAll()
             isTranscriptAutoFollowPaused = false
             isFollowingTranscriptTail = true
             transcriptScrollRequest &+= 1
+            await Task.yield()
+
+            while presentedMessageLimit < transcriptMessageLimit {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 16_000_000)
+                guard !Task.isCancelled else { return }
+                presentedMessageLimit = SessionPresentationBatch.nextLimit(
+                    current: presentedMessageLimit,
+                    target: transcriptMessageLimit
+                )
+            }
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            guard !Task.isCancelled else { return }
+            transcriptScrollRequest &+= 1
+            await Task.yield()
+            readySessionPresentationID = presentationID
+            isPreparingSessionPresentation = false
         }
     }
 
-    private var transcript: some View {
+    private func transcript(
+        messages: [PiChatMessage],
+        hiddenMessageCount: Int
+    ) -> some View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(messages) { message in
-                            ChatMessageRow(message: message) { approval, decision in
+                            ChatMessageRow(
+                                message: message,
+                                loadedToolOutputs: loadedToolOutputs,
+                                loadingToolOutputIDs: loadingToolOutputIDs,
+                                onLoadToolOutput: loadToolOutput
+                            ) { approval, decision in
                                 resolve(approval: approval, decision: decision)
                             }
                             .id(message.id)
@@ -185,9 +259,16 @@ struct ChatView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
                     .background {
-                        TranscriptUserScrollObserver {
-                            pauseTranscriptAutoFollow()
-                        }
+                        TranscriptUserScrollObserver(
+                            topThreshold: TranscriptLayout.historyLoadThreshold,
+                            bottomThreshold: TranscriptLayout.followThreshold,
+                            hasEarlierMessages: hiddenMessageCount > 0,
+                            onUserScroll: pauseTranscriptAutoFollow,
+                            onReachTop: {
+                                loadEarlierMessages(messages: messages, using: proxy)
+                            },
+                            onScrollPositionChange: updateTranscriptAutoFollowFromScrollView
+                        )
                     }
                 }
                 .coordinateSpace(name: TranscriptLayout.coordinateSpace)
@@ -224,14 +305,20 @@ struct ChatView: View {
                     value: isFollowingTranscriptTail
                 )
                 .onPreferenceChange(TranscriptBottomPreferenceKey.self) { bottomY in
-                    guard !isAdjustingTranscriptScroll, !isTranscriptAutoFollowPaused else { return }
-                    isFollowingTranscriptTail = TranscriptScrollPresentation.isNearBottom(
+                    let updated = TranscriptScrollPresentation.updatedAutoFollowState(
+                        current: TranscriptAutoFollowState(
+                            isFollowingTail: isFollowingTranscriptTail,
+                            isPaused: isTranscriptAutoFollowPaused
+                        ),
                         bottomY: bottomY,
                         viewportHeight: viewport.size.height,
-                        threshold: TranscriptLayout.followThreshold
+                        threshold: TranscriptLayout.followThreshold,
+                        isAdjustingScroll: isAdjustingTranscriptScroll
                     )
+                    isFollowingTranscriptTail = updated.isFollowingTail
+                    isTranscriptAutoFollowPaused = updated.isPaused
                 }
-                .onChange(of: transcriptScrollToken) { _ in
+                .onChange(of: transcriptScrollToken(for: messages)) { _ in
                     guard isFollowingTranscriptTail, !isTranscriptAutoFollowPaused else { return }
                     scrollToTranscriptTail(using: proxy)
                 }
@@ -257,10 +344,27 @@ struct ChatView: View {
         }
     }
 
+    private func loadEarlierMessages(
+        messages: [PiChatMessage],
+        using proxy: ScrollViewProxy
+    ) {
+        guard let anchorID = messages.first?.id else { return }
+        transcriptMessageLimit += TranscriptWindow.batchSize
+        presentedMessageLimit = transcriptMessageLimit
+        DispatchQueue.main.async {
+            proxy.scrollTo(anchorID, anchor: .top)
+        }
+    }
+
     private func pauseTranscriptAutoFollow() {
         guard !isTranscriptAutoFollowPaused else { return }
         isTranscriptAutoFollowPaused = true
         isFollowingTranscriptTail = false
+    }
+
+    private func updateTranscriptAutoFollowFromScrollView(isNearBottom: Bool) {
+        isTranscriptAutoFollowPaused = !isNearBottom
+        isFollowingTranscriptTail = isNearBottom
     }
 
     private var emptySession: some View {
@@ -298,13 +402,15 @@ struct ChatView: View {
         }
     }
 
-    private struct SessionTranscriptSkeleton: View {
+    private struct SessionTranscriptLoadingMask: View {
         @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
         @State private var shimmerProgress: CGFloat = -0.35
 
         var body: some View {
-            ScrollView {
+            ZStack {
+                AppPalette.windowGradient
+
                 skeletonContent
                     .overlay {
                         if !accessibilityReduceMotion {
@@ -325,17 +431,21 @@ struct ChatView: View {
                             .allowsHitTesting(false)
                         }
                     }
-                    .onAppear {
-                        guard !accessibilityReduceMotion else { return }
-                        shimmerProgress = -0.35
-                        withAnimation(
-                            .linear(duration: 1.3)
-                                .repeatForever(autoreverses: false)
-                        ) {
-                            shimmerProgress = 1.35
-                        }
-                    }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .top)
+            .clipped()
+            .onAppear {
+                guard !accessibilityReduceMotion else { return }
+                shimmerProgress = -0.35
+                withAnimation(
+                    .linear(duration: 1.3)
+                        .repeatForever(autoreverses: false)
+                ) {
+                    shimmerProgress = 1.35
+                }
+            }
+            .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(L10n.string("chat.session_loading"))
         }
@@ -389,6 +499,22 @@ struct ChatView: View {
             .padding(.top, 28)
             .padding(.bottom, 20)
             .blur(radius: 0.35)
+        }
+    }
+
+    private struct SessionComposerLoadingMask: View {
+        var body: some View {
+            HStack(spacing: 9) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(L10n.string("chat.session_loading"))
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundStyle(Color.primary.opacity(0.58))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppPalette.raisedSurface)
+            .adaptiveCornerRadius(28)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -641,6 +767,28 @@ struct ChatView: View {
         }
     }
 
+    private func loadToolOutput(_ tool: SessionToolRecord) {
+        guard tool.outputTruncated,
+              loadedToolOutputs[tool.id] == nil,
+              loadingToolOutputIDs.insert(tool.id).inserted,
+              let sessionId = activeSessionId else {
+            return
+        }
+        Task {
+            defer { loadingToolOutputIDs.remove(tool.id) }
+            do {
+                let output = try await sessionStore.toolOutput(
+                    sessionId: sessionId,
+                    toolCallId: tool.id
+                )
+                guard activeSessionId == sessionId else { return }
+                loadedToolOutputs[tool.id] = output
+            } catch {
+                actionError = String(describing: error)
+            }
+        }
+    }
+
     private func stopGeneration() {
         guard let sessionId = activeSessionId else { return }
         actionError = nil
@@ -668,12 +816,29 @@ struct ChatView: View {
         return sessionStore.records[sessionId]
     }
 
+    private var presentedRecord: SessionRecord? {
+        guard let sessionId = presentedSessionID else { return nil }
+        return sessionStore.records[sessionId]
+    }
+
     private var gitBranchLoadID: String {
         "\(mode):\(selectedProject?.path ?? ""):\(activeSessionId ?? "")"
     }
 
-    private var messages: [PiChatMessage] {
-        guard let record = activeRecord else { return [] }
+    private var sessionPresentationID: String {
+        "\(mode):\(activeSessionId ?? "unselected")"
+    }
+
+    private var isSessionTransitioning: Bool {
+        isLoadingSession
+            || isPreparingSessionPresentation
+            || (activeSessionId != nil && readySessionPresentationID != sessionPresentationID)
+    }
+
+    private var messagePresentation: TranscriptWindow {
+        guard let record = presentedRecord else {
+            return TranscriptWindow(messages: [], hiddenCount: 0)
+        }
         let streamingMessageID = record.activeTurnId.flatMap { turnId in
             let messageID = "turn:\(turnId):assistant"
             return record.transcript.last { message in
@@ -684,26 +849,26 @@ struct ChatView: View {
                     )
             }?.id
         }
-        let visibleMessages = record.transcript.map { message in
-            PiChatMessage(
+        let visibleWindow = TranscriptProjection.recentMessages(
+            record.transcript,
+            limit: min(transcriptMessageLimit, presentedMessageLimit)
+        ) { message in
+            let chatMessage = PiChatMessage(
                 message: message,
                 isStreaming: message.id == streamingMessageID && isExecuting
             )
+            return chatMessage.isVisible ? chatMessage : nil
         }
-        .filter(\.isVisible)
-        return AssistantTranscriptPresentation.groupAdjacentTools(in: visibleMessages)
+        return TranscriptWindow(
+            messages: AssistantTranscriptPresentation.groupAdjacentTools(
+                in: visibleWindow.messages
+            ),
+            hiddenCount: visibleWindow.hiddenCount
+        )
     }
 
-    private var transcriptTailID: String? {
-        return messages.last?.id
-    }
-
-    private var transcriptScrollToken: String {
-        "\(transcriptTailID ?? ""):\(activeRecord?.lastSequence ?? 0)"
-    }
-
-    private var promptHistory: [String] {
-        SessionComposerState.promptHistory(in: messages)
+    private func transcriptScrollToken(for messages: [PiChatMessage]) -> String {
+        "\(messages.last?.id ?? ""):\(activeRecord?.lastSequence ?? 0)"
     }
 
     private var isExecuting: Bool {
@@ -751,6 +916,7 @@ struct ChatView: View {
 private enum TranscriptLayout {
     static let coordinateSpace = "transcript-scroll"
     static let tailID = "transcript-tail"
+    static let historyLoadThreshold: CGFloat = 160
     static let followThreshold: CGFloat = 72
 }
 
@@ -763,24 +929,46 @@ private struct TranscriptBottomPreferenceKey: PreferenceKey {
 }
 
 private struct TranscriptUserScrollObserver: NSViewRepresentable {
+    let topThreshold: CGFloat
+    let bottomThreshold: CGFloat
+    let hasEarlierMessages: Bool
     let onUserScroll: () -> Void
+    let onReachTop: () -> Void
+    let onScrollPositionChange: (Bool) -> Void
 
     func makeNSView(context: Context) -> TranscriptUserScrollObserverView {
         let view = TranscriptUserScrollObserverView()
+        view.topThreshold = topThreshold
+        view.bottomThreshold = bottomThreshold
+        view.hasEarlierMessages = hasEarlierMessages
         view.onUserScroll = onUserScroll
+        view.onReachTop = onReachTop
+        view.onScrollPositionChange = onScrollPositionChange
         return view
     }
 
     func updateNSView(_ nsView: TranscriptUserScrollObserverView, context: Context) {
+        nsView.topThreshold = topThreshold
+        nsView.bottomThreshold = bottomThreshold
+        nsView.hasEarlierMessages = hasEarlierMessages
         nsView.onUserScroll = onUserScroll
+        nsView.onReachTop = onReachTop
+        nsView.onScrollPositionChange = onScrollPositionChange
     }
 }
 
 private final class TranscriptUserScrollObserverView: NSView {
+    var topThreshold: CGFloat = 0
+    var bottomThreshold: CGFloat = 0
+    var hasEarlierMessages = false
     var onUserScroll: () -> Void = {}
+    var onReachTop: () -> Void = {}
+    var onScrollPositionChange: (Bool) -> Void = { _ in }
 
     private weak var observedScrollView: NSScrollView?
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
+    private var isUserScrolling = false
+    private var historyLoadTrigger = TranscriptHistoryLoadTrigger()
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -808,25 +996,70 @@ private final class TranscriptUserScrollObserverView: NSView {
         removeObserver()
         guard let scrollView else { return }
         observedScrollView = scrollView
-        observer = NotificationCenter.default.addObserver(
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        observers.append(NotificationCenter.default.addObserver(
             forName: NSScrollView.willStartLiveScrollNotification,
             object: scrollView,
             queue: .main
         ) { [weak self] _ in
+            self?.isUserScrolling = true
             self?.onUserScroll()
+        })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSScrollView.didEndLiveScrollNotification,
+            object: scrollView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reportScrollPosition()
+            self?.isUserScrolling = false
+        })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reportScrollPosition()
+        })
+        reportScrollPosition()
+    }
+
+    private func reportScrollPosition() {
+        guard let scrollView = observedScrollView,
+              let documentView = scrollView.documentView else { return }
+        let visibleRect = scrollView.contentView.bounds
+        let documentBounds = documentView.bounds
+        let scrollableDistance = max(0, documentBounds.height - visibleRect.height)
+        let scrollPosition = CGFloat(scrollView.verticalScroller?.floatValue ?? 1)
+        if historyLoadTrigger.update(
+            distanceFromTop: scrollPosition * scrollableDistance,
+            isUserScrolling: isUserScrolling,
+            hasEarlierMessages: hasEarlierMessages,
+            threshold: topThreshold
+        ) {
+            onReachTop()
+        }
+        let isNearBottom = TranscriptScrollPresentation.isNearBottom(
+            scrollPosition: scrollPosition,
+            scrollableDistance: scrollableDistance,
+            threshold: bottomThreshold
+        )
+        if isUserScrolling || isNearBottom {
+            onScrollPositionChange(isNearBottom)
         }
     }
 
     private func removeObserver() {
-        if let observer {
+        for observer in observers {
             NotificationCenter.default.removeObserver(observer)
         }
-        observer = nil
+        observers.removeAll()
+        isUserScrolling = false
         observedScrollView = nil
     }
 }
 
 private struct SessionComposer: View {
+    let sessionIdentity: String
     let mode: SidebarTab
     let projects: [PiProject]
     @Binding var selectedProject: PiProject?
@@ -878,13 +1111,13 @@ private struct SessionComposer: View {
     @FocusState private var isModelSearchFocused: Bool
     @State private var isThinkingPickerPresented = false
     @State private var thinkingSliderValue = 0.0
-    @State private var isThinkingMenuHovering = false
     @State private var isAccessPickerPresented = false
     @State private var highlightedSlashCommandIndex = 0
     @State private var isSlashCommandPanelDismissed = false
     @State private var editorFocusRequest = 0
     @State private var promptHistoryNavigation = SessionComposerPromptHistoryNavigation()
     @State private var previewedImageAttachment: ComposerImageAttachment?
+    @State private var isInputMethodComposing = false
 
     var body: some View {
         VStack(spacing: 9) {
@@ -902,6 +1135,22 @@ private struct SessionComposer: View {
         }
         .onChange(of: slashCommands.map(\.id)) { _ in
             highlightedSlashCommandIndex = 0
+        }
+        .onChange(of: sessionIdentity) { _ in
+            isProjectPickerPresented = false
+            isGitBranchPickerPresented = false
+            gitBranchSearchQuery = ""
+            isGitBranchSearchFocused = false
+            isModelPickerPresented = false
+            modelSearchQuery = ""
+            isModelSearchFocused = false
+            isThinkingPickerPresented = false
+            isAccessPickerPresented = false
+            highlightedSlashCommandIndex = 0
+            isSlashCommandPanelDismissed = false
+            promptHistoryNavigation = SessionComposerPromptHistoryNavigation()
+            previewedImageAttachment = nil
+            isInputMethodComposing = false
         }
         .sheet(item: $previewedImageAttachment) { attachment in
             ComposerImagePreview(data: attachment.data)
@@ -1392,6 +1641,7 @@ private struct SessionComposer: View {
                     focusRequest: editorFocusRequest,
                     onEditorCommand: handleEditorCommand,
                     onPasteboard: onPasteboard,
+                    onCompositionChange: { isInputMethodComposing = $0 },
                     onSubmit: submitPrompt
                 )
                 .frame(height: editorHeight)
@@ -1399,7 +1649,7 @@ private struct SessionComposer: View {
 
                 selectedSlashCommandToken
 
-                if draft.isEmpty, selectedSlashCommand == nil {
+                if draft.isEmpty, selectedSlashCommand == nil, !isInputMethodComposing {
                     Text(L10n.string("chat.input_placeholder"))
                         .font(.system(size: 15))
                         .foregroundStyle(Color.primary.opacity(0.42))
@@ -1419,10 +1669,12 @@ private struct SessionComposer: View {
                 if let contextUsage {
                     ContextUsageIndicator(usage: contextUsage)
                 }
-                modelPicker
+                HStack(spacing: 4) {
+                    modelPicker
 
-                if let selectedThinkingLevel {
-                    thinkingLevelMenu(selectedThinkingLevel)
+                    if let selectedThinkingLevel {
+                        thinkingLevelMenu(selectedThinkingLevel)
+                    }
                 }
 
                 primaryActionButton
@@ -1700,21 +1952,12 @@ private struct SessionComposer: View {
                 .foregroundStyle(Color.primary.opacity(0.72))
                 .padding(.horizontal, 10)
                 .frame(height: 32)
-                .background(
-                    adaptiveRoundedShape(cornerRadius: 9)
-                        .fill(
-                            isThinkingMenuHovering
-                                ? AppPalette.hoverRowFill
-                                : Color.primary.opacity(0.045)
-                        )
-                )
         }
         .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 9))
         .fixedSize()
         .help(L10n.format("chat.thinking_help", selectedThinkingLevel.composerTitle))
         .accessibilityLabel(L10n.format("chat.thinking_help", selectedThinkingLevel.composerTitle))
         .accessibilityIdentifier("session-thinking-level")
-        .onHover { isThinkingMenuHovering = $0 }
         .popover(isPresented: $isThinkingPickerPresented, arrowEdge: .bottom) {
             thinkingLevelPickerContent(selectedThinkingLevel)
         }
@@ -2120,6 +2363,7 @@ private struct GrowingTextEditor: NSViewRepresentable {
     let focusRequest: Int
     let onEditorCommand: (SessionComposerEditorCommand) -> Bool
     let onPasteboard: (NSPasteboard) -> Bool
+    let onCompositionChange: (Bool) -> Void
     let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -2162,6 +2406,9 @@ private struct GrowingTextEditor: NSViewRepresentable {
         let coordinator = context.coordinator
         textView.onPasteboard = { [weak coordinator] pasteboard in
             coordinator?.parent.onPasteboard(pasteboard) == true
+        }
+        textView.onMarkedTextChange = { [weak coordinator] isComposing in
+            coordinator?.parent.onCompositionChange(isComposing)
         }
 
         scrollView.documentView = textView
@@ -2207,8 +2454,13 @@ private struct GrowingTextEditor: NSViewRepresentable {
             else { return }
 
             parent.text = textView.string
+            parent.onCompositionChange(textView.hasMarkedText())
             updateLayout(in: scrollView)
             textView.scrollRangeToVisible(textView.selectedRange())
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            parent.onCompositionChange(false)
         }
 
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -2435,13 +2687,42 @@ private let assistantMarkdownTheme = Theme.gitHub
         BackgroundColor(nil)
         FontSize(14)
     }
+    .code {
+        FontFamilyVariant(.monospaced)
+        FontSize(.em(0.85))
+        BackgroundColor(Color.primary.opacity(0.07))
+    }
+    .table { configuration in
+        configuration.label
+            .fixedSize(horizontal: false, vertical: true)
+            .markdownTableBorderStyle(
+                .init(color: Color.primary.opacity(0.10))
+            )
+            .markdownTableBackgroundStyle(
+                .alternatingRows(
+                    Color.primary.opacity(0.055),
+                    Color.primary.opacity(0.025),
+                    header: Color.primary.opacity(0.075)
+                )
+            )
+            .markdownMargin(top: 0, bottom: 16)
+    }
+    .thematicBreak {
+        Color.primary.opacity(0.12)
+            .frame(height: 1)
+            .markdownMargin(top: 14, bottom: 14)
+    }
 
 private struct ChatMessageRow: View {
     let message: PiChatMessage
+    let loadedToolOutputs: [String: String]
+    let loadingToolOutputIDs: Set<String>
+    let onLoadToolOutput: (SessionToolRecord) -> Void
     let onResolve: (AgentHostApprovalRequest, AgentHostApprovalDecision) -> Void
 
     @State private var isMessageCopied = false
     @State private var isAssistantMetadataHovered = false
+    @State private var isUserMetadataHovered = false
     @State private var isCopyButtonHovered = false
     @State private var copyFeedbackResetTask: Task<Void, Never>?
     @State private var previewedMessageImage: PiChatImageAttachment?
@@ -2453,13 +2734,25 @@ private struct ChatMessageRow: View {
                 Spacer(minLength: 60)
                 VStack(alignment: .trailing, spacing: 7) {
                     if !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(message.text)
-                            .font(.system(size: 14))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .background(AppPalette.translucentSurface)
-                            .adaptiveCornerRadius(14)
-                            .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(message.text)
+                                .font(.system(size: 14))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 9)
+                                .background(AppPalette.translucentSurface)
+                                .adaptiveCornerRadius(14)
+                                .shadow(color: AppPalette.subtleShadow, radius: 4, y: 1)
+
+                            if message.hasCopyableText {
+                                userMetadata
+                            }
+                        }
+                        .onHover { hovering in
+                            isUserMetadataHovered = hovering
+                            if !hovering {
+                                isCopyButtonHovered = false
+                            }
+                        }
                     }
 
                     if !message.imageAttachments.isEmpty {
@@ -2600,6 +2893,44 @@ private struct ChatMessageRow: View {
         .accessibilityHidden(!isAssistantMetadataHovered)
     }
 
+    private var userMetadata: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 8)
+
+            Button(action: copyMessage) {
+                Image(systemName: MessageCopyFeedback.iconName(isCopied: isMessageCopied))
+                    .font(.system(size: 11, weight: .medium))
+                    .frame(width: 24, height: 22)
+                    .background(
+                        adaptiveRoundedShape(cornerRadius: 7)
+                            .fill(Color.primary.opacity(isCopyButtonHovered ? 0.08 : 0))
+                    )
+                    .shadow(
+                        color: isCopyButtonHovered ? AppPalette.subtleShadow : Color.clear,
+                        radius: 4,
+                        y: 1
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.secondary)
+            .help(copyMessageLabel)
+            .accessibilityLabel(copyMessageLabel)
+            .onHover { isCopyButtonHovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: isCopyButtonHovered)
+
+            if let timestamp = message.timestamp {
+                Text(timestamp, style: .time)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+                    .monospacedDigit()
+            }
+        }
+        .opacity(isUserMetadataHovered ? 1 : 0)
+        .allowsHitTesting(isUserMetadataHovered)
+        .accessibilityHidden(!isUserMetadataHovered)
+    }
+
     private var copyMessageLabel: String {
         if isMessageCopied {
             return L10n.string("chat.message.copied")
@@ -2657,6 +2988,9 @@ private struct ChatMessageRow: View {
         case .tools(let group):
             AssistantToolGroupView(
                 group: group,
+                loadedToolOutputs: loadedToolOutputs,
+                loadingToolOutputIDs: loadingToolOutputIDs,
+                onLoadToolOutput: onLoadToolOutput,
                 onResolve: onResolve
             )
         }
@@ -2779,6 +3113,9 @@ private struct AssistantToolGroupView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     let group: AssistantToolGroup
+    let loadedToolOutputs: [String: String]
+    let loadingToolOutputIDs: Set<String>
+    let onLoadToolOutput: (SessionToolRecord) -> Void
     let onResolve: (AgentHostApprovalRequest, AgentHostApprovalDecision) -> Void
 
     @State private var manualExpansion: Bool?
@@ -2787,9 +3124,15 @@ private struct AssistantToolGroupView: View {
 
     init(
         group: AssistantToolGroup,
+        loadedToolOutputs: [String: String],
+        loadingToolOutputIDs: Set<String>,
+        onLoadToolOutput: @escaping (SessionToolRecord) -> Void,
         onResolve: @escaping (AgentHostApprovalRequest, AgentHostApprovalDecision) -> Void
     ) {
         self.group = group
+        self.loadedToolOutputs = loadedToolOutputs
+        self.loadingToolOutputIDs = loadingToolOutputIDs
+        self.onLoadToolOutput = onLoadToolOutput
         self.onResolve = onResolve
     }
 
@@ -2845,6 +3188,9 @@ private struct AssistantToolGroupView: View {
                     ForEach(group.tools) { tool in
                         AssistantToolStepRow(
                             tool: tool,
+                            loadedOutput: loadedToolOutputs[tool.id],
+                            isLoadingFullOutput: loadingToolOutputIDs.contains(tool.id),
+                            onLoadFullOutput: { onLoadToolOutput(tool) },
                             onResolve: onResolve
                         )
                     }
@@ -2915,6 +3261,9 @@ private struct AssistantToolStepRow: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     let tool: SessionToolRecord
+    let loadedOutput: String?
+    let isLoadingFullOutput: Bool
+    let onLoadFullOutput: () -> Void
     let onResolve: (AgentHostApprovalRequest, AgentHostApprovalDecision) -> Void
 
     @State private var isDetailExpanded = false
@@ -2926,6 +3275,9 @@ private struct AssistantToolStepRow: View {
             Button {
                 guard hasDetails else { return }
                 isDetailExpanded.toggle()
+                if isDetailExpanded, tool.outputTruncated, loadedOutput == nil {
+                    onLoadFullOutput()
+                }
             } label: {
                 HStack(spacing: 8) {
                     statusIcon
@@ -2990,8 +3342,12 @@ private struct AssistantToolStepRow: View {
                     if !tool.output.isEmpty {
                         ToolDetailBlock(
                             title: L10n.string("chat.tool.output"),
-                            text: tool.output
+                            text: loadedOutput ?? tool.output
                         )
+                    }
+                    if isLoadingFullOutput {
+                        ProgressView()
+                            .controlSize(.small)
                     }
                     if let approval = tool.approval {
                         InlineApprovalActions(approval: approval) { decision in
@@ -3005,6 +3361,11 @@ private struct AssistantToolStepRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            if showsDetails, tool.outputTruncated, loadedOutput == nil {
+                onLoadFullOutput()
+            }
+        }
     }
 
     private var showsDetails: Bool {

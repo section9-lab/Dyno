@@ -306,6 +306,25 @@ enum ComposerImageProcessor {
 
 final class ComposerTextView: NSTextView {
     var onPasteboard: ((NSPasteboard) -> Bool)?
+    var onMarkedTextChange: ((Bool) -> Void)?
+
+    override func setMarkedText(
+        _ string: Any,
+        selectedRange: NSRange,
+        replacementRange: NSRange
+    ) {
+        super.setMarkedText(
+            string,
+            selectedRange: selectedRange,
+            replacementRange: replacementRange
+        )
+        onMarkedTextChange?(hasMarkedText())
+    }
+
+    override func unmarkText() {
+        super.unmarkText()
+        onMarkedTextChange?(false)
+    }
 
     override func validateUserInterfaceItem(
         _ item: NSValidatedUserInterfaceItem

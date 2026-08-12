@@ -180,7 +180,7 @@ final class SidebarHoverActionsTests: XCTestCase {
         XCTAssertLessThan(pressed.scale, hovered.scale)
     }
 
-    func testSelectedAndHoveredRowsUseSemanticGrayFills() throws {
+    func testSelectedAndHoveredRowsUseSemanticSlateFills() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -189,8 +189,27 @@ final class SidebarHoverActionsTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("static let selectedRowFill = Color.primary.opacity(0.075)"))
-        XCTAssertTrue(source.contains("static let hoverRowFill = Color.primary.opacity(0.055)"))
+        XCTAssertTrue(source.contains("static let selectedRowFill = dynamic("))
+        XCTAssertTrue(source.contains("static let hoverRowFill = dynamic("))
+    }
+
+    func testAppPaletteMatchesReferencePearlBlueBackdrop() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Core/UI/AppPalette.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("dynamic(light: 0xE0EBFE, dark: 0x2E3F59)"))
+        XCTAssertTrue(source.contains("dynamic(light: 0xEEF5FC, dark: 0x29394C)"))
+        XCTAssertTrue(source.contains("light: 0x6B84AA, lightAlpha: 0.14"))
+        XCTAssertTrue(source.contains("dynamic(light: 0xF9FAFB, dark: 0x30363D)"))
+        XCTAssertTrue(source.contains("startPoint: .top"))
+        XCTAssertTrue(source.contains("endPoint: .bottom"))
+        XCTAssertFalse(source.contains("0x91BCE6"))
+        XCTAssertFalse(source.contains("0x7DB3E8"))
     }
 
     func testPinnedHeaderAndFooterStayOutsideScrollableListWithoutRestyling() throws {
@@ -634,6 +653,104 @@ final class SidebarHoverActionsTests: XCTestCase {
             state.sidebarItem,
             .session(projectID: project.id, sessionID: "session-1")
         )
+    }
+
+    func testOnlyLatestSessionOpeningCanCompleteSelection() {
+        var state = SessionOpeningState()
+        let projectID = UUID()
+        let first = state.begin(
+            SessionOpeningTarget(
+                sessionID: "session-1",
+                profile: .work,
+                cwd: "/tmp/project",
+                projectID: projectID
+            )
+        )
+        let second = state.begin(
+            SessionOpeningTarget(
+                sessionID: "session-2",
+                profile: .work,
+                cwd: "/tmp/project",
+                projectID: projectID
+            )
+        )
+
+        XCTAssertFalse(state.complete(first))
+        XCTAssertEqual(state.target?.sessionID, "session-2")
+        XCTAssertEqual(
+            state.pendingWorkSidebarItem,
+            .session(projectID: projectID, sessionID: "session-2")
+        )
+        XCTAssertTrue(state.complete(second))
+        XCTAssertNil(state.target)
+    }
+
+    func testPendingWorkSessionDoesNotReplaceCommittedSelection() {
+        let project = PiProject(name: "pi-work", path: "/tmp/pi-work")
+        var committed = WorkSessionSelection()
+        committed.selectSession("session-active", in: project)
+        var opening = SessionOpeningState()
+
+        opening.begin(
+            SessionOpeningTarget(
+                sessionID: "session-pending",
+                profile: .work,
+                cwd: project.path,
+                projectID: project.id
+            )
+        )
+
+        XCTAssertEqual(
+            committed.sidebarItem,
+            .session(projectID: project.id, sessionID: "session-active")
+        )
+        XCTAssertEqual(
+            opening.pendingWorkSidebarItem,
+            .session(projectID: project.id, sessionID: "session-pending")
+        )
+    }
+
+    func testContentViewCommitsUncachedWorkSelectionOnlyAfterOpenSucceeds() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
+            encoding: .utf8
+        )
+        let openWorkSession = try XCTUnwrap(
+            source.components(separatedBy: "private func openWorkSession(").last?
+                .components(separatedBy: "private func selectCachedSessionIfAvailable(").first
+        )
+        let beginOpening = try XCTUnwrap(
+            source.components(separatedBy: "private func beginOpeningSession(").last?
+                .components(separatedBy: "private func cancelSessionOpening()").first
+        )
+
+        XCTAssertFalse(openWorkSession.contains("workSession.selectSession"))
+        XCTAssertTrue(beginOpening.contains("commitSessionSelection(for: request.target)"))
+    }
+
+    func testSidebarReceivesPendingSelectionWithoutReplacingCommittedSelection() throws {
+        let source = try sidebarSource()
+
+        XCTAssertTrue(source.contains("pendingChatSessionId"))
+        XCTAssertTrue(source.contains("pendingWorkSidebarItem"))
+        XCTAssertTrue(source.contains("showsOpening"))
+    }
+
+    func testChangingChatWorkTabCancelsPendingSessionOpening() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("selectedTab: selectedTabBinding"))
+        XCTAssertTrue(source.contains("private var selectedTabBinding: Binding<SidebarTab>"))
+        XCTAssertTrue(source.contains("cancelSessionOpening()"))
     }
 
     func testStartingProjectSessionRenewsSessionIdentity() {

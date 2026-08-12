@@ -15,7 +15,8 @@ struct ContentView: View {
     @State private var sidebarCollapsed = false
     @State private var didBootstrapChat = false
     @State private var bootstrappedWorkProjectPaths: Set<String> = []
-    @State private var openingWorkSessionID: String?
+    @State private var sessionOpeningState = SessionOpeningState()
+    @State private var sessionOpenTask: Task<Void, Never>?
     @State private var agentError: String?
 
     init(
@@ -40,21 +41,26 @@ struct ContentView: View {
                         SidebarView(
                             projectStore: projectStore,
                             selectedProject: $workSession.selectedProject,
-                            selectedTab: $selectedTab,
+                            selectedTab: selectedTabBinding,
                             onAddFolder: pickFolder,
                             onNewSession: startNewSession,
                             onNewProjectSession: startNewSession(for:),
                             chatSessions: sessionStore.chatSessions,
                             selectedChatSessionId: sessionStore.selectedChatSessionId,
+                            pendingChatSessionId: sessionOpeningState.pendingChatSessionID,
                             onSelectChatSession: openChatSession,
                             onDeleteChatSession: deleteChatSession,
                             workSessionsByProjectPath: sessionStore.workSessionsByProjectPath,
                             activeSessionIDs: activeSessionIDs,
                             selectedWorkSidebarItem: workSession.sidebarItem,
+                            pendingWorkSidebarItem: sessionOpeningState.pendingWorkSidebarItem,
                             onSelectWorkSession: openWorkSession,
                             onDeleteWorkSession: deleteWorkSession,
                             onDeleteWorkProject: deleteWorkProject,
-                            onSelectCustomDestination: { selectedCustomDestination = $0 }
+                            onSelectCustomDestination: {
+                                if $0 != nil { cancelSessionOpening() }
+                                selectedCustomDestination = $0
+                            }
                         )
                     }
                     .transition(.move(edge: .leading))
@@ -83,11 +89,10 @@ struct ContentView: View {
                                 selectedProject: $workSession.selectedProject,
                                 sessionStore: sessionStore,
                                 hostError: agentError,
-                                isLoadingSession: isOpeningSelectedWorkSession,
+                                isLoadingSession: isOpeningSelectedSession,
                                 onSelectProject: startNewSession(for:),
                                 onAddFolder: pickFolder
                             )
-                            .id(activeSessionIdentity)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -128,16 +133,6 @@ struct ContentView: View {
         }
     }
 
-    private var activeSessionIdentity: SessionIdentity {
-        SessionIdentity(
-            mode: selectedTab,
-            sessionID: selectedTab == .chat
-                ? (sessionStore.selectedChatSessionId ?? "chat-unselected")
-                : activeWorkSessionId,
-            projectID: selectedTab == .work ? workSession.selectedProject?.id : nil
-        )
-    }
-
     private var activeSessionIDs: Set<String> {
         Set(
             sessionStore.records.values.compactMap { record in
@@ -146,7 +141,19 @@ struct ContentView: View {
         )
     }
 
+    private var selectedTabBinding: Binding<SidebarTab> {
+        Binding(
+            get: { selectedTab },
+            set: { tab in
+                guard tab != selectedTab else { return }
+                cancelSessionOpening()
+                selectedTab = tab
+            }
+        )
+    }
+
     private func startNewSession() {
+        cancelSessionOpening()
         selectedCustomDestination = nil
         switch selectedTab {
         case .chat:
@@ -157,41 +164,29 @@ struct ContentView: View {
     }
 
     private func startNewSession(for project: PiProject) {
+        cancelSessionOpening()
         selectedTab = .work
         selectedCustomDestination = nil
         workSession.startNewSession(for: project)
         Task { await createWorkSession(for: project) }
     }
 
-    private var activeWorkSessionId: String {
-        if case .session(_, let sessionID) = workSession.sidebarItem {
-            return sessionID
-        }
-        guard let project = workSession.selectedProject else {
-            return workSession.sessionID.uuidString
-        }
-        return sessionStore.selectedWorkSessionIdByProjectPath[project.path]
-            ?? workSession.sessionID.uuidString
-    }
-
-    private var isOpeningSelectedWorkSession: Bool {
-        guard selectedTab == .work,
-              case .session(_, let sessionID) = workSession.sidebarItem else {
+    private var isOpeningSelectedSession: Bool {
+        guard let target = sessionOpeningState.target else { return false }
+        switch (selectedTab, target.profile) {
+        case (.chat, .chat):
+            return true
+        case (.work, .work):
+            return true
+        default:
             return false
         }
-        return openingWorkSessionID == sessionID
     }
 
     private func openChatSession(_ session: AgentHostSessionSummary) {
         selectedCustomDestination = nil
-        Task {
-            do {
-                try await sessionStore.openSession(session, profile: .chat, sessionDirectory: nil)
-                agentError = nil
-            } catch {
-                agentError = String(describing: error)
-            }
-        }
+        guard !selectCachedSessionIfAvailable(session, profile: .chat) else { return }
+        beginOpeningSession(session, profile: .chat)
     }
 
     private func bootstrapChatIfNeeded() async {
@@ -281,23 +276,95 @@ struct ContentView: View {
     ) {
         selectedTab = .work
         selectedCustomDestination = nil
-        openingWorkSessionID = sessionStore.records[session.id] == nil ? session.id : nil
-        workSession.selectSession(session.id, in: project)
-        Task {
+        guard !selectCachedSessionIfAvailable(
+            session,
+            profile: .work,
+            project: project
+        ) else { return }
+        beginOpeningSession(session, profile: .work, project: project)
+    }
+
+    private func selectCachedSessionIfAvailable(
+        _ session: AgentHostSessionSummary,
+        profile: AgentHostSessionProfile,
+        project: PiProject? = nil
+    ) -> Bool {
+        guard sessionStore.records[session.id] != nil else { return false }
+        cancelSessionOpening()
+        do {
+            try sessionStore.selectOpenSession(
+                sessionId: session.id,
+                profile: profile,
+                cwd: session.cwd
+            )
+            if let project {
+                workSession.selectSession(session.id, in: project)
+            }
+            agentError = nil
+        } catch {
+            agentError = String(describing: error)
+        }
+        return true
+    }
+
+    private func beginOpeningSession(
+        _ session: AgentHostSessionSummary,
+        profile: AgentHostSessionProfile,
+        project: PiProject? = nil
+    ) {
+        sessionOpenTask?.cancel()
+        let request = sessionOpeningState.begin(
+            SessionOpeningTarget(
+                sessionID: session.id,
+                profile: profile,
+                cwd: session.cwd,
+                projectID: project?.id
+            )
+        )
+        sessionOpenTask = Task { @MainActor in
+            await Task.yield()
             do {
                 try await sessionStore.openSession(
                     session,
-                    profile: .work,
-                    sessionDirectory: nil
+                    profile: profile,
+                    sessionDirectory: nil,
+                    selectSession: false
                 )
+                try Task.checkCancellation()
+                guard sessionOpeningState.isCurrent(request) else { return }
+                try commitSessionSelection(for: request.target)
+                sessionOpeningState.complete(request)
                 agentError = nil
+            } catch is CancellationError {
+                return
             } catch {
+                guard sessionOpeningState.complete(request) else { return }
                 agentError = String(describing: error)
             }
-            if openingWorkSessionID == session.id {
-                openingWorkSessionID = nil
-            }
         }
+    }
+
+    private func commitSessionSelection(for target: SessionOpeningTarget) throws {
+        let project = target.projectID.flatMap { projectID in
+            projectStore.projects.first { $0.id == projectID && $0.path == target.cwd }
+        }
+        if target.profile == .work, project == nil {
+            throw SessionStoreError.sessionNotOpen(target.sessionID)
+        }
+        try sessionStore.selectOpenSession(
+            sessionId: target.sessionID,
+            profile: target.profile,
+            cwd: target.cwd
+        )
+        if let project {
+            workSession.selectSession(target.sessionID, in: project)
+        }
+    }
+
+    private func cancelSessionOpening() {
+        sessionOpenTask?.cancel()
+        sessionOpenTask = nil
+        sessionOpeningState.cancel()
     }
 
     private func deleteChatSession(_ session: AgentHostSessionSummary) {
@@ -376,12 +443,6 @@ struct ContentView: View {
         guard let project = projectStore.projects.first(where: { $0.path == url.path }) else { return }
         startNewSession(for: project)
     }
-}
-
-private struct SessionIdentity: Hashable {
-    let mode: SidebarTab
-    let sessionID: String
-    let projectID: UUID?
 }
 
 /// Geometry + surface colors for the floating sidebar panel, kept in one

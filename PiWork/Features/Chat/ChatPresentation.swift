@@ -211,6 +211,67 @@ struct PiChatMessage: Identifiable, Equatable {
     private static let timestampFormatter = ISO8601DateFormatter()
 }
 
+struct TranscriptWindow: Equatable {
+    static let batchSize = 40
+
+    let messages: [PiChatMessage]
+    let hiddenCount: Int
+
+    init(messages: [PiChatMessage], limit: Int = batchSize) {
+        let visibleCount = min(max(limit, 0), messages.count)
+        self.messages = Array(messages.suffix(visibleCount))
+        hiddenCount = messages.count - visibleCount
+    }
+
+    init(messages: [PiChatMessage], hiddenCount: Int) {
+        self.messages = messages
+        self.hiddenCount = max(0, hiddenCount)
+    }
+}
+
+enum TranscriptProjection {
+    static func sourceWindow(
+        _ messages: [SessionTranscriptMessage],
+        limit: Int
+    ) -> (messages: [SessionTranscriptMessage], hiddenCount: Int) {
+        let visibleCount = min(max(limit, 0), messages.count)
+        return (
+            messages: Array(messages.suffix(visibleCount)),
+            hiddenCount: messages.count - visibleCount
+        )
+    }
+
+    static func recentMessages<Output>(
+        _ messages: [SessionTranscriptMessage],
+        limit: Int,
+        transform: (SessionTranscriptMessage) -> Output?
+    ) -> (messages: [Output], hiddenCount: Int) {
+        let limit = max(0, limit)
+        guard limit > 0 else { return ([], messages.count) }
+
+        var projected: [Output] = []
+        var earliestIncludedIndex = messages.count
+        for index in messages.indices.reversed() {
+            guard let output = transform(messages[index]) else { continue }
+            projected.append(output)
+            earliestIncludedIndex = index
+            if projected.count == limit { break }
+        }
+        return (
+            messages: projected.reversed(),
+            hiddenCount: projected.count == limit ? earliestIncludedIndex : 0
+        )
+    }
+}
+
+enum SessionPresentationBatch {
+    static let initialCount = 5
+
+    static func nextLimit(current: Int, target: Int) -> Int {
+        min(max(current, 0) + initialCount, max(target, 0))
+    }
+}
+
 enum AssistantTranscriptBlock: Equatable, Identifiable {
     case text(id: String, text: String)
     case thinking(SessionThinkingRecord)
@@ -442,6 +503,34 @@ private struct AssistantTaggedThinkingContent {
     }
 }
 
+struct TranscriptAutoFollowState: Equatable {
+    let isFollowingTail: Bool
+    let isPaused: Bool
+}
+
+struct TranscriptHistoryLoadTrigger {
+    private var hasTriggeredNearTop = false
+
+    mutating func update(
+        distanceFromTop: CGFloat,
+        isUserScrolling: Bool,
+        hasEarlierMessages: Bool,
+        threshold: CGFloat
+    ) -> Bool {
+        guard hasEarlierMessages else {
+            hasTriggeredNearTop = false
+            return false
+        }
+        if distanceFromTop > threshold {
+            hasTriggeredNearTop = false
+            return false
+        }
+        guard isUserScrolling, !hasTriggeredNearTop else { return false }
+        hasTriggeredNearTop = true
+        return true
+    }
+}
+
 enum TranscriptScrollPresentation {
     static func isNearBottom(
         bottomY: CGFloat,
@@ -449,6 +538,35 @@ enum TranscriptScrollPresentation {
         threshold: CGFloat
     ) -> Bool {
         bottomY <= viewportHeight + threshold
+    }
+
+    static func isNearBottom(
+        scrollPosition: CGFloat,
+        scrollableDistance: CGFloat,
+        threshold: CGFloat
+    ) -> Bool {
+        guard scrollableDistance > 0 else { return true }
+        let clampedPosition = min(max(scrollPosition, 0), 1)
+        return (1 - clampedPosition) * scrollableDistance <= threshold
+    }
+
+    static func updatedAutoFollowState(
+        current: TranscriptAutoFollowState,
+        bottomY: CGFloat,
+        viewportHeight: CGFloat,
+        threshold: CGFloat,
+        isAdjustingScroll: Bool
+    ) -> TranscriptAutoFollowState {
+        guard !isAdjustingScroll else { return current }
+        let isNearBottom = isNearBottom(
+            bottomY: bottomY,
+            viewportHeight: viewportHeight,
+            threshold: threshold
+        )
+        return TranscriptAutoFollowState(
+            isFollowingTail: isNearBottom,
+            isPaused: isNearBottom ? false : current.isPaused
+        )
     }
 }
 

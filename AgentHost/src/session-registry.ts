@@ -119,6 +119,8 @@ export type SessionMessage = {
   toolCallId?: string;
   toolName?: string;
   isError?: boolean;
+  toolOutputTruncated?: boolean;
+  toolOutputBytes?: number;
 };
 
 export type SessionSlashCommand = {
@@ -154,6 +156,7 @@ export type SessionSnapshot = SessionHandleSnapshot & {
 export interface SessionHandle {
   readonly sessionId: string;
   snapshot(): SessionHandleSnapshot;
+  toolOutput(toolCallId: string): string;
   contextUsage(): SessionContextUsage | undefined;
   commands(): SessionSlashCommand[];
   rename(title: string): string;
@@ -329,6 +332,10 @@ export class SessionRegistry {
       sequence: managed.sequence,
       turnId: managed.activeTurnId ?? null,
     };
+  }
+
+  toolOutput(sessionId: string, toolCallId: string): string {
+    return this.requireSession(sessionId).handle.toolOutput(toolCallId);
   }
 
   descriptor(sessionId: string): SessionHandleSnapshot["session"] | undefined {

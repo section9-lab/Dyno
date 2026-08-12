@@ -112,6 +112,7 @@ writeHostRecord(
       "session.createDraft",
       "session.open",
       "session.snapshot",
+      "session.toolOutput",
       "session.commands",
       "session.rename",
       "session.setGitBranch",
@@ -501,6 +502,25 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
       id: request.id,
       ok: true,
       result: sessionRegistry.snapshot(sessionId),
+    };
+  }
+
+  if (request.method === "session.toolOutput") {
+    const sessionId = request.params?.sessionId;
+    const toolCallId = request.params?.toolCallId;
+    if (typeof sessionId !== "string" || typeof toolCallId !== "string") {
+      throw new Error("session.toolOutput requires string sessionId and toolCallId");
+    }
+    return {
+      version: PROTOCOL_VERSION,
+      kind: "response",
+      id: request.id,
+      ok: true,
+      result: {
+        sessionId,
+        toolCallId,
+        output: sessionRegistry.toolOutput(sessionId, toolCallId),
+      },
     };
   }
 

@@ -653,6 +653,7 @@ describe("agent host process", () => {
           "session.createDraft",
           "session.open",
           "session.snapshot",
+          "session.toolOutput",
           "session.commands",
           "session.rename",
           "session.setGitBranch",

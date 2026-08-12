@@ -52,6 +52,11 @@ protocol AgentHostServicing: Actor {
         sessionId: String,
         requestID: String
     ) async throws -> AgentHostSessionSnapshotResult
+    func toolOutput(
+        sessionId: String,
+        toolCallId: String,
+        requestID: String
+    ) async throws -> AgentHostSessionToolOutputResult
     func listSlashCommands(
         sessionId: String,
         requestID: String
@@ -208,6 +213,7 @@ actor AgentHostService: AgentHostServicing,
         "session.createDraft",
         "session.open",
         "session.snapshot",
+        "session.toolOutput",
         "session.commands",
         "session.rename",
         "session.setGitBranch",
@@ -697,6 +703,22 @@ actor AgentHostService: AgentHostServicing,
             method: "session.snapshot",
             params: AgentHostSessionIdentifierParameters(sessionId: sessionId),
             as: AgentHostSessionSnapshotResult.self
+        )
+    }
+
+    func toolOutput(
+        sessionId: String,
+        toolCallId: String,
+        requestID: String = UUID().uuidString
+    ) async throws -> AgentHostSessionToolOutputResult {
+        try await request(
+            id: requestID,
+            method: "session.toolOutput",
+            params: AgentHostSessionToolOutputParameters(
+                sessionId: sessionId,
+                toolCallId: toolCallId
+            ),
+            as: AgentHostSessionToolOutputResult.self
         )
     }
 

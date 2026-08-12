@@ -68,6 +68,7 @@ type PiModel = NonNullable<AgentSession["model"]>;
 const oneMillionContextWindow = 1_050_000;
 const gitBranchEntryType = "pi-work.git-branch";
 const builtInPiToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+const snapshotToolOutputPreviewBytes = 16 * 1024;
 
 function selectedGitBranch(sessionManager: SessionManager): string | undefined {
   const entries = sessionManager.getEntries();
@@ -211,7 +212,11 @@ export class PiSessionHandle implements SessionHandle {
   }
 
   snapshot(): SessionHandleSnapshot {
-    const messages = normalizeAgentMessages(this.sessionId, this.session.messages);
+    const messages = normalizeAgentMessages(
+      this.sessionId,
+      this.session.messages,
+      { maxToolOutputBytes: snapshotToolOutputPreviewBytes },
+    );
     const explicitTitle = this.sessionManager.getSessionName()?.trim();
     const firstUserText = messages.find((message) => message.role === "user")?.content
       .filter((content): content is Extract<SessionMessageContent, { type: "text" }> => (
@@ -240,6 +245,19 @@ export class PiSessionHandle implements SessionHandle {
       accessMode: this.accessController.mode,
       pendingApprovals: this.accessController.pendingApprovals(),
     };
+  }
+
+  toolOutput(toolCallId: string): string {
+    for (let index = this.session.messages.length - 1; index >= 0; index -= 1) {
+      const message = this.session.messages[index];
+      if (message.role === "toolResult" && message.toolCallId === toolCallId) {
+        return normalizedToolOutput(message.content);
+      }
+    }
+    throw new SessionRegistryError(
+      "tool_output_not_found",
+      `Tool output not found: ${toolCallId}`,
+    );
   }
 
   contextUsage(): SessionContextUsage | undefined {
@@ -445,6 +463,7 @@ export class PiSessionHandle implements SessionHandle {
 export function normalizeAgentMessages(
   sessionId: string,
   messages: ReadonlyArray<AgentSession["messages"][number]>,
+  options: { maxToolOutputBytes?: number } = {},
 ): SessionMessage[] {
   return messages.flatMap((message, index): SessionMessage[] => {
     const timestampValue = Number.isFinite(message.timestamp) ? message.timestamp : 0;
@@ -474,13 +493,29 @@ export function normalizeAgentMessages(
     }
 
     if (message.role === "toolResult") {
+      const normalizedContent = normalizeToolResultContent(message.content);
+      const output = normalizedToolOutput(message.content);
+      const outputBytes = Buffer.byteLength(output);
+      const contentBytes = Buffer.byteLength(JSON.stringify(normalizedContent));
+      const maximumPreviewBytes = options.maxToolOutputBytes;
+      const shouldPreview = maximumPreviewBytes !== undefined
+        && Math.max(outputBytes, contentBytes) > maximumPreviewBytes;
+      const preview = shouldPreview && maximumPreviewBytes !== undefined
+        ? truncateUTF8Middle(output, maximumPreviewBytes) ?? output
+        : undefined;
       return [{
         ...base,
         role: "tool",
-        content: normalizeToolResultContent(message.content),
+        content: preview === undefined
+          ? normalizedContent
+          : [{ type: "text", text: preview }],
         toolCallId: message.toolCallId,
         toolName: message.toolName,
         isError: message.isError,
+        ...(preview === undefined ? {} : {
+          toolOutputTruncated: true,
+          toolOutputBytes: Math.max(outputBytes, contentBytes),
+        }),
       }];
     }
 
@@ -601,6 +636,33 @@ function normalizeToolResultContent(content: unknown): SessionMessageContent[] {
     if (item.type !== "text") return item;
     return { ...item, text: stripTerminalFormatting(item.text) };
   });
+}
+
+function normalizedToolOutput(content: unknown): string {
+  return normalizeToolResultContent(content)
+    .map((item) => {
+      if (item.type === "text") return item.text;
+      if (item.type === "image") return `[image: ${item.mimeType}]`;
+      if (item.type === "toolCall") return `${item.name} ${item.argumentsSummary}`;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function truncateUTF8Middle(value: string, maximumBytes: number): string | undefined {
+  const buffer = Buffer.from(value);
+  if (buffer.byteLength <= maximumBytes) return undefined;
+
+  const marker = Buffer.from("\n… [output truncated] …\n");
+  const contentBudget = Math.max(0, maximumBytes - marker.byteLength);
+  const headBytes = Math.ceil(contentBudget / 2);
+  const tailBytes = Math.floor(contentBudget / 2);
+  return Buffer.concat([
+    buffer.subarray(0, headBytes),
+    marker,
+    buffer.subarray(buffer.byteLength - tailBytes),
+  ]).toString("utf8");
 }
 
 function safeJSONStringify(value: unknown): string {

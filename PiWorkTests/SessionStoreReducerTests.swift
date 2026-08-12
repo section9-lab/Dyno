@@ -2,6 +2,21 @@ import XCTest
 @testable import PiWork
 
 final class SessionStoreReducerTests: XCTestCase {
+    func testSnapshotCanBeProjectedAwayFromTheMainActor() async {
+        let snapshot = makeSnapshot(sessionId: "session-one")
+
+        let record = await Task.detached {
+            SessionStoreReducer.project(
+                snapshot: snapshot,
+                profile: .work,
+                sessionDirectory: nil
+            )
+        }.value
+
+        XCTAssertEqual(record.id, "session-one")
+        XCTAssertEqual(record.profile, .work)
+    }
+
     func testSubmittingImagePromptImmediatelyIncludesImageMetadata() throws {
         var reducer = SessionStoreReducer()
         reducer.apply(

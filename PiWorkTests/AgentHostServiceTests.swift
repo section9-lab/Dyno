@@ -171,6 +171,7 @@ final class AgentHostServiceTests: XCTestCase {
                     "session.setModelOption",
                     "session.setThinkingLevel",
                     "session.snapshot",
+                    "session.toolOutput",
                     "settings.get",
                     "settings.update"
                 ]
@@ -204,6 +205,7 @@ final class AgentHostServiceTests: XCTestCase {
             "session.createDraft",
             "session.open",
             "session.snapshot",
+            "session.toolOutput",
             "session.commands",
             "session.rename",
             "session.setGitBranch",

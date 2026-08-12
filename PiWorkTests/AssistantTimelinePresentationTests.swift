@@ -2,6 +2,91 @@ import XCTest
 @testable import PiWork
 
 final class AssistantTimelinePresentationTests: XCTestCase {
+    func testTranscriptWindowInitiallyKeepsOnlyNewestMessages() {
+        let messages = (0..<75).map { index in
+            PiChatMessage(id: "message-\(index)", role: .user, text: "Message \(index)")
+        }
+
+        let window = TranscriptWindow(messages: messages)
+
+        XCTAssertEqual(window.messages.count, TranscriptWindow.batchSize)
+        XCTAssertEqual(window.messages.first?.id, "message-35")
+        XCTAssertEqual(window.hiddenCount, 35)
+    }
+
+    func testTranscriptWindowCanRevealOneOlderBatch() {
+        let messages = (0..<95).map { index in
+            PiChatMessage(id: "message-\(index)", role: .user, text: "Message \(index)")
+        }
+
+        let window = TranscriptWindow(
+            messages: messages,
+            limit: TranscriptWindow.batchSize * 2
+        )
+
+        XCTAssertEqual(window.messages.count, 80)
+        XCTAssertEqual(window.messages.first?.id, "message-15")
+        XCTAssertEqual(window.hiddenCount, 15)
+    }
+
+    func testSessionPresentationBuildsRecentWindowAcrossSmallBatches() {
+        var limit = SessionPresentationBatch.initialCount
+
+        XCTAssertLessThan(limit, TranscriptWindow.batchSize)
+        while limit < TranscriptWindow.batchSize {
+            limit = SessionPresentationBatch.nextLimit(
+                current: limit,
+                target: TranscriptWindow.batchSize
+            )
+        }
+
+        XCTAssertEqual(limit, TranscriptWindow.batchSize)
+    }
+
+    func testTranscriptProjectionBoundsSourceBeforeBuildingChatMessages() {
+        let transcript = (0..<95).map { index in
+            SessionTranscriptMessage(
+                id: "message-\(index)",
+                role: .user,
+                parts: [.text(id: "text-\(index)", text: "Message \(index)")],
+                timestamp: ""
+            )
+        }
+
+        let sourceWindow = TranscriptProjection.sourceWindow(
+            transcript,
+            limit: TranscriptWindow.batchSize
+        )
+
+        XCTAssertEqual(sourceWindow.messages.count, 40)
+        XCTAssertEqual(sourceWindow.messages.first?.id, "message-55")
+        XCTAssertEqual(sourceWindow.hiddenCount, 55)
+    }
+
+    func testTranscriptProjectionReturnsNewestVisibleMessages() {
+        let messages = (0..<90).map { index in
+            SessionTranscriptMessage(
+                id: "message-\(index)",
+                role: .user,
+                parts: [.text(id: "text-\(index)", text: "Message \(index)")],
+                timestamp: ""
+            )
+        }
+
+        let window = TranscriptProjection.recentMessages(
+            messages,
+            limit: TranscriptWindow.batchSize
+        ) { message in
+            let index = Int(message.id.components(separatedBy: "-").last ?? "") ?? 0
+            return index.isMultiple(of: 2) ? message.id : nil
+        }
+
+        XCTAssertEqual(window.messages.count, 40)
+        XCTAssertEqual(window.messages.first, "message-10")
+        XCTAssertEqual(window.messages.last, "message-88")
+        XCTAssertEqual(window.hiddenCount, 10)
+    }
+
     func testAdjacentToolOnlyAssistantGenerationsShareOneMessageRow() throws {
         let first = makeTool(id: "first", state: .completed, isError: false)
         let second = makeTool(id: "second", state: .completed, isError: false)
@@ -321,6 +406,139 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         )
     }
 
+    func testTranscriptScrollerIsNearBottomWithinPointThreshold() {
+        XCTAssertTrue(
+            TranscriptScrollPresentation.isNearBottom(
+                scrollPosition: 0.999,
+                scrollableDistance: 10_000,
+                threshold: 72
+            )
+        )
+        XCTAssertFalse(
+            TranscriptScrollPresentation.isNearBottom(
+                scrollPosition: 0.98,
+                scrollableDistance: 10_000,
+                threshold: 72
+            )
+        )
+    }
+
+    func testHistoryAutoLoadTriggersOnceWhenUserScrollsNearTop() {
+        var trigger = TranscriptHistoryLoadTrigger()
+
+        XCTAssertTrue(trigger.update(
+            distanceFromTop: 80,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        ))
+        XCTAssertFalse(trigger.update(
+            distanceFromTop: 60,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        ))
+    }
+
+    func testHistoryAutoLoadRearmsAfterLeavingTopThreshold() {
+        var trigger = TranscriptHistoryLoadTrigger()
+        _ = trigger.update(
+            distanceFromTop: 80,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        )
+
+        XCTAssertFalse(trigger.update(
+            distanceFromTop: 240,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        ))
+        XCTAssertTrue(trigger.update(
+            distanceFromTop: 100,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        ))
+    }
+
+    func testHistoryAutoLoadDoesNotTriggerForProgrammaticScrolling() {
+        var trigger = TranscriptHistoryLoadTrigger()
+
+        XCTAssertFalse(trigger.update(
+            distanceFromTop: 0,
+            isUserScrolling: false,
+            hasEarlierMessages: true,
+            threshold: 160
+        ))
+    }
+
+    func testHistoryAutoLoadResetsWhenNoEarlierMessagesRemain() {
+        var trigger = TranscriptHistoryLoadTrigger()
+        _ = trigger.update(
+            distanceFromTop: 0,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        )
+        _ = trigger.update(
+            distanceFromTop: 0,
+            isUserScrolling: true,
+            hasEarlierMessages: false,
+            threshold: 160
+        )
+
+        XCTAssertTrue(trigger.update(
+            distanceFromTop: 0,
+            isUserScrolling: true,
+            hasEarlierMessages: true,
+            threshold: 160
+        ))
+    }
+
+    func testReturningToBottomResumesPausedTranscriptAutoFollow() {
+        let updated = TranscriptScrollPresentation.updatedAutoFollowState(
+            current: TranscriptAutoFollowState(
+                isFollowingTail: false,
+                isPaused: true
+            ),
+            bottomY: 620,
+            viewportHeight: 600,
+            threshold: 72,
+            isAdjustingScroll: false
+        )
+
+        XCTAssertEqual(
+            updated,
+            TranscriptAutoFollowState(
+                isFollowingTail: true,
+                isPaused: false
+            )
+        )
+    }
+
+    func testMovingAwayFromBottomStopsFollowingAfterResume() {
+        let updated = TranscriptScrollPresentation.updatedAutoFollowState(
+            current: TranscriptAutoFollowState(
+                isFollowingTail: true,
+                isPaused: false
+            ),
+            bottomY: 800,
+            viewportHeight: 600,
+            threshold: 72,
+            isAdjustingScroll: false
+        )
+
+        XCTAssertEqual(
+            updated,
+            TranscriptAutoFollowState(
+                isFollowingTail: false,
+                isPaused: false
+            )
+        )
+    }
+
     func testConversationUsesToolGroupsAndManualScrollRecovery() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -335,7 +553,7 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertTrue(source.contains("AssistantTranscriptPresentation.blocks(from: message.parts)"))
         XCTAssertTrue(source.contains("AssistantToolGroupView("))
         XCTAssertTrue(source.contains("TranscriptBottomPreferenceKey"))
-        XCTAssertTrue(source.contains("TranscriptScrollPresentation.isNearBottom"))
+        XCTAssertTrue(source.contains("TranscriptScrollPresentation.updatedAutoFollowState"))
         XCTAssertTrue(source.contains("L10n.string(\"chat.scroll_to_latest\")"))
         XCTAssertTrue(source.contains("AssistantThinkingView("))
         XCTAssertTrue(source.contains("chat.thinking.running"))
@@ -353,7 +571,7 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertFalse(thinkingSource.contains("withAnimation("))
     }
 
-    func testUserScrollPausesTranscriptAutoFollowUntilExplicitResume() throws {
+    func testUserScrollPausesTranscriptAutoFollowUntilReturningToBottomOrExplicitResume() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -374,10 +592,11 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertTrue(source.contains("@State private var isTranscriptAutoFollowPaused = false"))
         XCTAssertTrue(source.contains("TranscriptUserScrollObserver"))
         XCTAssertTrue(source.contains("NSScrollView.willStartLiveScrollNotification"))
+        XCTAssertTrue(source.contains("NSView.boundsDidChangeNotification"))
+        XCTAssertTrue(source.contains("onScrollPositionChange"))
         XCTAssertTrue(source.contains("isTranscriptAutoFollowPaused = true"))
-        XCTAssertTrue(source.contains(
-            "guard !isAdjustingTranscriptScroll, !isTranscriptAutoFollowPaused else { return }"
-        ))
+        XCTAssertTrue(source.contains("TranscriptScrollPresentation.updatedAutoFollowState"))
+        XCTAssertTrue(source.contains("isTranscriptAutoFollowPaused = updated.isPaused"))
         XCTAssertTrue(source.contains(
             "guard isFollowingTranscriptTail, !isTranscriptAutoFollowPaused else { return }"
         ))
@@ -407,7 +626,7 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertTrue(textBlockSource.contains(".padding(.leading, 6)"))
     }
 
-    func testConversationKeepsTranscriptRowsMountedWhileScrolling() throws {
+    func testConversationKeepsBoundedTranscriptRowsMountedWhileScrolling() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -418,7 +637,7 @@ final class AssistantTimelinePresentationTests: XCTestCase {
             encoding: .utf8
         )
 
-        let transcriptStart = try XCTUnwrap(source.range(of: "private var transcript: some View"))
+        let transcriptStart = try XCTUnwrap(source.range(of: "private func transcript("))
         let emptySessionStart = try XCTUnwrap(source.range(of: "private var emptySession: some View"))
         let transcriptSource = String(source[transcriptStart.lowerBound..<emptySessionStart.lowerBound])
 
@@ -670,6 +889,30 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertTrue(rowSource.contains(".allowsHitTesting(isAssistantMetadataHovered)"))
         XCTAssertTrue(rowSource.contains(".accessibilityHidden(!isAssistantMetadataHovered)"))
         XCTAssertTrue(rowSource.contains("isAssistantMetadataHovered = hovering"))
+    }
+
+    func testUserMessageMetadataAppearsWhileItsBubbleIsHovered() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let rowStart = try XCTUnwrap(source.range(of: "private struct ChatMessageRow"))
+        let rowEnd = try XCTUnwrap(
+            source.range(of: "private struct SkillUsageRow", range: rowStart.upperBound..<source.endIndex)
+        )
+        let rowSource = source[rowStart.lowerBound..<rowEnd.lowerBound]
+
+        XCTAssertTrue(rowSource.contains("@State private var isUserMetadataHovered = false"))
+        XCTAssertTrue(rowSource.contains("userMetadata"))
+        XCTAssertTrue(rowSource.contains("isUserMetadataHovered = hovering"))
+        XCTAssertTrue(rowSource.contains(".opacity(isUserMetadataHovered ? 1 : 0)"))
+        XCTAssertTrue(rowSource.contains("Text(timestamp, style: .time)"))
+        XCTAssertTrue(rowSource.contains("Button(action: copyMessage)"))
     }
 
     func testAssistantCopyButtonShowsSubtleShadowOnlyWhileHovered() throws {

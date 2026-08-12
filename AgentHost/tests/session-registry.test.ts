@@ -91,6 +91,10 @@ class ControllableSession implements SessionHandle {
     };
   }
 
+  toolOutput(toolCallId: string): string {
+    return `full output for ${toolCallId}`;
+  }
+
   contextUsage() {
     return this.currentContextUsage;
   }

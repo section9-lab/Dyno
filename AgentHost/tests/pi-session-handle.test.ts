@@ -484,6 +484,50 @@ describe("PiSessionHandle", () => {
     expect(messages[0]?.content).toEqual([{ type: "text", text: "failed" }]);
   });
 
+  test("snapshots preview large tool output and loads the full output on demand", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const fullOutput = "0123456789".repeat(10_000);
+    const piSession = makePiSession({
+      messages: [{
+        role: "toolResult",
+        toolCallId: "tool-one",
+        toolName: "bash",
+        content: [{ type: "text", text: fullOutput }],
+        isError: false,
+        timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+      }],
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+
+    const message = handle.snapshot().messages[0];
+
+    expect(message?.toolOutputTruncated).toBe(true);
+    expect(JSON.stringify(message).length).toBeLessThan(20_000);
+    expect(handle.toolOutput("tool-one")).toBe(fullOutput);
+  });
+
+  test("snapshots omit large inline tool images", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      messages: [{
+        role: "toolResult",
+        toolCallId: "tool-image",
+        toolName: "read",
+        content: [{ type: "image", mimeType: "image/png", data: "a".repeat(100_000) }],
+        isError: false,
+        timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+      }],
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+
+    const message = handle.snapshot().messages[0];
+
+    expect(message?.toolOutputTruncated).toBe(true);
+    expect(message?.content).toEqual([{ type: "text", text: "[image: image/png]" }]);
+    expect(JSON.stringify(message).length).toBeLessThan(2_000);
+    expect(handle.toolOutput("tool-image")).toBe("[image: image/png]");
+  });
+
   test("builds a normalized snapshot from the live Pi session", () => {
     const manager = SessionManager.inMemory("/tmp/project");
     manager.appendMessage({
