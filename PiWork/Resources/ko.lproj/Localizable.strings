@@ -14,7 +14,13 @@
 "settings.sidebar.general" = "일반";
 "settings.sidebar.agent" = "Agent";
 "settings.sidebar.models_auth" = "모델 및 인증";
+"settings.sidebar.experiments" = "실험";
 "settings.sidebar.isolated" = "pi-work는 독립된 설정을 사용하며 터미널의 pi를 변경하지 않습니다.";
+"settings.experiments.title" = "실험";
+"settings.experiments.subtitle" = "개발 중인 기능을 미리 확인합니다";
+"settings.experiments.computer_use.title" = "Computer Use";
+"settings.experiments.computer_use.description" = "Agent가 Mac의 앱과 상호 작용하도록 허용합니다";
+"settings.experiments.coming_soon" = "출시 예정";
 "settings.general.title" = "일반";
 "settings.general.subtitle" = "pi-work의 표시 방식과 언어를 선택합니다";
 "settings.general.language.title" = "언어";

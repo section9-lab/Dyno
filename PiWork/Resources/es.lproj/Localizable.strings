@@ -14,7 +14,13 @@
 "settings.sidebar.general" = "General";
 "settings.sidebar.agent" = "Agent";
 "settings.sidebar.models_auth" = "Modelos y autenticación";
+"settings.sidebar.experiments" = "Experimentos";
 "settings.sidebar.isolated" = "pi-work usa una configuración aislada y nunca modifica pi en la terminal.";
+"settings.experiments.title" = "Experimentos";
+"settings.experiments.subtitle" = "Prueba funciones que aún están en desarrollo";
+"settings.experiments.computer_use.title" = "Computer Use";
+"settings.experiments.computer_use.description" = "Permite que el Agent interactúe con las apps de tu Mac";
+"settings.experiments.coming_soon" = "Próximamente";
 "settings.general.title" = "General";
 "settings.general.subtitle" = "Elige el aspecto y el idioma de pi-work";
 "settings.general.language.title" = "Idioma";

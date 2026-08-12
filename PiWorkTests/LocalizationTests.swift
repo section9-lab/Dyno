@@ -70,6 +70,44 @@ final class LocalizationTests: XCTestCase {
         XCTAssertTrue(chatSource.contains(".lineLimit(3)"))
     }
 
+    func testSettingsSidebarIncludesExperimentsDestination() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("case experiments"))
+        XCTAssertTrue(source.contains("case .experiments: return \"flask\""))
+        XCTAssertTrue(source.contains(".modelsAndAuthentication, .experiments"))
+        XCTAssertTrue(source.contains("ExperimentsSettingsView()"))
+    }
+
+    func testComputerUseExperimentIsComingSoonAndCannotBeEnabled() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
+            ),
+            encoding: .utf8
+        )
+        let experimentsView = try XCTUnwrap(
+            source.components(separatedBy: "private struct ExperimentsSettingsView: View {").last?
+                .components(separatedBy: "private struct GeneralSettingsView: View {").first
+        )
+
+        XCTAssertTrue(experimentsView.contains("settings.experiments.computer_use.title"))
+        XCTAssertTrue(experimentsView.contains("settings.experiments.coming_soon"))
+        XCTAssertTrue(experimentsView.contains("Toggle(\"\", isOn: .constant(false))"))
+        XCTAssertTrue(experimentsView.contains(".disabled(true)"))
+    }
+
     func testEveryReferencedLocalizationKeyExistsInTheCatalog() throws {
         let english = try localizationEntries(languageCode: "en")
         let source = try productionSwiftSource()

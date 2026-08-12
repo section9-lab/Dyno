@@ -28,6 +28,8 @@ struct AppSettingsView: View {
                         AgentGeneralSettingsView(store: agentSettingsStore)
                     case .modelsAndAuthentication:
                         ModelProviderSettingsView(store: providerAuthStore)
+                    case .experiments:
+                        ExperimentsSettingsView()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -45,6 +47,7 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
     case general
     case agent
     case modelsAndAuthentication
+    case experiments
 
     var id: String { rawValue }
 
@@ -56,6 +59,8 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
             return L10n.string("settings.sidebar.agent", language: language)
         case .modelsAndAuthentication:
             return L10n.string("settings.sidebar.models_auth", language: language)
+        case .experiments:
+            return L10n.string("settings.sidebar.experiments", language: language)
         }
     }
 
@@ -64,6 +69,7 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
         case .general: return "gearshape"
         case .agent: return "slider.horizontal.3"
         case .modelsAndAuthentication: return "key.horizontal"
+        case .experiments: return "flask"
         }
     }
 }
@@ -90,7 +96,7 @@ private struct SettingsSidebar: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 7)
 
-            ForEach([SettingsDestination.agent, .modelsAndAuthentication]) { destination in
+            ForEach([SettingsDestination.agent, .modelsAndAuthentication, .experiments]) { destination in
                 settingsButton(destination)
             }
 
@@ -129,6 +135,46 @@ private struct SettingsSidebar: View {
             cornerRadius: 10,
             isSelected: selection == destination
         ))
+    }
+}
+
+private struct ExperimentsSettingsView: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.string("settings.experiments.title"))
+                    .font(.system(size: 20, weight: .semibold))
+                Text(L10n.string("settings.experiments.subtitle"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+            .padding(.bottom, 18)
+
+            VStack(spacing: 16) {
+                AgentSettingsRow(
+                    title: L10n.string("settings.experiments.computer_use.title"),
+                    description: L10n.string("settings.experiments.computer_use.description")
+                ) {
+                    HStack(spacing: 10) {
+                        Text(L10n.string("settings.experiments.coming_soon"))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: .constant(false))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .disabled(true)
+                    }
+                }
+                .settingsCard()
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+        }
     }
 }
 

@@ -14,7 +14,13 @@
 "settings.sidebar.general" = "一般";
 "settings.sidebar.agent" = "Agent";
 "settings.sidebar.models_auth" = "模型與認證";
+"settings.sidebar.experiments" = "實驗";
 "settings.sidebar.isolated" = "pi-work 使用獨立設定，不會修改終端機中的 pi。";
+"settings.experiments.title" = "實驗";
+"settings.experiments.subtitle" = "預覽仍在開發中的功能";
+"settings.experiments.computer_use.title" = "Computer Use";
+"settings.experiments.computer_use.description" = "允許 Agent 與 Mac 上的 App 互動";
+"settings.experiments.coming_soon" = "即將推出";
 "settings.general.title" = "一般";
 "settings.general.subtitle" = "選擇 pi-work 的外觀與顯示語言";
 "settings.general.language.title" = "語言";

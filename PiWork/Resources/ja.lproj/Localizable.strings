@@ -14,7 +14,13 @@
 "settings.sidebar.general" = "一般";
 "settings.sidebar.agent" = "Agent";
 "settings.sidebar.models_auth" = "モデルと認証";
+"settings.sidebar.experiments" = "実験";
 "settings.sidebar.isolated" = "pi-work は独立した設定を使用し、ターミナルの pi を変更しません。";
+"settings.experiments.title" = "実験";
+"settings.experiments.subtitle" = "開発中の機能をプレビューします";
+"settings.experiments.computer_use.title" = "Computer Use";
+"settings.experiments.computer_use.description" = "Agent が Mac 上のアプリを操作できるようにします";
+"settings.experiments.coming_soon" = "近日公開";
 "settings.general.title" = "一般";
 "settings.general.subtitle" = "pi-work の表示と使用言語を選択します";
 "settings.general.language.title" = "言語";
