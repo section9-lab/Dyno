@@ -72,13 +72,15 @@ struct RoundedInteractionButtonStyle: ButtonStyle {
     var cornerRadius: CGFloat = 10
     var isSelected = false
     var baseFill = Color.clear
+    var tracksHover = true
 
     func makeBody(configuration: Configuration) -> some View {
         RoundedInteractionButtonBody(
             configuration: configuration,
             cornerRadius: cornerRadius,
             isSelected: isSelected,
-            baseFill: baseFill
+            baseFill: baseFill,
+            tracksHover: tracksHover
         )
     }
 }
@@ -88,6 +90,7 @@ private struct RoundedInteractionButtonBody: View {
     let cornerRadius: CGFloat
     let isSelected: Bool
     let baseFill: Color
+    let tracksHover: Bool
 
     @State private var isHovering = false
 
@@ -98,7 +101,7 @@ private struct RoundedInteractionButtonBody: View {
         )
     }
 
-    var body: some View {
+    private var styledLabel: some View {
         configuration.label
             .background(
                 adaptiveRoundedShape(cornerRadius: cornerRadius)
@@ -111,6 +114,14 @@ private struct RoundedInteractionButtonBody: View {
             .contentShape(adaptiveRoundedShape(cornerRadius: cornerRadius))
             .scaleEffect(visualState.scale)
             .animation(.easeOut(duration: 0.1), value: visualState)
-            .onHover { isHovering = $0 }
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if tracksHover {
+            styledLabel.onHover { isHovering = $0 }
+        } else {
+            styledLabel
+        }
     }
 }

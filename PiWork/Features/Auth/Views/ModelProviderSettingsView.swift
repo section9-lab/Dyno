@@ -7,11 +7,13 @@ struct AppSettingsView: View {
     @ObservedObject var providerAuthStore: ProviderAuthStore
     @ObservedObject var languageStore: LanguageStore
     @ObservedObject var updateController: AppUpdateController
+    @StateObject private var globalInstructionsStore = GlobalAgentInstructionsStore.applicationDefault()
     @State private var selection = SettingsDestination.general
 
     var body: some View {
         ZStack {
             AppBackgroundGradient()
+                .ignoresSafeArea(.container, edges: .top)
 
             HStack(spacing: 8) {
                 SettingsSidebar(selection: $selection, language: languageStore.language)
@@ -26,6 +28,8 @@ struct AppSettingsView: View {
                         )
                     case .agent:
                         AgentGeneralSettingsView(store: agentSettingsStore)
+                    case .personalPreferences:
+                        GlobalAgentInstructionsSettingsView()
                     case .modelsAndAuthentication:
                         ModelProviderSettingsView(store: providerAuthStore)
                     case .experiments:
@@ -33,19 +37,84 @@ struct AppSettingsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .environmentObject(globalInstructionsStore)
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
-        .frame(minWidth: 820, idealWidth: 900, minHeight: 560, idealHeight: 620)
+        .frame(minWidth: 656, idealWidth: 720, minHeight: 560, idealHeight: 620)
         .background(SettingsWindowChrome())
-        .background(TrafficLightPositioner(offset: CGSize(width: 10, height: 6)))
-        .task { await agentSettingsStore.start() }
+        .task {
+            await agentSettingsStore.start()
+            globalInstructionsStore.load()
+        }
+    }
+}
+
+private struct SettingsWindowChrome: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        SettingsWindowChromeView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? SettingsWindowChromeView)?.configureWindow()
+    }
+}
+
+private final class SettingsWindowChromeView: NSView {
+    private var observers: [NSObjectProtocol] = []
+    private var didApplyInitialWidth = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
+
+        guard let window else { return }
+        observers = [
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didUpdateNotification,
+        ].map { name in
+            NotificationCenter.default.addObserver(
+                forName: name,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.configureWindow()
+            }
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.configureWindow()
+            self?.applyInitialWidth()
+        }
+    }
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    func configureWindow() {
+        guard let window else { return }
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.titlebarSeparatorStyle = .none
+    }
+
+    private func applyInitialWidth() {
+        guard !didApplyInitialWidth, let window else { return }
+        didApplyInitialWidth = true
+
+        var frame = window.frame
+        frame.origin.x += (frame.width - 720) / 2
+        frame.size.width = 720
+        window.setFrame(frame, display: true)
     }
 }
 
 private enum SettingsDestination: String, CaseIterable, Identifiable {
     case general
     case agent
+    case personalPreferences
     case modelsAndAuthentication
     case experiments
 
@@ -57,6 +126,8 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
             return L10n.string("settings.sidebar.general", language: language)
         case .agent:
             return L10n.string("settings.sidebar.agent", language: language)
+        case .personalPreferences:
+            return L10n.string("settings.sidebar.personal_preferences", language: language)
         case .modelsAndAuthentication:
             return L10n.string("settings.sidebar.models_auth", language: language)
         case .experiments:
@@ -68,6 +139,7 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .agent: return "slider.horizontal.3"
+        case .personalPreferences: return "person.text.rectangle"
         case .modelsAndAuthentication: return "key.horizontal"
         case .experiments: return "flask"
         }
@@ -96,7 +168,12 @@ private struct SettingsSidebar: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 7)
 
-            ForEach([SettingsDestination.agent, .modelsAndAuthentication, .experiments]) { destination in
+            ForEach([
+                SettingsDestination.agent,
+                .personalPreferences,
+                .modelsAndAuthentication,
+                .experiments,
+            ]) { destination in
                 settingsButton(destination)
             }
 
@@ -135,6 +212,230 @@ private struct SettingsSidebar: View {
             cornerRadius: 10,
             isSelected: selection == destination
         ))
+    }
+}
+
+private struct GlobalAgentInstructionsSettingsView: View {
+    @EnvironmentObject private var store: GlobalAgentInstructionsStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            pageHeader
+
+            if let errorMessage = store.errorMessage {
+                errorBanner(errorMessage)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                editor
+                Label(
+                    L10n.string("settings.personal_preferences.changes_apply"),
+                    systemImage: "info.circle"
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.string("settings.personal_preferences.title"))
+                .font(.system(size: 20, weight: .semibold))
+            Text(L10n.string("settings.personal_preferences.subtitle"))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 18)
+    }
+
+    private var editor: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AGENTS.md")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(store.fileURL.path.replacingOccurrences(
+                        of: NSHomeDirectory(),
+                        with: "~"
+                    ))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                }
+
+                if store.didSave {
+                    Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.green)
+                    .help(L10n.string("settings.personal_preferences.saved"))
+                }
+
+                Spacer(minLength: 6)
+
+                Button {
+                    store.load()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help(L10n.string("settings.personal_preferences.reload"))
+                .accessibilityLabel(L10n.string("settings.personal_preferences.reload"))
+                .disabled(store.isLoading || store.isSaving || store.hasUnsavedChanges)
+
+                Button(L10n.string("settings.personal_preferences.revert")) {
+                    store.revert()
+                }
+                .disabled(!store.hasUnsavedChanges || store.isSaving)
+
+                Button(L10n.string("settings.personal_preferences.save")) {
+                    store.save()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!store.hasUnsavedChanges || store.isSaving)
+            }
+            .controlSize(.small)
+            .padding(.horizontal, 14)
+            .frame(height: 52)
+
+            Divider()
+                .padding(.leading, 14)
+
+            AlignedPlaceholderTextEditor(
+                text: $store.draft,
+                placeholder: L10n.string("settings.personal_preferences.placeholder")
+            )
+            .background(Color(nsColor: .textBackgroundColor).opacity(0.42))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .settingsCard()
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.system(size: 12))
+                .lineLimit(2)
+                .textSelection(.enabled)
+            Spacer()
+            Button(L10n.string("common.retry")) { store.load() }
+        }
+        .padding(12)
+        .background(
+            adaptiveRoundedShape(cornerRadius: 11)
+                .fill(Color.orange.opacity(0.10))
+        )
+    }
+}
+
+private struct AlignedPlaceholderTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.scrollerStyle = .overlay
+
+        let textView = PlaceholderTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.placeholder = placeholder
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .controlAccentColor
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.usesFindPanel = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.textContainerInset = NSSize(width: 16, height: 14)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.minSize = .zero
+        textView.maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? PlaceholderTextView else { return }
+        context.coordinator.parent = self
+        textView.placeholder = placeholder
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.needsDisplay = true
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: AlignedPlaceholderTextEditor
+
+        init(_ parent: AlignedPlaceholderTextEditor) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? PlaceholderTextView else { return }
+            parent.text = textView.string
+            textView.needsDisplay = true
+        }
+    }
+}
+
+private final class PlaceholderTextView: NSTextView {
+    var placeholder = "" {
+        didSet { needsDisplay = true }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard string.isEmpty, !placeholder.isEmpty else { return }
+
+        let origin = textContainerOrigin
+        let availableWidth = max(0, bounds.width - origin.x - textContainerInset.width)
+        (placeholder as NSString).draw(
+            with: NSRect(
+                x: origin.x,
+                y: origin.y,
+                width: availableWidth,
+                height: bounds.height - origin.y
+            ),
+            options: [.usesLineFragmentOrigin],
+            attributes: [
+                .font: font ?? NSFont.systemFont(ofSize: 13),
+                .foregroundColor: NSColor.placeholderTextColor,
+            ]
+        )
     }
 }
 

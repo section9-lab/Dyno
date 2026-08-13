@@ -113,7 +113,6 @@ struct SidebarView: View {
                 }
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
-                .background(SidebarSelectionFix())
 
             case .work:
                 VStack(spacing: 0) {
@@ -177,7 +176,6 @@ struct SidebarView: View {
                     }
                     .listStyle(.sidebar)
                     .scrollContentBackground(.hidden)
-                    .background(SidebarSelectionFix())
                 }
             }
 
@@ -187,6 +185,12 @@ struct SidebarView: View {
                 .padding(.bottom, 18)
                 .compositingGroup()
                 .frame(maxWidth: .infinity)
+        }
+        .background {
+            if #available(macOS 26.0, *), NativeSidebarBackdropStabilizer.isRequired {
+                NativeSidebarBackdropStabilizer()
+                    .allowsHitTesting(false)
+            }
         }
         .onChange(of: selectedProject?.id) { projectID in
             if projectID != nil { selectedCustomDestination = nil }
@@ -221,12 +225,73 @@ struct SidebarView: View {
     }
 }
 
+@available(macOS 26.0, *)
+private struct NativeSidebarBackdropStabilizer: NSViewRepresentable {
+    static var isRequired: Bool {
+        ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26
+    }
+
+    func makeNSView(context: Context) -> NativeSidebarBackdropAnchor {
+        NativeSidebarBackdropAnchor()
+    }
+
+    func updateNSView(_ nsView: NativeSidebarBackdropAnchor, context: Context) {
+        nsView.stabilizeBackdrop()
+    }
+}
+
+@available(macOS 26.0, *)
+final class NativeSidebarBackdropAnchor: NSView {
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        stabilizeBackdrop()
+        DispatchQueue.main.async { [weak self] in
+            self?.stabilizeBackdrop()
+        }
+    }
+
+    func stabilizeBackdrop() {
+        guard let glass = firstGlassAncestor(),
+              let container = glass.superview,
+              let glassIndex = container.subviews.firstIndex(where: { $0 === glass }),
+              glass.frame.minX > container.bounds.minX else {
+            return
+        }
+
+        let outerBackdrop = container.subviews[..<glassIndex].last { sibling in
+            sibling.frame.isApproximatelyEqual(to: container.bounds)
+        }
+        outerBackdrop?.isHidden = true
+    }
+
+    private func firstGlassAncestor() -> NSGlassEffectView? {
+        var ancestor = superview
+        while let current = ancestor {
+            if let glass = current as? NSGlassEffectView {
+                return glass
+            }
+            ancestor = current.superview
+        }
+        return nil
+    }
+}
+
+private extension NSRect {
+    func isApproximatelyEqual(to other: NSRect) -> Bool {
+        abs(minX - other.minX) < 0.5
+            && abs(minY - other.minY) < 0.5
+            && abs(width - other.width) < 0.5
+            && abs(height - other.height) < 0.5
+    }
+}
+
 // MARK: - Pieces
 
 /// Full-width segmented control at the top of the sidebar. Switches
 /// `selectedTab` between conversation history ("Chat") and the folder
 /// workspace ("Work"), which drives what the `List` below shows.
 private struct SidebarTabHeader: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Binding var selectedTab: SidebarTab
 
     var body: some View {
@@ -235,7 +300,29 @@ private struct SidebarTabHeader: View {
             tab(title: L10n.string("sidebar.work"), tab: .work)
         }
         .padding(3)
-        .background(AppPalette.segmentedTrack)
+        .background {
+            ZStack(alignment: .topLeading) {
+                Capsule()
+                    .fill(AppPalette.segmentedTrack)
+
+                GeometryReader { geometry in
+                    let indicatorWidth = (geometry.size.width - 6) / 2
+
+                    Capsule()
+                        .fill(AppPalette.raisedSurface)
+                        .shadow(color: AppPalette.subtleShadow, radius: 2, y: 1)
+                        .frame(width: indicatorWidth, height: geometry.size.height - 6)
+                        .offset(
+                            x: 3 + CGFloat(selectedTab.rawValue) * indicatorWidth,
+                            y: 3
+                        )
+                        .animation(
+                            accessibilityReduceMotion ? nil : .easeOut(duration: 0.2),
+                            value: selectedTab
+                        )
+                }
+            }
+        }
         .clipShape(Capsule())
     }
 
@@ -251,14 +338,9 @@ private struct SidebarTabHeader: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(isSelected ? AppPalette.raisedSurface : Color.clear)
-                    .shadow(color: isSelected ? AppPalette.subtleShadow : .clear, radius: 2, y: 1)
-            )
             .contentShape(Capsule())
         }
-        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 17))
+        .buttonStyle(.plain)
     }
 }
 
@@ -282,7 +364,13 @@ private struct NavRow: View {
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
         }
-        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 10, isSelected: isSelected))
+        .buttonStyle(
+            RoundedInteractionButtonStyle(
+                cornerRadius: 10,
+                isSelected: isSelected,
+                tracksHover: false
+            )
+        )
         .padding(.horizontal, 4)
         .compositingGroup()
         .listRowInsets(EdgeInsets())
@@ -330,7 +418,13 @@ private struct ChatSessionRow: View {
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
         }
-        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 10, isSelected: isSelected))
+        .buttonStyle(
+            RoundedInteractionButtonStyle(
+                cornerRadius: 10,
+                isSelected: isSelected,
+                tracksHover: false
+            )
+        )
         .padding(.horizontal, 4)
         .compositingGroup()
         .listRowInsets(EdgeInsets())
@@ -356,7 +450,7 @@ private struct FolderRow: View {
                 onToggle()
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "folder")
+                    Image(systemName: isExpanded ? "folder.fill" : "folder")
                         .font(.system(size: 14))
                         .frame(width: 18)
                     Text(project.name)
@@ -462,7 +556,13 @@ private struct WorkSessionRow: View {
             .padding(.trailing, 10)
             .padding(.vertical, 6)
         }
-        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 9, isSelected: isSelected))
+        .buttonStyle(
+            RoundedInteractionButtonStyle(
+                cornerRadius: 9,
+                isSelected: isSelected,
+                tracksHover: false
+            )
+        )
         .padding(.leading, 12)
         .padding(.trailing, 4)
         .compositingGroup()

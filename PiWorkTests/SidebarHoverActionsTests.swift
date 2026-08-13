@@ -3,6 +3,142 @@ import SwiftUI
 @testable import PiWork
 
 final class SidebarHoverActionsTests: XCTestCase {
+    func testSidebarTabSelectionAnimatesOnlyTheIndicatorOffset() throws {
+        let source = try sidebarSource()
+        let header = try XCTUnwrap(
+            source.components(separatedBy: "private struct SidebarTabHeader").last?
+                .components(separatedBy: "private struct NavRow").first
+        )
+
+        XCTAssertTrue(header.contains("GeometryReader"))
+        XCTAssertTrue(header.contains(".offset("))
+        XCTAssertTrue(header.contains("CGFloat(selectedTab.rawValue) * indicatorWidth"))
+        XCTAssertTrue(header.contains(".animation("))
+        XCTAssertTrue(header.contains("value: selectedTab"))
+        XCTAssertTrue(header.contains("selectedTab = tab"))
+        XCTAssertFalse(header.contains("withAnimation("))
+        XCTAssertFalse(header.contains(".matchedGeometryEffect("))
+    }
+
+    func testSidebarTabSelectionRespectsReduceMotion() throws {
+        let source = try sidebarSource()
+        let header = try XCTUnwrap(
+            source.components(separatedBy: "private struct SidebarTabHeader").last?
+                .components(separatedBy: "private struct NavRow").first
+        )
+
+        XCTAssertTrue(header.contains("@Environment(\\.accessibilityReduceMotion)"))
+        XCTAssertTrue(header.contains("accessibilityReduceMotion ? nil"))
+    }
+
+    func testSidebarTabButtonsDoNotDrawASecondInteractionLayer() throws {
+        let source = try sidebarSource()
+        let header = try XCTUnwrap(
+            source.components(separatedBy: "private struct SidebarTabHeader").last?
+                .components(separatedBy: "private struct NavRow").first
+        )
+
+        XCTAssertTrue(header.contains(".buttonStyle(.plain)"))
+        XCTAssertFalse(header.contains("RoundedInteractionButtonStyle"))
+    }
+
+    @MainActor
+    func testNativeSidebarBackdropStabilizerHidesOnlyTheOuterBackdrop() throws {
+        guard #available(macOS 26.0, *) else {
+            throw XCTSkip("The floating glass sidebar is only available on macOS 26 or later")
+        }
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 328, height: 680))
+        let outerBackdrop = NSView(frame: container.bounds)
+        let titlebar = NSView(frame: NSRect(x: 0, y: 628, width: 328, height: 52))
+        let glass = NSGlassEffectView(frame: NSRect(x: 8, y: 8, width: 320, height: 664))
+        let content = NSView(frame: glass.bounds)
+        let anchor = NativeSidebarBackdropAnchor(frame: content.bounds)
+
+        content.addSubview(anchor)
+        glass.contentView = content
+        container.addSubview(titlebar)
+        container.addSubview(outerBackdrop)
+        container.addSubview(glass)
+
+        anchor.stabilizeBackdrop()
+
+        XCTAssertTrue(outerBackdrop.isHidden)
+        XCTAssertFalse(glass.isHidden)
+        XCTAssertFalse(titlebar.isHidden)
+    }
+
+    func testSidebarKeepsTheNativeGlassBackdropVisible() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Sidebar/Views/SidebarView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(source.contains(".background(AppPalette.sidebarSurface.ignoresSafeArea())"))
+        XCTAssertEqual(source.components(separatedBy: ".scrollContentBackground(.hidden)").count - 1, 2)
+    }
+
+    func testSidebarRowsAvoidHoverTrackingDuringSplitViewTransitions() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sidebarSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Sidebar/Views/SidebarView.swift"
+            ),
+            encoding: .utf8
+        )
+        let themeSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Core/UI/AppTheme.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertGreaterThanOrEqual(
+            sidebarSource.components(separatedBy: "tracksHover: false").count - 1,
+            3
+        )
+        XCTAssertTrue(themeSource.contains("var tracksHover = true"))
+        XCTAssertTrue(themeSource.contains("if tracksHover"))
+    }
+
+    func testMainContentUsesAReadableDefaultSidebarWidth() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("NavigationSplitView {"))
+        XCTAssertFalse(source.contains("sidebarVisibility"))
+        XCTAssertTrue(source.contains(".navigationSplitViewColumnWidth(260)"))
+        XCTAssertFalse(source.contains(".navigationSplitViewStyle(.prominentDetail)"))
+        XCTAssertFalse(source.contains(".navigationSplitViewStyle(.balanced)"))
+        XCTAssertFalse(source.contains("TrafficLightPositioner"))
+        XCTAssertFalse(source.contains("WindowTitlebarDragRegion"))
+    }
+
+    func testMainContentDrawsTheDetailSurfaceWithoutChangingTheWindowBacking() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(source.contains(".containerBackground("))
+        XCTAssertEqual(source.components(separatedBy: "AppBackgroundGradient()").count - 1, 1)
+        XCTAssertTrue(source.contains(".background {\n                AppBackgroundGradient()"))
+        XCTAssertFalse(source.contains(".backgroundExtensionEffect()"))
+    }
+
     func testMainWindowDefaultsToSlightlyTallerSize() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -19,7 +155,26 @@ final class SidebarHoverActionsTests: XCTestCase {
         XCTAssertTrue(mainScene.contains(".defaultSize(width: 900, height: 680)"))
     }
 
-    func testSettingsWindowUsesTheMainWindowChromeStyle() throws {
+    func testMainWindowExtendsContentUnderTheNativeTrafficLights() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/PiWorkApp.swift"),
+            encoding: .utf8
+        )
+
+        let mainScene = try XCTUnwrap(
+            source.components(separatedBy: "WindowGroup {").last?
+                .components(separatedBy: "Settings {").first
+        )
+
+        XCTAssertTrue(source.contains("SidebarCommands()"))
+        XCTAssertTrue(mainScene.contains(".windowStyle(.hiddenTitleBar)"))
+        XCTAssertFalse(source.contains(".windowToolbarStyle(.unified(showsTitle: false))"))
+    }
+
+    func testSettingsWindowExtendsContentUnderTheNativeTrafficLights() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -33,37 +188,10 @@ final class SidebarHoverActionsTests: XCTestCase {
         )
 
         XCTAssertTrue(settingsScene.contains(".windowStyle(.hiddenTitleBar)"))
-        XCTAssertTrue(
-            settingsScene.contains(".windowToolbarStyle(.unified(showsTitle: false))")
-        )
+        XCTAssertFalse(settingsScene.contains(".windowToolbarStyle(.unified"))
     }
 
-    func testSettingsGradientExtendsThroughTheTransparentTitlebar() throws {
-        let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let settingsSource = try String(
-            contentsOf: repositoryRoot.appendingPathComponent(
-                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
-            ),
-            encoding: .utf8
-        )
-        let chromeSource = try String(
-            contentsOf: repositoryRoot.appendingPathComponent(
-                "PiWork/Core/UI/TrafficLightPositioner.swift"
-            ),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(settingsSource.contains(".background(SettingsWindowChrome())"))
-        XCTAssertTrue(settingsSource.contains(".ignoresSafeArea(.container, edges: .top)"))
-        XCTAssertTrue(chromeSource.contains("window.styleMask.insert(.fullSizeContentView)"))
-        XCTAssertTrue(chromeSource.contains("window.titlebarAppearsTransparent = true"))
-        XCTAssertTrue(chromeSource.contains("window.titleVisibility = .hidden"))
-        XCTAssertTrue(chromeSource.contains("window.toolbar?.showsBaselineSeparator = false"))
-    }
-
-    func testSettingsTrafficLightsAreInsetFromTheRoundedSidebarCorner() throws {
+    func testSettingsWindowRemovesTheOpaqueNativeTitlebarSurface() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -74,53 +202,69 @@ final class SidebarHoverActionsTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(
-            source.contains(
-                ".background(TrafficLightPositioner(offset: CGSize(width: 10, height: 6)))"
-            )
-        )
+        XCTAssertTrue(source.contains(".background(SettingsWindowChrome())"))
+        XCTAssertTrue(source.contains("window.titlebarAppearsTransparent = true"))
+        XCTAssertTrue(source.contains("window.titleVisibility = .hidden"))
+        XCTAssertTrue(source.contains("window.titlebarSeparatorStyle = .none"))
+        XCTAssertTrue(source.contains("NSWindow.didBecomeKeyNotification"))
+        XCTAssertTrue(source.contains("NSWindow.didUpdateNotification"))
+        XCTAssertTrue(source.contains("DispatchQueue.main.async"))
     }
 
-    func testSettingsChromeReappliesTransparencyAfterWindowLifecycleChanges() throws {
+    func testSettingsWindowIsOneFifthNarrower() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(
             contentsOf: repositoryRoot.appendingPathComponent(
-                "PiWork/Core/UI/TrafficLightPositioner.swift"
+                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
             ),
             encoding: .utf8
         )
-        let implementation = try XCTUnwrap(
-            source.components(separatedBy: "private final class SettingsWindowChromeView").last?
-                .components(separatedBy: "private final class WindowTitlebarDragView").first
-        )
 
-        XCTAssertTrue(implementation.contains("NSWindow.didBecomeKeyNotification"))
-        XCTAssertTrue(implementation.contains("NSWindow.didResizeNotification"))
-        XCTAssertTrue(implementation.contains("NSWindow.didEndLiveResizeNotification"))
-        XCTAssertTrue(implementation.contains("NSWindow.didUpdateNotification"))
-        XCTAssertTrue(implementation.contains("window.toolbar?.isVisible = false"))
-        XCTAssertTrue(implementation.contains("stopObserving()"))
+        XCTAssertTrue(source.contains("minWidth: 656, idealWidth: 720"))
+        XCTAssertFalse(source.contains("minWidth: 820, idealWidth: 900"))
+        XCTAssertTrue(source.contains("guard !didApplyInitialWidth"))
+        XCTAssertTrue(source.contains("frame.size.width = 720"))
+        XCTAssertTrue(source.contains("window.setFrame(frame, display: true)"))
     }
 
-    func testMainWindowTitlebarSupportsDragAndDoubleClickZoom() throws {
+    func testPersonalPreferencesUsesACompactDocumentEditorWithAlignedPlaceholder() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let contentSource = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
+            ),
             encoding: .utf8
         )
-        let chromeSource = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("PiWork/Core/UI/TrafficLightPositioner.swift"),
+        let preferences = try XCTUnwrap(
+            source.components(separatedBy: "private struct GlobalAgentInstructionsSettingsView").last?
+                .components(separatedBy: "private struct ExperimentsSettingsView").first
+        )
+
+        XCTAssertTrue(preferences.contains("AlignedPlaceholderTextEditor("))
+        XCTAssertTrue(preferences.contains(".controlSize(.small)"))
+        XCTAssertFalse(preferences.contains("ZStack(alignment: .topLeading)"))
+        XCTAssertFalse(preferences.contains(".padding(.horizontal, 15)"))
+        XCTAssertEqual(preferences.components(separatedBy: ".settingsCard()").count - 1, 1)
+
+        XCTAssertTrue(source.contains("textContainer?.lineFragmentPadding = 0"))
+        XCTAssertTrue(source.contains("let origin = textContainerOrigin"))
+    }
+
+    func testMainWindowDoesNotInstallAnExtraAppKitBackplane() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/PiWorkApp.swift"),
             encoding: .utf8
         )
 
-        XCTAssertTrue(contentSource.contains("WindowTitlebarDragRegion()"))
-        XCTAssertTrue(chromeSource.contains("event.clickCount == 2"))
-        XCTAssertTrue(chromeSource.contains("window?.zoom(nil)"))
-        XCTAssertTrue(chromeSource.contains("window?.performDrag(with: event)"))
+        XCTAssertFalse(source.contains("WindowBackdropConfigurator"))
+        XCTAssertFalse(source.contains("window.backgroundColor = .windowBackgroundColor"))
     }
 
     func testSettingsPresentationDismissesPopoverBeforeDeferringWindowOpen() {
@@ -269,8 +413,9 @@ final class SidebarHoverActionsTests: XCTestCase {
     func testSidebarTabsKeepRaisedWhiteSelectionIndependentFromGrayRows() throws {
         let source = try sidebarSource()
 
-        XCTAssertTrue(source.contains(".fill(isSelected ? AppPalette.raisedSurface : Color.clear)"))
-        XCTAssertTrue(source.contains("RoundedInteractionButtonStyle(cornerRadius: 17)"))
+        XCTAssertTrue(source.contains(".fill(AppPalette.raisedSurface)"))
+        XCTAssertTrue(source.contains("let indicatorWidth = (geometry.size.width - 6) / 2"))
+        XCTAssertTrue(source.contains(".buttonStyle(.plain)"))
         XCTAssertFalse(
             source.contains(
                 "RoundedInteractionButtonStyle(cornerRadius: 17, isSelected: isSelected)"
@@ -485,7 +630,9 @@ final class SidebarHoverActionsTests: XCTestCase {
                 .components(separatedBy: "private struct WorkSessionRow").first
         )
 
-        XCTAssertTrue(folderRow.contains("Image(systemName: \"folder\")"))
+        XCTAssertTrue(folderRow.contains(
+            "Image(systemName: isExpanded ? \"folder.fill\" : \"folder\")"
+        ))
         XCTAssertTrue(folderRow.contains("onToggle()"))
         XCTAssertFalse(folderRow.contains("onSelect()"))
         XCTAssertFalse(source.contains("onSelectWorkProject"))
@@ -544,37 +691,6 @@ final class SidebarHoverActionsTests: XCTestCase {
 
         XCTAssertTrue(store.projects.isEmpty)
         XCTAssertTrue(FileManager.default.fileExists(atPath: projectFolder.path))
-    }
-
-    func testSidebarToggleStaysInTopControlBand() throws {
-        let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
-            encoding: .utf8
-        )
-
-        XCTAssertFalse(source.contains(".padding(.top, 44)"))
-        XCTAssertTrue(source.contains(".padding(.top, 0)"))
-        XCTAssertFalse(source.contains(".padding(.top, 14)"))
-    }
-
-    func testSidebarToggleUsesFourPointHorizontalInset() throws {
-        let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(
-            source.contains(".padding(.horizontal, 4)\n                    .padding(.top, 0)")
-        )
-        XCTAssertFalse(
-            source.contains(".padding(.horizontal, 8)\n                    .padding(.top, 0)")
-        )
     }
 
     func testApplicationChromeOmitsBetaBadges() throws {

@@ -83,8 +83,27 @@ final class LocalizationTests: XCTestCase {
 
         XCTAssertTrue(source.contains("case experiments"))
         XCTAssertTrue(source.contains("case .experiments: return \"flask\""))
-        XCTAssertTrue(source.contains(".modelsAndAuthentication, .experiments"))
+        XCTAssertTrue(source.contains(".modelsAndAuthentication"))
+        XCTAssertTrue(source.contains(".experiments"))
         XCTAssertTrue(source.contains("ExperimentsSettingsView()"))
+    }
+
+    func testSettingsSidebarIncludesGlobalPersonalPreferencesDestination() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("case personalPreferences"))
+        XCTAssertTrue(source.contains("settings.sidebar.personal_preferences"))
+        XCTAssertTrue(source.contains("GlobalAgentInstructionsSettingsView()"))
+        XCTAssertTrue(source.contains("AlignedPlaceholderTextEditor("))
+        XCTAssertTrue(source.contains("settings.personal_preferences.changes_apply"))
     }
 
     func testComputerUseExperimentIsComingSoonAndCannotBeEnabled() throws {

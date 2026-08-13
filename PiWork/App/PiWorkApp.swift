@@ -19,9 +19,9 @@ struct PiWorkApp: App {
                 .environment(\.locale, languageStore.language.locale)
         }
         .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 900, height: 680)
         .commands {
+            SidebarCommands()
             CommandGroup(after: .appInfo) {
                 Button(L10n.string("update.check")) {
                     Task { await updateController.checkForUpdatesAndPresent() }
@@ -50,7 +50,6 @@ struct PiWorkApp: App {
             }
         }
         .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified(showsTitle: false))
     }
 }
 
