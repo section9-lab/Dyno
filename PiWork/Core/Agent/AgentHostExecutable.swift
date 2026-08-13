@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 enum AgentHostExecutable {
@@ -23,6 +24,13 @@ enum AgentHostExecutable {
     ) -> URL {
         agentDirectoryURL(applicationSupportDirectory: applicationSupportDirectory)
             .appendingPathComponent("auth.json", isDirectory: false)
+    }
+
+    static func globalInstructionsFileURL(
+        applicationSupportDirectory: URL
+    ) -> URL {
+        agentDirectoryURL(applicationSupportDirectory: applicationSupportDirectory)
+            .appendingPathComponent("AGENTS.md", isDirectory: false)
     }
 
     static func agentDirectoryURL(
@@ -55,5 +63,94 @@ enum AgentHostExecutable {
             isDirectory: false
         )
         return fileManager.isExecutableFile(atPath: candidate.path) ? candidate : nil
+    }
+}
+
+struct GlobalAgentInstructionsDocument {
+    let fileURL: URL
+    var fileManager = FileManager.default
+
+    func load() throws -> String {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return "" }
+        return try String(contentsOf: fileURL, encoding: .utf8)
+    }
+
+    func save(_ contents: String) throws {
+        try fileManager.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+}
+
+@MainActor
+final class GlobalAgentInstructionsStore: ObservableObject {
+    @Published var draft = "" {
+        didSet {
+            if draft != oldValue { didSave = false }
+        }
+    }
+    @Published private(set) var isLoading = false
+    @Published private(set) var isSaving = false
+    @Published private(set) var didSave = false
+    @Published private(set) var errorMessage: String?
+
+    private let document: GlobalAgentInstructionsDocument
+    private var loadedContents = ""
+
+    var fileURL: URL { document.fileURL }
+    var hasUnsavedChanges: Bool { draft != loadedContents }
+
+    init(document: GlobalAgentInstructionsDocument) {
+        self.document = document
+    }
+
+    static func applicationDefault() -> GlobalAgentInstructionsStore {
+        let applicationSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        return GlobalAgentInstructionsStore(
+            document: GlobalAgentInstructionsDocument(
+                fileURL: AgentHostExecutable.globalInstructionsFileURL(
+                    applicationSupportDirectory: applicationSupport
+                )
+            )
+        )
+    }
+
+    func load() {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            replaceLoadedContents(try document.load())
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func save() {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try document.save(draft)
+            loadedContents = draft
+            didSave = true
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func replaceLoadedContents(_ contents: String) {
+        loadedContents = contents
+        draft = contents
+        didSave = false
+    }
+
+    func revert() {
+        draft = loadedContents
     }
 }

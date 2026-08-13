@@ -30,6 +30,63 @@ final class AgentHostExecutableTests: XCTestCase {
         XCTAssertFalse(result.path.contains("/.pi/"))
     }
 
+    func testGlobalInstructionsFileLivesInTheIsolatedAgentDirectory() {
+        let applicationSupport = URL(fileURLWithPath: "/Users/test/Library/Application Support")
+
+        let result = AgentHostExecutable.globalInstructionsFileURL(
+            applicationSupportDirectory: applicationSupport
+        )
+
+        XCTAssertEqual(
+            result.path,
+            "/Users/test/Library/Application Support/pi-work/Agent/AGENTS.md"
+        )
+        XCTAssertFalse(result.path.contains("/.pi/"))
+    }
+
+    func testGlobalInstructionsDocumentTreatsAMissingFileAsEmpty() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let fileURL = root.appendingPathComponent("Agent/AGENTS.md")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let document = GlobalAgentInstructionsDocument(fileURL: fileURL)
+
+        XCTAssertEqual(try document.load(), "")
+    }
+
+    func testGlobalInstructionsDocumentCreatesItsDirectoryAndSavesAtomically() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let fileURL = root.appendingPathComponent("Agent/AGENTS.md")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let document = GlobalAgentInstructionsDocument(fileURL: fileURL)
+        let instructions = "# Personal preferences\n\nKeep answers concise.\n"
+
+        try document.save(instructions)
+
+        XCTAssertEqual(try document.load(), instructions)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    @MainActor
+    func testGlobalInstructionsStoreTracksChangesAndCanRevert() {
+        let document = GlobalAgentInstructionsDocument(
+            fileURL: URL(fileURLWithPath: "/tmp/pi-work-tests/AGENTS.md")
+        )
+        let store = GlobalAgentInstructionsStore(document: document)
+
+        store.replaceLoadedContents("Original")
+        XCTAssertFalse(store.hasUnsavedChanges)
+
+        store.draft = "Updated"
+        XCTAssertTrue(store.hasUnsavedChanges)
+
+        store.revert()
+        XCTAssertEqual(store.draft, "Original")
+        XCTAssertFalse(store.hasUnsavedChanges)
+    }
+
     func testBundledHostSharesItsIsolatedAgentDirectoryWithExtensions() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
