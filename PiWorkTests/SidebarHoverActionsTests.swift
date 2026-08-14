@@ -124,6 +124,30 @@ final class SidebarHoverActionsTests: XCTestCase {
         XCTAssertFalse(source.contains("WindowTitlebarDragRegion"))
     }
 
+    func testMainWindowRestoresTitlebarDoubleClickZoom() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/PiWorkApp.swift"),
+            encoding: .utf8
+        )
+        let regionSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Core/UI/WindowTitlebarDragRegion.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(appSource.contains("WindowTitlebarDragRegion()"))
+        XCTAssertTrue(appSource.contains(".frame(height: 52)"))
+        XCTAssertTrue(appSource.contains(".ignoresSafeArea(edges: .top)"))
+        XCTAssertTrue(regionSource.contains("window?.performDrag(with: event)"))
+        XCTAssertTrue(regionSource.contains("window.zoom(nil)"))
+        XCTAssertTrue(regionSource.contains("AppleActionOnDoubleClick"))
+        XCTAssertTrue(regionSource.contains("mouseDownCanMoveWindow"))
+    }
+
     func testMainContentDrawsTheDetailSurfaceWithoutChangingTheWindowBacking() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

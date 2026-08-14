@@ -87,6 +87,14 @@ private struct RootView: View {
         // Applied at the root so onboarding follows the choice too. `nil`
         // means "follow the system", which is the default.
         .preferredColorScheme(themeStore.theme.colorScheme)
+        .overlay(alignment: .top) {
+            // Hidden title bars lose native drag / double-click zoom. Restore
+            // them on the empty top chrome for every root surface.
+            WindowTitlebarDragRegion()
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .ignoresSafeArea(edges: .top)
+        }
         .task {
 #if DEBUG
             let environment = ProcessInfo.processInfo.environment
