@@ -1307,6 +1307,8 @@ final class SessionComposerTests: XCTestCase {
 
         XCTAssertTrue(source.contains("onReachTop:"))
         XCTAssertTrue(source.contains("loadEarlierMessages("))
+        XCTAssertTrue(source.contains("try await sessionStore.loadEarlierMessages("))
+        XCTAssertTrue(source.contains("record.hasEarlierMessages"))
         XCTAssertTrue(source.contains("proxy.scrollTo(anchorID, anchor: .top)"))
         XCTAssertFalse(source.contains("accessibilityIdentifier(\"load-earlier-messages\")"))
     }

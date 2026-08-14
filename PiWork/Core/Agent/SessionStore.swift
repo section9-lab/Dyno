@@ -118,6 +118,9 @@ struct SessionRecord: Equatable, Identifiable {
     var messages: [AgentHostSessionMessage]
     var tools: [SessionToolRecord]
     var transcript: [SessionTranscriptMessage]
+    var historyCursor: String?
+    var historyRevision: String?
+    var hasEarlierMessages: Bool
     var runState: SessionRecordRunState
     var lastSequence: Int
     var activeTurnId: String?
@@ -177,6 +180,9 @@ struct SessionStoreReducer {
             messages: snapshot.messages,
             tools: tools,
             transcript: transcript,
+            historyCursor: snapshot.history?.nextCursor,
+            historyRevision: snapshot.history?.revision,
+            hasEarlierMessages: snapshot.history?.hasMore == true,
             runState: snapshot.state == .running ? .running : .idle,
             lastSequence: snapshot.sequence,
             activeTurnId: snapshot.turnId,
@@ -190,6 +196,27 @@ struct SessionStoreReducer {
             pendingApprovals: snapshot.pendingApprovals,
             errorMessage: nil
         )
+    }
+
+    mutating func prependTranscriptPage(_ page: AgentHostSessionTranscriptPageResult) -> Int {
+        guard var record = records[page.sessionId] else { return 0 }
+        let existingIDs = Set(record.messages.map(\.id))
+        let earlierMessages = page.messages.filter { !existingIDs.contains($0.id) }
+        record.messages = earlierMessages + record.messages
+        record.transcript = Self.makeTranscript(
+            from: record.messages,
+            pendingApprovals: record.pendingApprovals,
+            sessionState: record.runState == .running ? .running : .idle
+        )
+        record.tools = record.transcript.flatMap(\.parts).compactMap { part in
+            guard case .tool(let tool) = part else { return nil }
+            return tool
+        }
+        record.historyCursor = page.nextCursor
+        record.historyRevision = page.revision
+        record.hasEarlierMessages = page.hasMore
+        records[page.sessionId] = record
+        return earlierMessages.count
     }
 
     mutating func submitPrompt(
@@ -1032,6 +1059,7 @@ enum SessionStoreConnectionState: Equatable {
 enum SessionStoreError: Error {
     case sessionNotOpen(String)
     case sessionBusy(String)
+    case historyChanged(String)
 }
 
 enum SessionCachePolicy {
@@ -1072,6 +1100,7 @@ final class SessionStore: ObservableObject {
     private var isStopped = false
     private var selectedSessionIds: Set<String> = []
     private var snapshotRequestsInFlight: Set<String> = []
+    private var historyRequestsInFlight: Set<String> = []
     private var sessionRecency: [String] = []
 
     init(
@@ -1182,6 +1211,28 @@ final class SessionStore: ObservableObject {
         }
         touchSession(sessionId)
         select(sessionId, profile: profile, cwd: cwd)
+    }
+
+    func loadEarlierMessages(sessionId: String) async throws -> Int {
+        guard let record = reducer.records[sessionId] else {
+            throw SessionStoreError.sessionNotOpen(sessionId)
+        }
+        guard record.hasEarlierMessages, let cursor = record.historyCursor else { return 0 }
+        guard historyRequestsInFlight.insert(sessionId).inserted else { return 0 }
+        defer { historyRequestsInFlight.remove(sessionId) }
+
+        let page = try await service.transcriptPage(
+            sessionId: sessionId,
+            cursor: cursor,
+            limit: TranscriptWindow.batchSize,
+            requestID: UUID().uuidString
+        )
+        guard reducer.records[sessionId]?.historyRevision == page.revision else {
+            throw SessionStoreError.historyChanged(sessionId)
+        }
+        let loadedCount = reducer.prependTranscriptPage(page)
+        publishReducerState()
+        return loadedCount
     }
 
     @discardableResult

@@ -112,6 +112,7 @@ writeHostRecord(
       "session.createDraft",
       "session.open",
       "session.snapshot",
+      "session.transcriptPage",
       "session.toolOutput",
       "session.commands",
       "session.rename",
@@ -502,6 +503,31 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
       id: request.id,
       ok: true,
       result: sessionRegistry.snapshot(sessionId),
+    };
+  }
+
+  if (request.method === "session.transcriptPage") {
+    const sessionId = request.params?.sessionId;
+    const cursor = request.params?.cursor;
+    const limit = request.params?.limit;
+    if (
+      typeof sessionId !== "string"
+      || typeof cursor !== "string"
+      || !Number.isSafeInteger(limit)
+      || (limit as number) < 1
+      || (limit as number) > 100
+    ) {
+      throw new Error(
+        "session.transcriptPage requires string sessionId/cursor and an integer limit from 1 to 100",
+      );
+    }
+
+    return {
+      version: PROTOCOL_VERSION,
+      kind: "response",
+      id: request.id,
+      ok: true,
+      result: sessionRegistry.transcriptPage(sessionId, cursor, limit as number),
     };
   }
 

@@ -152,6 +152,46 @@ final class SessionStoreTests: XCTestCase {
         await store.stop()
     }
 
+    func testLoadsEarlierTranscriptPageIntoTheOpenSession() async throws {
+        let host = FakeAgentHost()
+        let latest = makeSessionMessage(id: "message-latest", text: "Latest")
+        let earlier = makeSessionMessage(id: "message-earlier", text: "Earlier")
+        await host.setSnapshot(makeStoreSnapshot(
+            messages: [latest],
+            history: AgentHostSessionHistory(
+                revision: "revision-one",
+                nextCursor: "cursor-one",
+                hasMore: true
+            )
+        ))
+        await host.setTranscriptPage(AgentHostSessionTranscriptPageResult(
+            sessionId: "session-one",
+            messages: [earlier],
+            revision: "revision-one",
+            nextCursor: nil,
+            hasMore: false
+        ))
+        let store = SessionStore(service: host)
+        try await store.openSession(makeSummary(), profile: .chat, sessionDirectory: nil)
+
+        let loadedCount = try await store.loadEarlierMessages(sessionId: "session-one")
+
+        XCTAssertEqual(loadedCount, 1)
+        XCTAssertEqual(
+            store.records["session-one"]?.messages.map(\.id),
+            ["message-earlier", "message-latest"]
+        )
+        XCTAssertEqual(
+            store.records["session-one"]?.transcript.map(\.id),
+            ["message-earlier", "message-latest"]
+        )
+        XCTAssertNil(store.records["session-one"]?.historyCursor)
+        XCTAssertEqual(store.records["session-one"]?.hasEarlierMessages, false)
+        let transcriptPageCount = await host.transcriptPageCount
+        XCTAssertEqual(transcriptPageCount, 1)
+        await store.stop()
+    }
+
     func testLoadsFullToolOutputOnlyWhenRequested() async throws {
         let host = FakeAgentHost()
         await host.setSnapshot(makeStoreSnapshot())
@@ -686,6 +726,13 @@ private actor FakeAgentHost: AgentHostServicing {
     private var sessions: [AgentHostSessionSummary] = []
     private var models: [AgentHostModel] = []
     private var snapshotResult = makeStoreSnapshot()
+    private var transcriptPageResult = AgentHostSessionTranscriptPageResult(
+        sessionId: "session-one",
+        messages: [],
+        revision: "test-revision",
+        nextCursor: nil,
+        hasMore: false
+    )
     private var gitBranchesResult = AgentHostGitBranchesResult.unavailable
     private var shouldEmitRunningBeforeResponse = false
     private var shouldRejectPrompts = false
@@ -695,6 +742,7 @@ private actor FakeAgentHost: AgentHostServicing {
     private(set) var openCount = 0
     private(set) var openSessionRequestIDs: [String] = []
     private(set) var snapshotCount = 0
+    private(set) var transcriptPageCount = 0
     private(set) var promptTexts: [String] = []
     private(set) var promptImages: [[AgentHostPromptImage]] = []
     private(set) var renamedTitles: [String] = []
@@ -729,6 +777,10 @@ private actor FakeAgentHost: AgentHostServicing {
 
     func setSnapshot(_ snapshot: AgentHostSessionSnapshotResult) {
         snapshotResult = snapshot
+    }
+
+    func setTranscriptPage(_ page: AgentHostSessionTranscriptPageResult) {
+        transcriptPageResult = page
     }
 
     func setGitBranches(_ result: AgentHostGitBranchesResult) {
@@ -833,6 +885,16 @@ private actor FakeAgentHost: AgentHostServicing {
     ) async throws -> AgentHostSessionSnapshotResult {
         snapshotCount += 1
         return snapshotResult
+    }
+
+    func transcriptPage(
+        sessionId: String,
+        cursor: String,
+        limit: Int,
+        requestID: String
+    ) async throws -> AgentHostSessionTranscriptPageResult {
+        transcriptPageCount += 1
+        return transcriptPageResult
     }
 
     func toolOutput(
@@ -1065,7 +1127,9 @@ private func makeStoreSnapshot(
     sequence: Int = 0,
     gitBranch: String? = nil,
     accessMode: AgentHostAccessMode = .none,
-    pendingApprovals: [AgentHostApprovalRequest] = []
+    pendingApprovals: [AgentHostApprovalRequest] = [],
+    messages: [AgentHostSessionMessage] = [],
+    history: AgentHostSessionHistory? = nil
 ) -> AgentHostSessionSnapshotResult {
     AgentHostSessionSnapshotResult(
         session: AgentHostSessionDescriptor(
@@ -1074,7 +1138,8 @@ private func makeStoreSnapshot(
             cwd: "/tmp/project",
             title: "New Session"
         ),
-        messages: [],
+        messages: messages,
+        history: history,
         state: .idle,
         sequence: sequence,
         turnId: nil,
@@ -1084,5 +1149,21 @@ private func makeStoreSnapshot(
         availableThinkingLevels: [.off, .low, .medium, .high, .max],
         accessMode: accessMode,
         pendingApprovals: pendingApprovals
+    )
+}
+
+private func makeSessionMessage(id: String, text: String) -> AgentHostSessionMessage {
+    AgentHostSessionMessage(
+        id: id,
+        role: .user,
+        content: [.text(text)],
+        timestamp: "2026-08-09T00:00:00.000Z",
+        provider: nil,
+        model: nil,
+        stopReason: nil,
+        errorMessage: nil,
+        toolCallId: nil,
+        toolName: nil,
+        isError: nil
     )
 }

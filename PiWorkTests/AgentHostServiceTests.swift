@@ -172,6 +172,7 @@ final class AgentHostServiceTests: XCTestCase {
                     "session.setThinkingLevel",
                     "session.snapshot",
                     "session.toolOutput",
+                    "session.transcriptPage",
                     "settings.get",
                     "settings.update"
                 ]
@@ -205,6 +206,7 @@ final class AgentHostServiceTests: XCTestCase {
             "session.createDraft",
             "session.open",
             "session.snapshot",
+            "session.transcriptPage",
             "session.toolOutput",
             "session.commands",
             "session.rename",
@@ -232,6 +234,7 @@ final class AgentHostServiceTests: XCTestCase {
             #"{"version":1,"kind":"response","id":"create-one","ok":true,"result":{"session":{"id":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project","title":"New Session","firstMessage":"","messageCount":0,"createdAt":"2026-08-09T00:00:00.000Z","modifiedAt":"2026-08-09T00:00:00.000Z"}}}"#,
             #"{"version":1,"kind":"response","id":"open-one","ok":true,"result":{"sessionId":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project"}}"#,
             #"{"version":1,"kind":"response","id":"snapshot-one","ok":true,"result":{"session":{"id":"session-one","path":"/tmp/session.jsonl","cwd":"/tmp/project","title":"New Session"},"messages":[],"state":"idle","sequence":0,"turnId":null,"model":null,"thinkingLevel":"high","availableThinkingLevels":["off","low","medium","high","max"],"modelOptions":{"fastMode":{"supported":false,"enabled":false},"oneMillionContext":{"supported":false,"enabled":false}},"accessMode":"ask","pendingApprovals":[]}}"#,
+            #"{"version":1,"kind":"response","id":"history-one","ok":true,"result":{"sessionId":"session-one","messages":[],"revision":"revision-one","nextCursor":null,"hasMore":false}}"#,
             #"{"version":1,"kind":"response","id":"rename-one","ok":true,"result":{"sessionId":"session-one","title":"Renamed"}}"#,
             #"{"version":1,"kind":"response","id":"set-branch-one","ok":true,"result":{"sessionId":"session-one","branch":"feature"}}"#,
             #"{"version":1,"kind":"response","id":"set-model-one","ok":true,"result":{"sessionId":"session-one","model":{"provider":"openai","id":"gpt-test","name":"GPT Test","contextWindow":128000,"maxTokens":16384,"reasoning":true,"supportsImages":true,"supportsFastMode":false},"thinkingLevel":"high","availableThinkingLevels":["off","low","medium","high","max"],"modelOptions":{"fastMode":{"supported":true,"enabled":false},"oneMillionContext":{"supported":false,"enabled":false}}}}"#,
@@ -280,6 +283,12 @@ final class AgentHostServiceTests: XCTestCase {
         let snapshot = try await service.snapshot(
             sessionId: "session-one",
             requestID: "snapshot-one"
+        )
+        let historyPage = try await service.transcriptPage(
+            sessionId: "session-one",
+            cursor: "cursor-one",
+            limit: 40,
+            requestID: "history-one"
         )
         let renamed = try await service.renameSession(
             sessionId: "session-one",
@@ -346,6 +355,7 @@ final class AgentHostServiceTests: XCTestCase {
         XCTAssertEqual(draft.id, "session-one")
         XCTAssertEqual(opened.sessionId, "session-one")
         XCTAssertEqual(snapshot.sequence, 0)
+        XCTAssertEqual(historyPage.revision, "revision-one")
         XCTAssertEqual(renamed.title, "Renamed")
         XCTAssertEqual(selectedBranch.branch, "feature")
         XCTAssertEqual(selectedModel.model.id, "gpt-test")
@@ -370,6 +380,7 @@ final class AgentHostServiceTests: XCTestCase {
                 "session.createDraft",
                 "session.open",
                 "session.snapshot",
+                "session.transcriptPage",
                 "session.rename",
                 "session.setGitBranch",
                 "session.setModel",
@@ -392,31 +403,39 @@ final class AgentHostServiceTests: XCTestCase {
             "chat"
         )
         XCTAssertEqual(
-            (requests[7]["params"] as? [String: Any])?["branch"] as? String,
+            (requests[6]["params"] as? [String: Any])?["cursor"] as? String,
+            "cursor-one"
+        )
+        XCTAssertEqual(
+            (requests[6]["params"] as? [String: Any])?["limit"] as? Int,
+            40
+        )
+        XCTAssertEqual(
+            (requests[8]["params"] as? [String: Any])?["branch"] as? String,
             "feature"
         )
         XCTAssertEqual(
-            (requests[9]["params"] as? [String: Any])?["thinkingLevel"] as? String,
+            (requests[10]["params"] as? [String: Any])?["thinkingLevel"] as? String,
             "max"
         )
         XCTAssertEqual(
-            (requests[10]["params"] as? [String: Any])?["option"] as? String,
+            (requests[11]["params"] as? [String: Any])?["option"] as? String,
             "fastMode"
         )
         XCTAssertEqual(
-            (requests[11]["params"] as? [String: Any])?["accessMode"] as? String,
+            (requests[12]["params"] as? [String: Any])?["accessMode"] as? String,
             "full"
         )
         XCTAssertEqual(
-            (requests[12]["params"] as? [String: Any])?["decision"] as? String,
+            (requests[13]["params"] as? [String: Any])?["decision"] as? String,
             "allowOnce"
         )
         XCTAssertEqual(
-            (requests[13]["params"] as? [String: Any])?["text"] as? String,
+            (requests[14]["params"] as? [String: Any])?["text"] as? String,
             "Hello"
         )
         XCTAssertEqual(
-            (requests[16]["params"] as? [String: Any])?["cwd"] as? String,
+            (requests[17]["params"] as? [String: Any])?["cwd"] as? String,
             "/tmp/project"
         )
 

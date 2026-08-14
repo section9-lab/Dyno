@@ -137,6 +137,11 @@ export type SessionHandleSnapshot = {
     title: string;
   };
   messages: SessionMessage[];
+  history?: {
+    revision: string;
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
   gitBranch?: string;
   model: SessionModel | null;
   contextUsage?: SessionContextUsage;
@@ -147,6 +152,14 @@ export type SessionHandleSnapshot = {
   pendingApprovals: AccessApprovalRequest[];
 };
 
+export type SessionTranscriptPage = {
+  sessionId: string;
+  messages: SessionMessage[];
+  revision: string;
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
 export type SessionSnapshot = SessionHandleSnapshot & {
   state: "running" | "idle";
   sequence: number;
@@ -155,7 +168,9 @@ export type SessionSnapshot = SessionHandleSnapshot & {
 
 export interface SessionHandle {
   readonly sessionId: string;
-  snapshot(): SessionHandleSnapshot;
+  descriptor(): SessionHandleSnapshot["session"];
+  snapshot(options?: { messageLimit?: number }): SessionHandleSnapshot;
+  transcriptPage(cursor: string, limit: number): SessionTranscriptPage;
   toolOutput(toolCallId: string): string;
   contextUsage(): SessionContextUsage | undefined;
   commands(): SessionSlashCommand[];
@@ -327,11 +342,15 @@ export class SessionRegistry {
   snapshot(sessionId: string): SessionSnapshot {
     const managed = this.requireSession(sessionId);
     return {
-      ...managed.handle.snapshot(),
+      ...managed.handle.snapshot({ messageLimit: 40 }),
       state: managed.activeTurnId ? "running" : "idle",
       sequence: managed.sequence,
       turnId: managed.activeTurnId ?? null,
     };
+  }
+
+  transcriptPage(sessionId: string, cursor: string, limit: number): SessionTranscriptPage {
+    return this.requireSession(sessionId).handle.transcriptPage(cursor, limit);
   }
 
   toolOutput(sessionId: string, toolCallId: string): string {
@@ -339,7 +358,7 @@ export class SessionRegistry {
   }
 
   descriptor(sessionId: string): SessionHandleSnapshot["session"] | undefined {
-    return this.sessions.get(sessionId)?.handle.snapshot().session;
+    return this.sessions.get(sessionId)?.handle.descriptor();
   }
 
   commands(sessionId: string): SessionSlashCommand[] {

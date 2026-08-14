@@ -28,6 +28,8 @@ class ControllableSession implements SessionHandle {
     oneMillionContext: { supported: true, enabled: false },
   };
   readonly approvalResolutions: Array<{ requestId: string; decision: "allowOnce" | "deny" }> = [];
+  readonly snapshotMessageLimits: Array<number | undefined> = [];
+  readonly transcriptPageRequests: Array<{ cursor: string; limit: number }> = [];
   selectedModel = {
     provider: "openai",
     id: "gpt-test",
@@ -66,7 +68,17 @@ class ControllableSession implements SessionHandle {
 
   constructor(readonly sessionId: string) {}
 
-  snapshot() {
+  descriptor() {
+    return {
+      id: this.sessionId,
+      path: `/tmp/${this.sessionId}.jsonl`,
+      cwd: "/tmp/project",
+      title: this.title,
+    };
+  }
+
+  snapshot(options: { messageLimit?: number } = {}) {
+    this.snapshotMessageLimits.push(options.messageLimit);
     return {
       session: {
         id: this.sessionId,
@@ -88,6 +100,17 @@ class ControllableSession implements SessionHandle {
       modelOptions: this.modelOptions,
       accessMode: this.accessMode,
       pendingApprovals: [],
+    };
+  }
+
+  transcriptPage(cursor: string, limit: number) {
+    this.transcriptPageRequests.push({ cursor, limit });
+    return {
+      sessionId: this.sessionId,
+      messages: [],
+      revision: "test-revision",
+      nextCursor: null,
+      hasMore: false,
     };
   }
 
@@ -293,6 +316,36 @@ describe("SessionRegistry", () => {
       accessMode: "ask",
       pendingApprovals: [],
     });
+    expect(session.snapshotMessageLimits).toEqual([40]);
+  });
+
+  test("forwards transcript history page requests to the live session", () => {
+    const session = new ControllableSession("session-one");
+    const registry = new SessionRegistry(() => {});
+    registry.register(session);
+
+    expect(registry.transcriptPage("session-one", "cursor-one", 40)).toEqual({
+      sessionId: "session-one",
+      messages: [],
+      revision: "test-revision",
+      nextCursor: null,
+      hasMore: false,
+    });
+    expect(session.transcriptPageRequests).toEqual([{ cursor: "cursor-one", limit: 40 }]);
+  });
+
+  test("reads a session descriptor without building a message snapshot", () => {
+    const session = new ControllableSession("session-one");
+    const registry = new SessionRegistry(() => {});
+    registry.register(session);
+
+    expect(registry.descriptor("session-one")).toEqual({
+      id: "session-one",
+      path: "/tmp/session-one.jsonl",
+      cwd: "/tmp/project",
+      title: "New Session",
+    });
+    expect(session.snapshotMessageLimits).toHaveLength(0);
   });
 
   test("includes the active turn in a running snapshot", () => {

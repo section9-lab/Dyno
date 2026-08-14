@@ -52,6 +52,12 @@ protocol AgentHostServicing: Actor {
         sessionId: String,
         requestID: String
     ) async throws -> AgentHostSessionSnapshotResult
+    func transcriptPage(
+        sessionId: String,
+        cursor: String,
+        limit: Int,
+        requestID: String
+    ) async throws -> AgentHostSessionTranscriptPageResult
     func toolOutput(
         sessionId: String,
         toolCallId: String,
@@ -213,6 +219,7 @@ actor AgentHostService: AgentHostServicing,
         "session.createDraft",
         "session.open",
         "session.snapshot",
+        "session.transcriptPage",
         "session.toolOutput",
         "session.commands",
         "session.rename",
@@ -703,6 +710,24 @@ actor AgentHostService: AgentHostServicing,
             method: "session.snapshot",
             params: AgentHostSessionIdentifierParameters(sessionId: sessionId),
             as: AgentHostSessionSnapshotResult.self
+        )
+    }
+
+    func transcriptPage(
+        sessionId: String,
+        cursor: String,
+        limit: Int,
+        requestID: String = UUID().uuidString
+    ) async throws -> AgentHostSessionTranscriptPageResult {
+        try await request(
+            id: requestID,
+            method: "session.transcriptPage",
+            params: AgentHostSessionTranscriptPageParameters(
+                sessionId: sessionId,
+                cursor: cursor,
+                limit: limit
+            ),
+            as: AgentHostSessionTranscriptPageResult.self
         )
     }
 

@@ -528,6 +528,160 @@ describe("PiSessionHandle", () => {
     expect(handle.toolOutput("tool-image")).toBe("[image: image/png]");
   });
 
+  test("snapshots return only the most recent transcript page", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      messages: Array.from({ length: 85 }, (_, index) => ({
+        role: "user" as const,
+        content: `Message ${index}`,
+        timestamp: Date.parse("2026-08-09T00:00:00.000Z") + index,
+      })),
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+
+    const snapshot = handle.snapshot({ messageLimit: 40 });
+
+    expect(snapshot.messages).toHaveLength(40);
+    expect(snapshot.messages[0]?.content).toEqual([{ type: "text", text: "Message 45" }]);
+    expect(snapshot.messages.at(-1)?.content).toEqual([{ type: "text", text: "Message 84" }]);
+    expect(snapshot.history).toEqual({
+      revision: expect.any(String),
+      nextCursor: expect.any(String),
+      hasMore: true,
+    });
+  });
+
+  test("loads earlier transcript pages without overlap", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      messages: Array.from({ length: 85 }, (_, index) => ({
+        role: "user" as const,
+        content: `Message ${index}`,
+        timestamp: Date.parse("2026-08-09T00:00:00.000Z") + index,
+      })),
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+    const snapshot = handle.snapshot({ messageLimit: 40 });
+    const history = snapshot.history;
+    if (!history?.nextCursor) throw new Error("Expected a history cursor");
+
+    const previous = handle.transcriptPage(history.nextCursor, 40);
+
+    expect(previous.messages).toHaveLength(40);
+    expect(previous.messages[0]?.content).toEqual([{ type: "text", text: "Message 5" }]);
+    expect(previous.messages.at(-1)?.content).toEqual([{ type: "text", text: "Message 44" }]);
+    expect(previous.hasMore).toBe(true);
+    expect(previous.nextCursor).toEqual(expect.any(String));
+    expect(previous.revision).toBe(history.revision);
+
+    const finalPage = handle.transcriptPage(previous.nextCursor!, 40);
+    expect(finalPage.messages).toHaveLength(5);
+    expect(finalPage.messages[0]?.content).toEqual([{ type: "text", text: "Message 0" }]);
+    expect(finalPage.hasMore).toBe(false);
+    expect(finalPage.nextCursor).toBeNull();
+  });
+
+  test("keeps a tool call and its results in the same transcript page", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      messages: [
+        {
+          role: "user",
+          content: "Inspect the repository",
+          timestamp: Date.parse("2026-08-09T00:00:00.000Z"),
+        },
+        {
+          role: "assistant",
+          content: [{
+            type: "toolCall",
+            id: "tool-one",
+            name: "read",
+            arguments: { path: "README.md" },
+          }],
+          provider: "openai",
+          model: "gpt-test",
+          stopReason: "toolUse",
+          timestamp: Date.parse("2026-08-09T00:00:01.000Z"),
+        },
+        {
+          role: "toolResult",
+          toolCallId: "tool-one",
+          toolName: "read",
+          content: [{ type: "text", text: "Repository contents" }],
+          isError: false,
+          timestamp: Date.parse("2026-08-09T00:00:02.000Z"),
+        },
+      ],
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+
+    const snapshot = handle.snapshot({ messageLimit: 1 });
+
+    expect(snapshot.messages.map((message) => message.role)).toEqual(["assistant", "tool"]);
+    expect(snapshot.history?.hasMore).toBe(true);
+  });
+
+  test("rejects a transcript cursor after the session reloads", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const piSession = makePiSession({
+      messages: Array.from({ length: 2 }, (_, index) => ({
+        role: "user" as const,
+        content: `Message ${index}`,
+        timestamp: Date.parse("2026-08-09T00:00:00.000Z") + index,
+      })),
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+    const cursor = handle.snapshot({ messageLimit: 1 }).history?.nextCursor;
+    if (!cursor) throw new Error("Expected a history cursor");
+
+    await handle.reload();
+
+    expect(() => handle.transcriptPage(cursor, 1)).toThrow("History cursor is stale");
+  });
+
+  test("rejects a transcript cursor after the message boundary changes", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const messages = Array.from({ length: 3 }, (_, index) => ({
+      role: "user" as const,
+      content: `Message ${index}`,
+      timestamp: Date.parse("2026-08-09T00:00:00.000Z") + index,
+    }));
+    const piSession = makePiSession({ messages });
+    const handle = new PiSessionHandle(piSession as never, manager);
+    const cursor = handle.snapshot({ messageLimit: 1 }).history?.nextCursor;
+    if (!cursor) throw new Error("Expected a history cursor");
+
+    messages.shift();
+
+    expect(() => handle.transcriptPage(cursor, 1)).toThrow("History cursor is stale");
+  });
+
+  test("skips hidden custom messages while building transcript pages", () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const firstTimestamp = Date.parse("2026-08-09T00:00:00.000Z");
+    const piSession = makePiSession({
+      messages: [
+        { role: "user", content: "Earlier", timestamp: firstTimestamp },
+        ...Array.from({ length: 5 }, (_, index) => ({
+          role: "custom" as const,
+          content: `Internal ${index}`,
+          display: false,
+          timestamp: firstTimestamp + index + 1,
+        })),
+        { role: "user", content: "Latest", timestamp: firstTimestamp + 6 },
+      ],
+    });
+    const handle = new PiSessionHandle(piSession as never, manager);
+    const cursor = handle.snapshot({ messageLimit: 1 }).history?.nextCursor;
+    if (!cursor) throw new Error("Expected a history cursor");
+
+    const page = handle.transcriptPage(cursor, 1);
+
+    expect(page.messages).toHaveLength(1);
+    expect(page.messages[0]?.content).toEqual([{ type: "text", text: "Earlier" }]);
+    expect(page.hasMore).toBe(false);
+  });
+
   test("builds a normalized snapshot from the live Pi session", () => {
     const manager = SessionManager.inMemory("/tmp/project");
     manager.appendMessage({

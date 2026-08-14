@@ -349,10 +349,32 @@ struct ChatView: View {
         using proxy: ScrollViewProxy
     ) {
         guard let anchorID = messages.first?.id else { return }
-        transcriptMessageLimit += TranscriptWindow.batchSize
-        presentedMessageLimit = transcriptMessageLimit
-        DispatchQueue.main.async {
-            proxy.scrollTo(anchorID, anchor: .top)
+        guard let record = presentedRecord else { return }
+        if transcriptMessageLimit < record.transcript.count {
+            transcriptMessageLimit += TranscriptWindow.batchSize
+            presentedMessageLimit = transcriptMessageLimit
+            DispatchQueue.main.async {
+                proxy.scrollTo(anchorID, anchor: .top)
+            }
+            return
+        }
+        guard record.hasEarlierMessages else { return }
+        let sessionID = record.id
+        Task {
+            do {
+                let loadedCount = try await sessionStore.loadEarlierMessages(
+                    sessionId: sessionID
+                )
+                guard loadedCount > 0, activeSessionId == sessionID else { return }
+                transcriptMessageLimit += TranscriptWindow.batchSize
+                presentedMessageLimit = transcriptMessageLimit
+                DispatchQueue.main.async {
+                    proxy.scrollTo(anchorID, anchor: .top)
+                }
+            } catch {
+                guard activeSessionId == sessionID else { return }
+                actionError = String(describing: error)
+            }
         }
     }
 
@@ -863,7 +885,7 @@ struct ChatView: View {
             messages: AssistantTranscriptPresentation.groupAdjacentTools(
                 in: visibleWindow.messages
             ),
-            hiddenCount: visibleWindow.hiddenCount
+            hiddenCount: visibleWindow.hiddenCount + (record.hasEarlierMessages ? 1 : 0)
         )
     }
 

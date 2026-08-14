@@ -746,6 +746,12 @@ struct AgentHostSessionIdentifierParameters: Encodable, Equatable {
     let sessionId: String
 }
 
+struct AgentHostSessionTranscriptPageParameters: Encodable, Equatable {
+    let sessionId: String
+    let cursor: String
+    let limit: Int
+}
+
 struct AgentHostSessionToolOutputParameters: Encodable, Equatable {
     let sessionId: String
     let toolCallId: String
@@ -1102,9 +1108,24 @@ struct AgentHostSessionMessage: Decodable, Equatable, Identifiable {
     var toolOutputBytes: Int? = nil
 }
 
+struct AgentHostSessionHistory: Decodable, Equatable {
+    let revision: String
+    let nextCursor: String?
+    let hasMore: Bool
+}
+
+struct AgentHostSessionTranscriptPageResult: Decodable, Equatable {
+    let sessionId: String
+    let messages: [AgentHostSessionMessage]
+    let revision: String
+    let nextCursor: String?
+    let hasMore: Bool
+}
+
 struct AgentHostSessionSnapshotResult: Decodable, Equatable {
     let session: AgentHostSessionDescriptor
     let messages: [AgentHostSessionMessage]
+    let history: AgentHostSessionHistory?
     let state: AgentHostSessionRunState
     let sequence: Int
     let turnId: String?
@@ -1120,6 +1141,7 @@ struct AgentHostSessionSnapshotResult: Decodable, Equatable {
     init(
         session: AgentHostSessionDescriptor,
         messages: [AgentHostSessionMessage],
+        history: AgentHostSessionHistory? = nil,
         state: AgentHostSessionRunState,
         sequence: Int,
         turnId: String?,
@@ -1134,6 +1156,7 @@ struct AgentHostSessionSnapshotResult: Decodable, Equatable {
     ) {
         self.session = session
         self.messages = messages
+        self.history = history
         self.state = state
         self.sequence = sequence
         self.turnId = turnId

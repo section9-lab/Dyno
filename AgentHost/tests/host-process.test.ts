@@ -653,6 +653,7 @@ describe("agent host process", () => {
           "session.createDraft",
           "session.open",
           "session.snapshot",
+          "session.transcriptPage",
           "session.toolOutput",
           "session.commands",
           "session.rename",
@@ -1198,6 +1199,99 @@ describe("agent host process", () => {
           turnId: null,
           accessMode: "full",
           pendingApprovals: [],
+        },
+      });
+    } finally {
+      child.stdin.end();
+      await child.exited;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("loads an earlier transcript page for an open Pi session", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pi-work-host-history-page-test-"));
+    const cwd = join(root, "project");
+    const sessionDirectory = join(root, "sessions");
+    mkdirSync(cwd, { recursive: true });
+    const manager = SessionManager.create(cwd, sessionDirectory, { id: "session-history" });
+    const firstTimestamp = Date.parse("2026-08-09T00:00:00.000Z");
+    for (let turn = 0; turn < 21; turn += 1) {
+      manager.appendMessage({
+        role: "user",
+        content: `Message ${turn * 2}`,
+        timestamp: firstTimestamp + turn * 2,
+      });
+      if (turn < 20) {
+        appendTestAssistant(manager, `Message ${turn * 2 + 1}`, firstTimestamp + turn * 2 + 1);
+      }
+    }
+    const sessionPath = manager.getSessionFile()!;
+    const child = Bun.spawn({
+      cmd: [process.execPath, "run", join(import.meta.dir, "../src/main.ts")],
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    try {
+      const lines = new JSONLineReader(child.stdout.getReader());
+      await lines.read();
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "open-for-history",
+        method: "session.open",
+        params: { path: sessionPath, sessionDirectory, profile: "work" },
+      })}\n`);
+      await child.stdin.flush();
+      const opened = await lines.read() as {
+        ok: boolean;
+        result: { sessionId: string };
+      };
+      expect(opened).toMatchObject({ ok: true });
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "snapshot-history",
+        method: "session.snapshot",
+        params: { sessionId: opened.result.sessionId },
+      })}\n`);
+      await child.stdin.flush();
+      const snapshot = await lines.read() as {
+        ok: boolean;
+        result: {
+          messages: Array<{ content: unknown }>;
+          history: { nextCursor: string; hasMore: boolean };
+        };
+      };
+      expect(snapshot).toMatchObject({ ok: true });
+      expect(snapshot.result.messages).toHaveLength(40);
+      expect(snapshot.result.history.hasMore).toBe(true);
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "history-page-one",
+        method: "session.transcriptPage",
+        params: {
+          sessionId: opened.result.sessionId,
+          cursor: snapshot.result.history.nextCursor,
+          limit: 40,
+        },
+      })}\n`);
+      await child.stdin.flush();
+
+      expect(await lines.read()).toMatchObject({
+        version: 1,
+        kind: "response",
+        id: "history-page-one",
+        ok: true,
+        result: {
+          sessionId: opened.result.sessionId,
+          messages: [{ content: [{ type: "text", text: "Message 0" }] }],
+          nextCursor: null,
+          hasMore: false,
         },
       });
     } finally {

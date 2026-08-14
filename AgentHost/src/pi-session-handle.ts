@@ -31,6 +31,7 @@ import {
   type SessionSlashCommand,
   type SessionThinkingLevel,
   type SessionThinkingState,
+  type SessionTranscriptPage,
 } from "./session-registry.ts";
 import { normalizeModel, supportsFastMode } from "./model-catalog.ts";
 import {
@@ -69,6 +70,50 @@ const oneMillionContextWindow = 1_050_000;
 const gitBranchEntryType = "pi-work.git-branch";
 const builtInPiToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 const snapshotToolOutputPreviewBytes = 16 * 1024;
+
+function transcriptPageStart(
+  messages: ReadonlyArray<AgentSession["messages"][number]>,
+  end: number,
+  limit: number,
+): number {
+  const visibleLimit = Math.max(1, Math.floor(limit));
+  let visibleCount = 0;
+  let start = end;
+  while (start > 0 && visibleCount < visibleLimit) {
+    start -= 1;
+    const message = messages[start];
+    if (message?.role !== "custom" || message.display) {
+      visibleCount += 1;
+    }
+  }
+  while (start > 0 && messages[start]?.role === "toolResult") {
+    start -= 1;
+  }
+  return start;
+}
+
+function transcriptCursorAnchor(
+  message: AgentSession["messages"][number] | undefined,
+): string | undefined {
+  if (!message) return undefined;
+  return JSON.stringify([
+    message.role,
+    Number.isFinite(message.timestamp) ? message.timestamp : 0,
+    "toolCallId" in message ? message.toolCallId : null,
+  ]);
+}
+
+function encodeTranscriptCursor(
+  revision: string,
+  end: number,
+  messages: ReadonlyArray<AgentSession["messages"][number]>,
+): string {
+  return Buffer.from(JSON.stringify({
+    revision,
+    end,
+    anchor: transcriptCursorAnchor(messages[end]),
+  })).toString("base64url");
+}
 
 function selectedGitBranch(sessionManager: SessionManager): string | undefined {
   const entries = sessionManager.getEntries();
@@ -183,6 +228,7 @@ export async function createPiSessionHandle(
 
 export class PiSessionHandle implements SessionHandle {
   private fastModeEnabled = false;
+  private transcriptRevision = crypto.randomUUID();
 
   constructor(
     private readonly session: PiAgentSession,
@@ -211,31 +257,66 @@ export class PiSessionHandle implements SessionHandle {
     return this.session.sessionId;
   }
 
-  snapshot(): SessionHandleSnapshot {
-    const messages = normalizeAgentMessages(
-      this.sessionId,
-      this.session.messages,
-      { maxToolOutputBytes: snapshotToolOutputPreviewBytes },
-    );
+  descriptor(): SessionHandleSnapshot["session"] {
     const explicitTitle = this.sessionManager.getSessionName()?.trim();
-    const firstUserText = messages.find((message) => message.role === "user")?.content
+    const firstUserIndex = this.session.messages.findIndex((message) => message.role === "user");
+    const firstUserMessage = firstUserIndex < 0
+      ? undefined
+      : normalizeAgentMessages(
+          this.sessionId,
+          [this.session.messages[firstUserIndex]!],
+          { startIndex: firstUserIndex },
+        )[0];
+    const firstUserText = firstUserMessage?.content
       .filter((content): content is Extract<SessionMessageContent, { type: "text" }> => (
         content.type === "text"
       ))
       .map((content) => content.text)
       .join(" ")
       .trim();
+    return {
+      id: this.sessionId,
+      path: this.sessionManager.getSessionFile() ?? "",
+      cwd: this.sessionManager.getCwd(),
+      title: explicitTitle || firstUserText || "New Session",
+    };
+  }
 
+  snapshot(options: { messageLimit?: number } = {}): SessionHandleSnapshot {
+    const messageLimit = options.messageLimit === undefined
+      ? this.session.messages.length
+      : Math.max(1, Math.floor(options.messageLimit));
+    const messageStartIndex = transcriptPageStart(
+      this.session.messages,
+      this.session.messages.length,
+      messageLimit,
+    );
+    const messages = normalizeAgentMessages(
+      this.sessionId,
+      this.session.messages.slice(messageStartIndex),
+      {
+        maxToolOutputBytes: snapshotToolOutputPreviewBytes,
+        startIndex: messageStartIndex,
+      },
+    );
     const contextUsage = this.contextUsage();
     const gitBranch = selectedGitBranch(this.sessionManager);
     return {
-      session: {
-        id: this.sessionId,
-        path: this.sessionManager.getSessionFile() ?? "",
-        cwd: this.sessionManager.getCwd(),
-        title: explicitTitle || firstUserText || "New Session",
-      },
+      session: this.descriptor(),
       messages,
+      ...(options.messageLimit === undefined ? {} : {
+        history: {
+          revision: this.transcriptRevision,
+          nextCursor: messageStartIndex > 0
+            ? encodeTranscriptCursor(
+                this.transcriptRevision,
+                messageStartIndex,
+                this.session.messages,
+              )
+            : null,
+          hasMore: messageStartIndex > 0,
+        },
+      }),
       ...(gitBranch ? { gitBranch } : {}),
       model: this.session.model ? normalizeModel(this.session.model) : null,
       ...(contextUsage ? { contextUsage } : {}),
@@ -244,6 +325,57 @@ export class PiSessionHandle implements SessionHandle {
       modelOptions: this.modelOptions(),
       accessMode: this.accessController.mode,
       pendingApprovals: this.accessController.pendingApprovals(),
+    };
+  }
+
+  transcriptPage(cursor: string, limit: number): SessionTranscriptPage {
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    } catch {
+      throw new SessionRegistryError("invalid_history_cursor", "History cursor is invalid");
+    }
+    if (
+      !decoded
+      || typeof decoded !== "object"
+      || !("revision" in decoded)
+      || decoded.revision !== this.transcriptRevision
+    ) {
+      throw new SessionRegistryError("stale_history_cursor", "History cursor is stale");
+    }
+    const end = "end" in decoded ? decoded.end : undefined;
+    const anchor = "anchor" in decoded ? decoded.anchor : undefined;
+    if (!Number.isSafeInteger(end) || (end as number) <= 0 || (end as number) > this.session.messages.length) {
+      throw new SessionRegistryError("invalid_history_cursor", "History cursor is invalid");
+    }
+    if (
+      typeof anchor !== "string"
+      || anchor !== transcriptCursorAnchor(this.session.messages[end as number])
+    ) {
+      throw new SessionRegistryError("stale_history_cursor", "History cursor is stale");
+    }
+
+    const pageEndIndex = end as number;
+    const pageStartIndex = transcriptPageStart(this.session.messages, pageEndIndex, limit);
+    return {
+      sessionId: this.sessionId,
+      messages: normalizeAgentMessages(
+        this.sessionId,
+        this.session.messages.slice(pageStartIndex, pageEndIndex),
+        {
+          maxToolOutputBytes: snapshotToolOutputPreviewBytes,
+          startIndex: pageStartIndex,
+        },
+      ),
+      revision: this.transcriptRevision,
+      nextCursor: pageStartIndex > 0
+        ? encodeTranscriptCursor(
+            this.transcriptRevision,
+            pageStartIndex,
+            this.session.messages,
+          )
+        : null,
+      hasMore: pageStartIndex > 0,
     };
   }
 
@@ -425,6 +557,7 @@ export class PiSessionHandle implements SessionHandle {
 
   async reload(): Promise<void> {
     await this.session.reload();
+    this.transcriptRevision = crypto.randomUUID();
     this.refreshActiveTools();
   }
 
@@ -463,12 +596,12 @@ export class PiSessionHandle implements SessionHandle {
 export function normalizeAgentMessages(
   sessionId: string,
   messages: ReadonlyArray<AgentSession["messages"][number]>,
-  options: { maxToolOutputBytes?: number } = {},
+  options: { maxToolOutputBytes?: number; startIndex?: number } = {},
 ): SessionMessage[] {
   return messages.flatMap((message, index): SessionMessage[] => {
     const timestampValue = Number.isFinite(message.timestamp) ? message.timestamp : 0;
     const base = {
-      id: `${sessionId}:${timestampValue}:${index}`,
+      id: `${sessionId}:${timestampValue}:${index + (options.startIndex ?? 0)}`,
       timestamp: new Date(timestampValue).toISOString(),
     };
 
