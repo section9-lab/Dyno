@@ -1283,15 +1283,26 @@ final class SessionComposerTests: XCTestCase {
             source.components(separatedBy: ".task(id: sessionPresentationID) {").last?
                 .components(separatedBy: "\n        }").first
         )
-        let loop = try XCTUnwrap(task.range(of: "while presentedMessageLimit"))
+        let windowReady = try XCTUnwrap(
+            task.range(of: "presentedMessageLimit = transcriptMessageLimit")
+        )
         let finalScroll = try XCTUnwrap(
-            task.range(of: "transcriptScrollRequest &+= 1", range: loop.upperBound..<task.endIndex)
+            task.range(
+                of: "transcriptScrollRequest &+= 1",
+                range: windowReady.upperBound..<task.endIndex
+            )
         )
         let reveal = try XCTUnwrap(
-            task.range(of: "isPreparingSessionPresentation = false", range: loop.upperBound..<task.endIndex)
+            task.range(
+                of: "isPreparingSessionPresentation = false",
+                range: windowReady.upperBound..<task.endIndex
+            )
         )
 
         XCTAssertLessThan(finalScroll.lowerBound, reveal.lowerBound)
+        // The window renders in one pass: staged reveal re-parsed the markdown
+        // of every visible message once per batch.
+        XCTAssertFalse(task.contains("while presentedMessageLimit"))
     }
 
     func testTranscriptAutomaticallyLoadsEarlierMessagesNearTop() throws {

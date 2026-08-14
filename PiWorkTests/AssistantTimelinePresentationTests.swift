@@ -29,20 +29,6 @@ final class AssistantTimelinePresentationTests: XCTestCase {
         XCTAssertEqual(window.hiddenCount, 15)
     }
 
-    func testSessionPresentationBuildsRecentWindowAcrossSmallBatches() {
-        var limit = SessionPresentationBatch.initialCount
-
-        XCTAssertLessThan(limit, TranscriptWindow.batchSize)
-        while limit < TranscriptWindow.batchSize {
-            limit = SessionPresentationBatch.nextLimit(
-                current: limit,
-                target: TranscriptWindow.batchSize
-            )
-        }
-
-        XCTAssertEqual(limit, TranscriptWindow.batchSize)
-    }
-
     func testTranscriptProjectionBoundsSourceBeforeBuildingChatMessages() {
         let transcript = (0..<95).map { index in
             SessionTranscriptMessage(

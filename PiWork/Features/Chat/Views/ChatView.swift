@@ -32,7 +32,7 @@ struct ChatView: View {
     @State private var transcriptMessageLimit = TranscriptWindow.batchSize
     @State private var presentedSessionID: String?
     @State private var readySessionPresentationID: String?
-    @State private var presentedMessageLimit = SessionPresentationBatch.initialCount
+    @State private var presentedMessageLimit = TranscriptWindow.batchSize
     @State private var isPreparingSessionPresentation = false
     @State private var loadedToolOutputs: [String: String] = [:]
     @State private var loadingToolOutputIDs: Set<String> = []
@@ -193,7 +193,7 @@ struct ChatView: View {
             actionError = nil
             gitBranches = .unavailable
             transcriptMessageLimit = TranscriptWindow.batchSize
-            presentedMessageLimit = SessionPresentationBatch.initialCount
+            presentedMessageLimit = transcriptMessageLimit
             presentedSessionID = activeSessionId
             loadedToolOutputs.removeAll()
             loadingToolOutputIDs.removeAll()
@@ -202,15 +202,8 @@ struct ChatView: View {
             transcriptScrollRequest &+= 1
             await Task.yield()
 
-            while presentedMessageLimit < transcriptMessageLimit {
-                guard !Task.isCancelled else { return }
-                try? await Task.sleep(nanoseconds: 16_000_000)
-                guard !Task.isCancelled else { return }
-                presentedMessageLimit = SessionPresentationBatch.nextLimit(
-                    current: presentedMessageLimit,
-                    target: transcriptMessageLimit
-                )
-            }
+            // The whole window renders in one pass; a single frame is enough for
+            // layout to settle before pinning the scroll view to the tail.
             try? await Task.sleep(nanoseconds: 16_000_000)
             guard !Task.isCancelled else { return }
             transcriptScrollRequest &+= 1
@@ -2735,6 +2728,36 @@ private let assistantMarkdownTheme = Theme.gitHub
             .markdownMargin(top: 14, bottom: 14)
     }
 
+/// Parsing Markdown happens in `MarkdownContent.init`, so an uncached
+/// `Markdown(text)` re-parses on every body pass — including composer
+/// keystrokes and streaming updates, which rebuild the whole transcript.
+/// Caching by text keeps repeated renders of unchanged messages cheap.
+private enum AssistantMarkdownCache {
+    private static let cache: NSCache<NSString, CachedContent> = {
+        let cache = NSCache<NSString, CachedContent>()
+        cache.countLimit = 400
+        return cache
+    }()
+
+    private final class CachedContent {
+        let content: MarkdownContent
+
+        init(_ content: MarkdownContent) {
+            self.content = content
+        }
+    }
+
+    static func content(for text: String) -> MarkdownContent {
+        let key = text as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached.content
+        }
+        let parsed = MarkdownContent(text)
+        cache.setObject(CachedContent(parsed), forKey: key)
+        return parsed
+    }
+}
+
 private struct ChatMessageRow: View {
     let message: PiChatMessage
     let loadedToolOutputs: [String: String]
@@ -2985,7 +3008,7 @@ private struct ChatMessageRow: View {
         switch block {
         case .text(let id, let text):
             VStack(alignment: .leading, spacing: 4) {
-                Markdown(text)
+                Markdown(AssistantMarkdownCache.content(for: text))
                     .markdownTheme(assistantMarkdownTheme)
                     .textSelection(.enabled)
                 if id == assistantMetadataAnchorID {

@@ -264,14 +264,6 @@ enum TranscriptProjection {
     }
 }
 
-enum SessionPresentationBatch {
-    static let initialCount = 5
-
-    static func nextLimit(current: Int, target: Int) -> Int {
-        min(max(current, 0) + initialCount, max(target, 0))
-    }
-}
-
 enum AssistantTranscriptBlock: Equatable, Identifiable {
     case text(id: String, text: String)
     case thinking(SessionThinkingRecord)
