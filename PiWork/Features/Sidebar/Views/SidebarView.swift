@@ -445,6 +445,17 @@ private struct FolderRow: View {
     @State private var isDeleteConfirmationPresented = false
 
     var body: some View {
+        // NOTE: the padding that makes up the row's visible "pill" highlight
+        // must live *inside* each button's own label, before `.buttonStyle`
+        // is applied, with `.contentShape(Rectangle())` also inside the label
+        // (right after the frame). Appending padding/contentShape *after*
+        // `.buttonStyle` only grows the button's layout box — on macOS this
+        // does not reliably grow the actual click/hit-test region, so the
+        // toggle button would visually occupy the full pill but only its
+        // rendered content (icon/text) would respond to clicks. Keeping
+        // padding+contentShape together, inside the label, guarantees the
+        // whole padded rectangle is genuinely clickable, matching the pill
+        // that `.background` paints around it.
         HStack(spacing: 4) {
             Button {
                 onToggle()
@@ -458,6 +469,8 @@ private struct FolderRow: View {
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
+                .padding(.leading, 4)
+                .padding(.vertical, 7)
                 .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -475,6 +488,8 @@ private struct FolderRow: View {
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Color.primary.opacity(0.62))
                     .frame(width: 22, height: 22)
+                    .padding(.vertical, 7)
+                    .padding(.trailing, 8)
                     .contentShape(Rectangle())
             }
             .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 7))
@@ -487,9 +502,6 @@ private struct FolderRow: View {
             .animation(.easeOut(duration: 0.12), value: showsHoverAction)
         }
         .foregroundStyle(Color.primary.opacity(0.78))
-        .padding(.leading, 4)
-        .padding(.trailing, 8)
-        .padding(.vertical, 7)
         .background(
             adaptiveRoundedShape(cornerRadius: 10)
                 .fill(isSelected ? AppPalette.selectedRowFill : (isHovering ? AppPalette.hoverRowFill : Color.clear))
