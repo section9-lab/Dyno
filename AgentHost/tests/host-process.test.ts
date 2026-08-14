@@ -1156,7 +1156,7 @@ describe("agent host process", () => {
         params: { path: sessionPath, sessionDirectory, profile: "work" },
       })}\n`);
       await child.stdin.flush();
-      await lines.read();
+      expect(await lines.read()).toMatchObject({ ok: true });
 
       child.stdin.write(`${JSON.stringify({
         version: 1,
@@ -1196,7 +1196,7 @@ describe("agent host process", () => {
           state: "idle",
           sequence: 0,
           turnId: null,
-          accessMode: "ask",
+          accessMode: "full",
           pendingApprovals: [],
         },
       });

@@ -1113,7 +1113,7 @@ describe("createPiSessionHandle", () => {
     expect(activeToolSelections).toEqual([[
       "read", "bash", "edit", "write", "web_search", "extension_tool",
     ]]);
-    expect(handle.snapshot().accessMode).toBe("ask");
+    expect(handle.snapshot().accessMode).toBe("full");
     expect(handle.snapshot().pendingApprovals).toEqual([]);
 
     handle.setAccessMode("readOnly");

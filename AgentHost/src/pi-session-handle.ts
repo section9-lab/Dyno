@@ -138,7 +138,7 @@ export async function createPiSessionHandle(
   };
   const accessMode: AccessMode = options.profile === "chat"
     ? "none"
-    : (options.accessMode ?? "ask");
+    : (options.accessMode ?? "full");
   const accessController = new AccessController({
     cwd: options.sessionManager.getCwd(),
     mode: accessMode,
