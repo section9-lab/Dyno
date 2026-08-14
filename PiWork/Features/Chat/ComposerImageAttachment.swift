@@ -304,6 +304,106 @@ enum ComposerImageProcessor {
     }
 }
 
+/// Marks the session composer surface so outside clicks can resign the input.
+final class ComposerSurfaceView: NSView {
+    private static let surfaces = NSHashTable<ComposerSurfaceView>.weakObjects()
+
+    static var activeSurfaces: [ComposerSurfaceView] {
+        surfaces.allObjects
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            Self.surfaces.add(self)
+            ComposerFocusDismissal.installIfNeeded()
+        } else {
+            Self.surfaces.remove(self)
+        }
+    }
+
+    override var isOpaque: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Layout-only marker; never steal clicks from SwiftUI controls.
+        nil
+    }
+
+    func containsClick(in window: NSWindow, location: NSPoint) -> Bool {
+        guard self.window === window, !bounds.isEmpty else { return false }
+        return convert(bounds, to: nil).contains(location)
+    }
+}
+
+/// Resigns the composer text field when the user clicks outside its card.
+/// SwiftUI transcript/sidebar content often never becomes first responder, so
+/// the caret would otherwise stay in the input after clicking messages.
+enum ComposerFocusDismissal {
+    private static var monitor: Any?
+    private static let lock = NSLock()
+
+    static func installIfNeeded() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            resignComposerFocusIfNeeded(for: event)
+            return event
+        }
+    }
+
+    static func resignComposerFocusIfNeeded(for event: NSEvent) {
+        guard let window = event.window else { return }
+        guard let composer = focusedComposerTextView(in: window) else { return }
+
+        // Clicks in another window (popover/settings) should not steal caret state.
+        guard event.window === composer.window else { return }
+
+        let location = event.locationInWindow
+        if ComposerSurfaceView.activeSurfaces.contains(where: {
+            $0.containsClick(in: window, location: location)
+        }) {
+            return
+        }
+
+        if let hit = window.contentView?.hitTest(location), isComposerEditorView(hit) {
+            return
+        }
+
+        window.makeFirstResponder(nil)
+    }
+
+    private static func focusedComposerTextView(in window: NSWindow) -> ComposerTextView? {
+        if let textView = window.firstResponder as? ComposerTextView {
+            return textView
+        }
+        guard let view = window.firstResponder as? NSView else { return nil }
+        var current: NSView? = view
+        while let candidate = current {
+            if let textView = candidate as? ComposerTextView {
+                return textView
+            }
+            current = candidate.superview
+        }
+        return nil
+    }
+
+    private static func isComposerEditorView(_ view: NSView) -> Bool {
+        var current: NSView? = view
+        while let candidate = current {
+            if candidate is ComposerTextView {
+                return true
+            }
+            if let scrollView = candidate as? NSScrollView,
+               scrollView.documentView is ComposerTextView {
+                return true
+            }
+            current = candidate.superview
+        }
+        return false
+    }
+}
+
 final class ComposerTextView: NSTextView {
     var onPasteboard: ((NSPasteboard) -> Bool)?
     var onMarkedTextChange: ((Bool) -> Void)?

@@ -713,7 +713,84 @@ final class SessionComposerTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testComposerResignsFocusWhenClickingOutsideTheSurface() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.animationBehavior = .none
+        let host = NSView(frame: window.contentView!.bounds)
+        host.autoresizingMask = [.width, .height]
+        window.contentView = host
+
+        let surface = ComposerSurfaceView(frame: NSRect(x: 40, y: 40, width: 200, height: 80))
+        host.addSubview(surface)
+
+        XCTAssertTrue(surface.containsClick(in: window, location: NSPoint(x: 100, y: 60)))
+        XCTAssertFalse(surface.containsClick(in: window, location: NSPoint(x: 10, y: 10)))
+
+        let textView = ComposerTextView(frame: NSRect(x: 50, y: 50, width: 120, height: 40))
+        host.addSubview(textView)
+        window.makeFirstResponder(textView)
+        XCTAssertTrue(window.firstResponder === textView)
+
+        let outside = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: 10, y: 10),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        )!
+        ComposerFocusDismissal.resignComposerFocusIfNeeded(for: outside)
+        XCTAssertFalse(window.firstResponder is ComposerTextView)
+
+        window.makeFirstResponder(textView)
+        let inside = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: 100, y: 60),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 1
+        )!
+        ComposerFocusDismissal.resignComposerFocusIfNeeded(for: inside)
+        XCTAssertTrue(window.firstResponder === textView)
+    }
+
+    func testSessionComposerMarksSurfaceForOutsideFocusDismissal() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let chatSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/Views/ChatView.swift"
+            ),
+            encoding: .utf8
+        )
+        let attachmentSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Chat/ComposerImageAttachment.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(chatSource.contains("ComposerSurfaceMarker()"))
+        XCTAssertTrue(attachmentSource.contains("enum ComposerFocusDismissal"))
+        XCTAssertTrue(attachmentSource.contains("makeFirstResponder(nil)"))
+    }
+
     func testComposerTextViewOffersPasteboardToAttachmentHandler() {
+
         let pasteboard = NSPasteboard(name: .init("pi-work-editor-paste-test-\(UUID())"))
         let textView = ComposerTextView()
         var receivedPasteboardName: NSPasteboard.Name?

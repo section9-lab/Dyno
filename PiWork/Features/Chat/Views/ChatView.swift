@@ -1170,6 +1170,10 @@ private struct SessionComposer: View {
         .sheet(item: $previewedImageAttachment) { attachment in
             ComposerImagePreview(data: attachment.data)
         }
+        // Lets outside clicks (transcript/sidebar/title bar) resign the caret.
+        .background {
+            ComposerSurfaceMarker()
+        }
     }
 
     @ViewBuilder
@@ -1397,7 +1401,7 @@ private struct SessionComposer: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
-            .frame(width: geometry.size.width, height: 44)
+            .frame(width: geometry.size.width, height: 38)
             .popover(
                 isPresented: $isProjectPickerPresented,
                 attachmentAnchor: .point(
@@ -1413,7 +1417,7 @@ private struct SessionComposer: View {
                 projectPickerContent
             }
         }
-        .frame(height: 44)
+        .frame(height: 38)
     }
 
     @ViewBuilder
@@ -2158,20 +2162,28 @@ private struct SessionComposer: View {
     private var primaryActionButton: some View {
         switch primaryAction {
         case .none:
-            EmptyView()
+            primaryButton(
+                icon: "arrow.up",
+                accessibilityLabel: L10n.string("chat.send"),
+                isActive: false,
+                action: submitPrompt
+            )
+                .disabled(true)
+                .accessibilityIdentifier("send-session")
         case .send:
             primaryButton(
                 icon: "arrow.up",
                 accessibilityLabel: L10n.string("chat.send"),
+                isActive: canSend,
                 action: submitPrompt
             )
                 .disabled(!canSend)
-                .opacity(canSend ? 1 : 0.35)
                 .accessibilityIdentifier("send-session")
         case .stop:
             primaryButton(
                 icon: "stop.fill",
                 accessibilityLabel: L10n.string("chat.stop"),
+                isActive: true,
                 action: onStop
             )
                 .accessibilityIdentifier("stop-session")
@@ -2192,16 +2204,23 @@ private struct SessionComposer: View {
     private func primaryButton(
         icon: String,
         accessibilityLabel: String,
+        isActive: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: icon == "stop.fill" ? 11 : 17, weight: .medium))
-                .foregroundStyle(AppPalette.raisedSurface)
-                .frame(width: 42, height: 42)
-                .background(Circle().fill(Color.primary.opacity(0.92)))
+                .font(.system(size: icon == "stop.fill" ? 10 : 15, weight: .medium))
+                .foregroundStyle(
+                    isActive ? AppPalette.raisedSurface : Color.secondary.opacity(0.9)
+                )
+                .frame(width: 34, height: 34)
+                .background(
+                    Circle().fill(
+                        isActive ? Color.primary.opacity(0.92) : Color.primary.opacity(0.16)
+                    )
+                )
         }
-        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 21))
+        .buttonStyle(RoundedInteractionButtonStyle(cornerRadius: 17))
         .accessibilityLabel(accessibilityLabel)
     }
 
@@ -2369,6 +2388,14 @@ private struct ModelProviderIcon: View {
             .frame(width: 16, height: 16)
             .accessibilityHidden(true)
     }
+}
+
+private struct ComposerSurfaceMarker: NSViewRepresentable {
+    func makeNSView(context: Context) -> ComposerSurfaceView {
+        ComposerSurfaceView()
+    }
+
+    func updateNSView(_ nsView: ComposerSurfaceView, context: Context) {}
 }
 
 private struct GrowingTextEditor: NSViewRepresentable {
