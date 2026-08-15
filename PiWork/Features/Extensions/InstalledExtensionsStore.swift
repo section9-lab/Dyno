@@ -7,11 +7,13 @@ final class InstalledExtensionsStore: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var activePackageIDs: Set<String> = []
     @Published private(set) var errorMessage: String?
-    @Published private(set) var piWebAccessConfiguration: AgentHostPiWebAccessConfiguration?
-    @Published private(set) var isLoadingPiWebAccessConfiguration = false
+    @Published private(set) var settings: [AgentHostExtensionSettings] = []
+    @Published private(set) var isLoadingSettings = false
+    @Published private(set) var activeSettingsIDs: Set<String> = []
 
     private let service: any InstalledExtensionsServicing
     private var hasLoaded = false
+    private var hasLoadedSettings = false
 
     init(service: any InstalledExtensionsServicing) {
         self.service = service
@@ -82,36 +84,60 @@ final class InstalledExtensionsStore: ObservableObject {
         }
     }
 
-    func loadPiWebAccessConfiguration() async {
-        guard !isLoadingPiWebAccessConfiguration else { return }
-        isLoadingPiWebAccessConfiguration = true
-        defer { isLoadingPiWebAccessConfiguration = false }
+    func loadSettings(force: Bool = false) async {
+        guard !isLoadingSettings, force || !hasLoadedSettings else { return }
+        isLoadingSettings = true
+        defer { isLoadingSettings = false }
         do {
-            piWebAccessConfiguration = try await service.getPiWebAccessConfiguration(
+            settings = try await service.listExtensionSettings(
                 requestID: UUID().uuidString
             )
+            hasLoadedSettings = true
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    func updatePiWebAccessConfiguration(
-        provider: String,
-        workflow: String
-    ) async {
-        guard !isLoadingPiWebAccessConfiguration else { return }
-        isLoadingPiWebAccessConfiguration = true
-        defer { isLoadingPiWebAccessConfiguration = false }
+    @discardableResult
+    func updateSettings(
+        _ extensionSettings: AgentHostExtensionSettings,
+        changes: [AgentHostExtensionSettingChange]
+    ) async -> Bool {
+        guard !changes.isEmpty,
+              activeSettingsIDs.insert(extensionSettings.id).inserted else {
+            return false
+        }
+        defer { activeSettingsIDs.remove(extensionSettings.id) }
         do {
-            piWebAccessConfiguration = try await service.updatePiWebAccessConfiguration(
-                AgentHostPiWebAccessConfiguration(provider: provider, workflow: workflow),
+            let updated = try await service.updateExtensionSettings(
+                source: extensionSettings.source,
+                scope: extensionSettings.scope,
+                changes: changes,
                 requestID: UUID().uuidString
             )
+            if let index = settings.firstIndex(where: { $0.id == updated.id }) {
+                settings[index] = updated
+            } else {
+                settings.append(updated)
+                settings.sort { $0.source.localizedStandardCompare($1.source) == .orderedAscending }
+            }
+            hasLoadedSettings = true
             errorMessage = nil
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
+    }
+
+    func settings(for package: AgentHostInstalledExtensionPackage)
+        -> AgentHostExtensionSettings? {
+        settings.first { $0.id == package.id }
+    }
+
+    func isSavingSettings(for extensionSettings: AgentHostExtensionSettings) -> Bool {
+        activeSettingsIDs.contains(extensionSettings.id)
     }
 
     func isWorking(on package: AgentHostInstalledExtensionPackage) -> Bool {

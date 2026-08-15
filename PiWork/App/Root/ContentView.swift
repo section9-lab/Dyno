@@ -262,6 +262,10 @@ struct ContentView: View {
     ) -> Bool {
         guard sessionStore.records[session.id] != nil else { return false }
         cancelSessionOpening()
+        let performanceTraceID = sessionStore.beginSessionOpenPerformanceTrace(
+            sessionID: session.id,
+            profile: profile
+        )
         do {
             try sessionStore.selectOpenSession(
                 sessionId: session.id,
@@ -271,8 +275,17 @@ struct ContentView: View {
             if let project {
                 workSession.selectSession(session.id, in: project)
             }
+            sessionStore.markSessionOpenPerformanceTrace(
+                performanceTraceID,
+                stage: .cacheHit
+            )
+            sessionStore.markSessionOpenPerformanceTrace(
+                performanceTraceID,
+                stage: .selectionCommitted
+            )
             agentError = nil
         } catch {
+            sessionStore.failSessionOpenPerformanceTrace(performanceTraceID)
             agentError = String(describing: error)
         }
         return true
@@ -284,6 +297,10 @@ struct ContentView: View {
         project: PiProject? = nil
     ) {
         sessionOpenTask?.cancel()
+        let performanceTraceID = sessionStore.beginSessionOpenPerformanceTrace(
+            sessionID: session.id,
+            profile: profile
+        )
         let request = sessionOpeningState.begin(
             SessionOpeningTarget(
                 sessionID: session.id,
@@ -299,16 +316,26 @@ struct ContentView: View {
                     session,
                     profile: profile,
                     sessionDirectory: nil,
-                    selectSession: false
+                    selectSession: false,
+                    performanceTraceID: performanceTraceID
                 )
                 try Task.checkCancellation()
-                guard sessionOpeningState.isCurrent(request) else { return }
+                guard sessionOpeningState.isCurrent(request) else {
+                    sessionStore.cancelSessionOpenPerformanceTrace(performanceTraceID)
+                    return
+                }
                 try commitSessionSelection(for: request.target)
+                sessionStore.markSessionOpenPerformanceTrace(
+                    performanceTraceID,
+                    stage: .selectionCommitted
+                )
                 sessionOpeningState.complete(request)
                 agentError = nil
             } catch is CancellationError {
+                sessionStore.cancelSessionOpenPerformanceTrace(performanceTraceID)
                 return
             } catch {
+                sessionStore.failSessionOpenPerformanceTrace(performanceTraceID)
                 guard sessionOpeningState.complete(request) else { return }
                 agentError = String(describing: error)
             }

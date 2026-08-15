@@ -193,6 +193,23 @@ final class AppUpdateCheckerTests: XCTestCase {
         XCTAssertTrue(settingsSource.contains("AppUpdateSettingsRow"))
     }
 
+    func testAboutPanelIncludesTheBundledPiCodingAgentVersion() throws {
+        let root = repositoryRoot()
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("PiWork/App/PiWorkApp.swift"),
+            encoding: .utf8
+        )
+        let configuration = try String(
+            contentsOf: root.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(appSource.contains("CommandGroup(replacing: .appInfo)"))
+        XCTAssertTrue(appSource.contains("orderFrontStandardAboutPanel"))
+        XCTAssertTrue(appSource.contains("piCodingAgentVersion"))
+        XCTAssertTrue(configuration.contains("PI_CODING_AGENT_VERSION"))
+    }
+
     private func makeChecker(
         statusCode: Int,
         body: String,

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -22,6 +23,11 @@ struct PiWorkApp: App {
         .defaultSize(width: 900, height: 680)
         .commands {
             SidebarCommands()
+            CommandGroup(replacing: .appInfo) {
+                Button(L10n.format("about.menu", applicationName)) {
+                    showAboutPanel()
+                }
+            }
             CommandGroup(after: .appInfo) {
                 Button(L10n.string("update.check")) {
                     Task { await updateController.checkForUpdatesAndPresent() }
@@ -32,10 +38,12 @@ struct PiWorkApp: App {
 
         Settings {
             if let agentSettingsStore = agentRuntime.agentSettingsStore,
-               let providerAuthStore = agentRuntime.providerAuthStore {
+               let providerAuthStore = agentRuntime.providerAuthStore,
+               let installedExtensionsStore = agentRuntime.installedExtensionsStore {
                 AppSettingsView(
                     agentSettingsStore: agentSettingsStore,
                     providerAuthStore: providerAuthStore,
+                    installedExtensionsStore: installedExtensionsStore,
                     languageStore: languageStore,
                     updateController: updateController
                 )
@@ -50,6 +58,21 @@ struct PiWorkApp: App {
             }
         }
         .windowStyle(.hiddenTitleBar)
+    }
+
+    private var applicationName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "PiWork"
+    }
+
+    private func showAboutPanel() {
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [:]
+        if let version = AgentHostExecutable.piCodingAgentVersion() {
+            options[.credits] = NSAttributedString(
+                string: "pi-coding-agent \(version)"
+            )
+        }
+        NSApplication.shared.orderFrontStandardAboutPanel(options: options)
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 }
 

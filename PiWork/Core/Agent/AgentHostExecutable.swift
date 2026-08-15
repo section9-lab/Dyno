@@ -4,6 +4,7 @@ import Foundation
 enum AgentHostExecutable {
     static let filename = "pi-work-agent-host"
     static let bunFilename = "bun"
+    private static let piCodingAgentVersionFilename = "pi-coding-agent-version"
 
     #if arch(arm64)
     private static let currentArchitecture = "arm64"
@@ -17,6 +18,20 @@ enum AgentHostExecutable {
 
     static func bundledBunURL() -> URL? {
         resolveBun(in: Bundle.main.bundleURL, architecture: currentArchitecture)
+    }
+
+    static func piCodingAgentVersion(
+        in appBundleURL: URL = Bundle.main.bundleURL
+    ) -> String? {
+        let fileURL = appBundleURL.appendingPathComponent(
+            "Contents/Helpers/AgentHost/\(piCodingAgentVersionFilename)",
+            isDirectory: false
+        )
+        guard let contents = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            return nil
+        }
+        let version = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+        return version.isEmpty ? nil : version
     }
 
     static func authenticationFileURL(

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct AppSettingsView: View {
     @ObservedObject var agentSettingsStore: AgentSettingsStore
     @ObservedObject var providerAuthStore: ProviderAuthStore
+    @ObservedObject var installedExtensionsStore: InstalledExtensionsStore
     @ObservedObject var languageStore: LanguageStore
     @ObservedObject var updateController: AppUpdateController
     @StateObject private var globalInstructionsStore = GlobalAgentInstructionsStore.applicationDefault()
@@ -28,6 +29,8 @@ struct AppSettingsView: View {
                         )
                     case .agent:
                         AgentGeneralSettingsView(store: agentSettingsStore)
+                    case .extensions:
+                        ExtensionSettingsView(store: installedExtensionsStore)
                     case .personalPreferences:
                         GlobalAgentInstructionsSettingsView()
                     case .modelsAndAuthentication:
@@ -114,6 +117,7 @@ private final class SettingsWindowChromeView: NSView {
 private enum SettingsDestination: String, CaseIterable, Identifiable {
     case general
     case agent
+    case extensions
     case personalPreferences
     case modelsAndAuthentication
     case experiments
@@ -126,6 +130,8 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
             return L10n.string("settings.sidebar.general", language: language)
         case .agent:
             return L10n.string("settings.sidebar.agent", language: language)
+        case .extensions:
+            return L10n.string("settings.sidebar.extensions", language: language)
         case .personalPreferences:
             return L10n.string("settings.sidebar.personal_preferences", language: language)
         case .modelsAndAuthentication:
@@ -139,6 +145,7 @@ private enum SettingsDestination: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .agent: return "slider.horizontal.3"
+        case .extensions: return "puzzlepiece.extension"
         case .personalPreferences: return "person.text.rectangle"
         case .modelsAndAuthentication: return "key.horizontal"
         case .experiments: return "flask"
@@ -170,6 +177,7 @@ private struct SettingsSidebar: View {
 
             ForEach([
                 SettingsDestination.agent,
+                .extensions,
                 .personalPreferences,
                 .modelsAndAuthentication,
                 .experiments,

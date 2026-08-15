@@ -2,6 +2,56 @@ import XCTest
 @testable import PiWork
 
 final class AgentHostProtocolTests: XCTestCase {
+    func testDecodesSchemaDrivenExtensionSettingsWithoutExposingSecrets() throws {
+        let data = Data(#"{"extensions":[{"source":"npm:pi-demo","scope":"user","configurable":true,"fields":[{"path":"/enabled","title":"Enabled","kind":"boolean","value":"true","defaultValue":"true","hasValue":false},{"path":"/token","title":"API token","kind":"secure","hasValue":true},{"path":"/mode","title":"Mode","kind":"choice","value":"safe","hasValue":true,"options":[{"value":"safe","label":"Safe"}]}]}]}"#.utf8)
+
+        let result = try JSONDecoder().decode(
+            AgentHostExtensionSettingsResult.self,
+            from: data
+        )
+
+        XCTAssertEqual(result.extensions.count, 1)
+        XCTAssertEqual(result.extensions[0].id, "user:npm:pi-demo")
+        XCTAssertEqual(result.extensions[0].fields.map(\.kind), [.boolean, .secure, .choice])
+        XCTAssertNil(result.extensions[0].fields[1].value)
+        XCTAssertTrue(result.extensions[0].fields[1].hasValue)
+        XCTAssertEqual(
+            result.extensions[0].fields[2].options,
+            [AgentHostExtensionSettingOption(value: "safe", label: "Safe")]
+        )
+    }
+
+    func testEncodesExtensionSettingChangesAsAPluginScopedPatch() throws {
+        let request = AgentHostRequest(
+            id: "extension-settings-update",
+            method: "extensions.settings.update",
+            params: AgentHostExtensionSettingsUpdateParameters(
+                source: "npm:pi-demo",
+                scope: .user,
+                changes: [
+                    AgentHostExtensionSettingChange(path: "/mode", value: "safe"),
+                    AgentHostExtensionSettingChange(removing: "/token")
+                ]
+            )
+        )
+
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: request.encodedLine().dropLast()) as? [String: Any]
+        )
+        let params = try XCTUnwrap(object["params"] as? [String: Any])
+        let changes = try XCTUnwrap(params["changes"] as? [[String: Any]])
+
+        XCTAssertEqual(params["source"] as? String, "npm:pi-demo")
+        XCTAssertEqual(params["scope"] as? String, "user")
+        XCTAssertEqual(changes.count, 2)
+        XCTAssertEqual(changes[0]["path"] as? String, "/mode")
+        XCTAssertEqual(changes[0]["operation"] as? String, "set")
+        XCTAssertEqual(changes[0]["value"] as? String, "safe")
+        XCTAssertEqual(changes[1]["path"] as? String, "/token")
+        XCTAssertEqual(changes[1]["operation"] as? String, "remove")
+        XCTAssertNil(changes[1]["value"])
+    }
+
     func testDecodesHTMLExportResult() throws {
         let data = Data(#"{"sessionId":"session-one","path":"/Users/test/Downloads/report.html"}"#.utf8)
 

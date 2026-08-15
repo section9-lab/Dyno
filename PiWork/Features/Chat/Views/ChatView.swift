@@ -182,6 +182,12 @@ struct ChatView: View {
                 return
             }
             let presentationID = sessionPresentationID
+            if let activeSessionId {
+                sessionStore.markActiveSessionOpenPerformance(
+                    sessionID: activeSessionId,
+                    stage: .presentationStarted
+                )
+            }
             isPreparingSessionPresentation = true
             await Task.yield()
 
@@ -193,7 +199,7 @@ struct ChatView: View {
             actionError = nil
             gitBranches = .unavailable
             transcriptMessageLimit = TranscriptWindow.batchSize
-            presentedMessageLimit = transcriptMessageLimit
+            presentedMessageLimit = SessionPresentationBatch.initialCount
             presentedSessionID = activeSessionId
             loadedToolOutputs.removeAll()
             loadingToolOutputIDs.removeAll()
@@ -210,6 +216,32 @@ struct ChatView: View {
             await Task.yield()
             readySessionPresentationID = presentationID
             isPreparingSessionPresentation = false
+            if let activeSessionId {
+                sessionStore.markActiveSessionOpenPerformance(
+                    sessionID: activeSessionId,
+                    stage: .presentationReady
+                )
+            }
+
+            while presentedMessageLimit < transcriptMessageLimit {
+                try? await Task.sleep(nanoseconds: 16_000_000)
+                guard !Task.isCancelled else { return }
+                presentedMessageLimit = SessionPresentationBatch.nextLimit(
+                    current: presentedMessageLimit,
+                    target: transcriptMessageLimit
+                )
+                transcriptScrollRequest &+= 1
+                await Task.yield()
+            }
+        }
+        .overlay {
+            if let activeSessionId, !isSessionTransitioning {
+                SessionOpenFirstFrameReporter {
+                    sessionStore.finishActiveSessionOpenPerformance(
+                        sessionID: activeSessionId
+                    )
+                }
+            }
         }
     }
 
@@ -933,6 +965,18 @@ private enum TranscriptLayout {
     static let tailID = "transcript-tail"
     static let historyLoadThreshold: CGFloat = 160
     static let followThreshold: CGFloat = 72
+}
+
+private struct SessionOpenFirstFrameReporter: View {
+    let report: () -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear(perform: report)
+    }
 }
 
 private struct TranscriptBottomPreferenceKey: PreferenceKey {

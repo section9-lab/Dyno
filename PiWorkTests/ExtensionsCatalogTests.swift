@@ -57,10 +57,15 @@ final class ExtensionsCatalogTests: XCTestCase {
         XCTAssertTrue(source.contains("LazyVGrid"))
         XCTAssertTrue(source.contains("struct ExtensionsCatalogCard: View"))
         XCTAssertTrue(source.contains("InstalledExtensionsButton"))
-        XCTAssertTrue(source.contains("InstalledExtensionsPopover"))
+        XCTAssertTrue(source.contains("InstalledExtensionsPanel"))
         XCTAssertTrue(source.contains("await installedStore.install(source: item.packageSource)"))
         XCTAssertTrue(source.contains("Toggle("))
-        XCTAssertTrue(source.contains(".popover(isPresented:"))
+        XCTAssertTrue(source.contains("InWindowFloatingPanel("))
+        XCTAssertTrue(source.contains("CatalogInstalledManagerAnchorKey"))
+        XCTAssertTrue(source.contains(".anchorPreference("))
+        XCTAssertTrue(source.contains("anchorFrame:"))
+        XCTAssertTrue(source.contains("isSelected: isPresented"))
+        XCTAssertFalse(source.contains(".popover(isPresented:"))
         XCTAssertTrue(source.contains("await store.refresh(request)"))
         XCTAssertTrue(source.contains("NSWorkspace.shared.open"))
         XCTAssertTrue(source.contains("L10n.string(\"extensions.source\")"))
@@ -86,7 +91,7 @@ final class ExtensionsCatalogTests: XCTestCase {
         XCTAssertTrue(source.contains("if !package.isRequiredPiWebAccess"))
     }
 
-    func testRequiredPiWebAccessExtensionProvidesAConfigurationEntryPoint() throws {
+    func testExtensionManagementPanelDoesNotContainPluginConfiguration() throws {
         let source = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
@@ -97,13 +102,30 @@ final class ExtensionsCatalogTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("PiWebAccessConfigurationView"))
-        XCTAssertTrue(source.contains("onConfigure: {"))
-        XCTAssertTrue(
-            source.contains(
-                "Label(L10n.string(\"extensions.pi_web_access.configure\"), systemImage: \"slider.horizontal.3\")"
-            )
+        XCTAssertFalse(source.contains("PiWebAccessConfigurationView"))
+        XCTAssertFalse(source.contains("onConfigure:"))
+        XCTAssertFalse(source.contains("extensions.pi_web_access.configure"))
+    }
+
+    func testSettingsWindowHasDedicatedExtensionSettingsDestination() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let settingsSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "PiWork/Features/Auth/Views/ModelProviderSettingsView.swift"
+            ),
+            encoding: .utf8
         )
+        let appSource = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/PiWorkApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(settingsSource.contains("case extensions"))
+        XCTAssertTrue(settingsSource.contains("ExtensionSettingsView(store: installedExtensionsStore)"))
+        XCTAssertTrue(settingsSource.contains(".extensions,"))
+        XCTAssertTrue(appSource.contains("installedExtensionsStore: installedExtensionsStore"))
     }
 
     func testExtensionsCatalogGridAdaptsColumnsToTheAvailableWidth() throws {
@@ -433,6 +455,64 @@ final class ExtensionsCatalogTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testInstalledExtensionsStoreLoadsAndUpdatesGenericSettings() async {
+        let package = AgentHostInstalledExtensionPackage(
+            source: "npm:pi-agent-tools",
+            scope: .user,
+            filtered: false,
+            installedPath: "/tmp/pi-agent-tools",
+            enabled: true
+        )
+        let setting = AgentHostExtensionSettings(
+            source: package.source,
+            scope: package.scope,
+            configurable: true,
+            fields: [
+                AgentHostExtensionSettingField(
+                    path: "/enabled",
+                    title: "Enabled",
+                    description: nil,
+                    kind: .boolean,
+                    value: "true",
+                    defaultValue: "true",
+                    hasValue: false,
+                    options: nil,
+                    group: nil,
+                    required: false,
+                    readOnly: false,
+                    advanced: false
+                )
+            ]
+        )
+        let service = StubInstalledExtensionsService(
+            packages: [package],
+            settings: [setting]
+        )
+        let store = InstalledExtensionsStore(service: service)
+
+        await store.loadSettings()
+        XCTAssertEqual(store.settings, [setting])
+
+        await store.updateSettings(
+            setting,
+            changes: [AgentHostExtensionSettingChange(path: "/enabled", value: "false")]
+        )
+
+        XCTAssertEqual(store.settings[0].fields[0].value, "false")
+        let actions = await service.recordedActions()
+        XCTAssertEqual(
+            actions,
+            [
+                .listSettings,
+                .updateSettings(
+                    setting,
+                    [AgentHostExtensionSettingChange(path: "/enabled", value: "false")]
+                )
+            ]
+        )
+    }
+
     private var packagePageHTML: String {
         #"""
         <html><body><div class="packages-grid">
@@ -495,30 +575,69 @@ private actor StubInstalledExtensionsService: InstalledExtensionsServicing {
         case setEnabled(AgentHostInstalledExtensionPackage, Bool)
         case update(AgentHostInstalledExtensionPackage)
         case remove(AgentHostInstalledExtensionPackage)
+        case listSettings
+        case updateSettings(
+            AgentHostExtensionSettings,
+            [AgentHostExtensionSettingChange]
+        )
     }
 
     private var packages: [AgentHostInstalledExtensionPackage]
+    private var settings: [AgentHostExtensionSettings]
     private var actions: [Action] = []
-    private var piWebAccessConfiguration = AgentHostPiWebAccessConfiguration(
-        provider: "auto",
-        workflow: "auto-summary"
-    )
 
-    init(packages: [AgentHostInstalledExtensionPackage]) {
+    init(
+        packages: [AgentHostInstalledExtensionPackage],
+        settings: [AgentHostExtensionSettings] = []
+    ) {
         self.packages = packages
+        self.settings = settings
     }
 
-    func getPiWebAccessConfiguration(requestID: String)
-        async throws -> AgentHostPiWebAccessConfiguration {
-        piWebAccessConfiguration
+    func listExtensionSettings(requestID: String) async throws
+        -> [AgentHostExtensionSettings] {
+        actions.append(.listSettings)
+        return settings
     }
 
-    func updatePiWebAccessConfiguration(
-        _ configuration: AgentHostPiWebAccessConfiguration,
+    func updateExtensionSettings(
+        source: String,
+        scope: AgentHostExtensionPackageScope,
+        changes: [AgentHostExtensionSettingChange],
         requestID: String
-    ) async throws -> AgentHostPiWebAccessConfiguration {
-        piWebAccessConfiguration = configuration
-        return configuration
+    ) async throws -> AgentHostExtensionSettings {
+        let index = settings.firstIndex {
+            $0.source == source && $0.scope == scope
+        }!
+        let current = settings[index]
+        actions.append(.updateSettings(current, changes))
+        let values = Dictionary(uniqueKeysWithValues: changes.compactMap { change in
+            change.value.map { (change.path, $0) }
+        })
+        let updated = AgentHostExtensionSettings(
+            source: current.source,
+            scope: current.scope,
+            configurable: current.configurable,
+            fields: current.fields.map { field in
+                guard let value = values[field.path] else { return field }
+                return AgentHostExtensionSettingField(
+                    path: field.path,
+                    title: field.title,
+                    description: field.description,
+                    kind: field.kind,
+                    value: field.kind == .secure ? nil : value,
+                    defaultValue: field.defaultValue,
+                    hasValue: true,
+                    options: field.options,
+                    group: field.group,
+                    required: field.required,
+                    readOnly: field.readOnly,
+                    advanced: field.advanced
+                )
+            }
+        )
+        settings[index] = updated
+        return updated
     }
 
     func listInstalledExtensions(requestID: String) async throws

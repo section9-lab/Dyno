@@ -9,6 +9,7 @@
 "common.retry" = "重試";
 
 /* 設定 */
+"about.menu" = "關於 %@";
 "settings.title" = "設定";
 "settings.sidebar.section" = "PI-CODING-AGENT";
 "settings.sidebar.general" = "一般";
@@ -16,7 +17,24 @@
 "settings.sidebar.personal_preferences" = "個人偏好";
 "settings.sidebar.models_auth" = "模型與認證";
 "settings.sidebar.experiments" = "實驗";
+"settings.sidebar.extensions" = "外掛程式";
 "settings.sidebar.isolated" = "pi-work 使用獨立設定，不會修改終端機中的 pi。";
+"settings.extensions.title" = "外掛程式設定";
+"settings.extensions.subtitle" = "依照外掛程式宣告的設定項目配置已安裝的外掛程式";
+"settings.extensions.refresh" = "重新整理外掛程式設定";
+"settings.extensions.loading" = "正在載入外掛程式設定…";
+"settings.extensions.empty" = "尚未安裝外掛程式";
+"settings.extensions.changes_apply" = "只儲存已修改的值；未顯示的設定會保持不變。";
+"settings.extensions.expand" = "展開外掛程式設定";
+"settings.extensions.no_options" = "此外掛程式未宣告可設定項目";
+"settings.extensions.advanced" = "進階";
+"settings.extensions.schema_note" = "欄位由外掛程式的設定 Schema 提供。";
+"settings.extensions.saving" = "正在儲存";
+"settings.extensions.save" = "儲存變更";
+"settings.extensions.reset" = "重設";
+"settings.extensions.clear_secret" = "清除";
+"settings.extensions.secure_configured" = "已設定；輸入新值可取代";
+"settings.extensions.secure_placeholder" = "輸入密鑰";
 "settings.personal_preferences.title" = "個人偏好";
 "settings.personal_preferences.subtitle" = "使用 Markdown 全域指令告訴 pi-work 如何協助你";
 "settings.personal_preferences.file_title" = "pi-work 全域指令";
@@ -482,16 +500,6 @@
 "extensions.installed.project_scope" = "專案";
 "extensions.installed.filtered" = "自訂資源";
 "extensions.unknown_author" = "未知作者";
-"extensions.pi_web_access.configure" = "設定網路存取";
-"extensions.pi_web_access.title" = "網路存取";
-"extensions.pi_web_access.subtitle" = "預設搜尋來源無需設定即可使用。";
-"extensions.pi_web_access.provider" = "搜尋來源";
-"extensions.pi_web_access.provider_auto" = "自動（Exa，無需 API Key）";
-"extensions.pi_web_access.provider_duckduckgo" = "DuckDuckGo（無需 API Key）";
-"extensions.pi_web_access.result_mode" = "結果處理";
-"extensions.pi_web_access.result_mode_summary" = "自動摘要";
-"extensions.pi_web_access.result_mode_raw" = "原始結果";
-"extensions.pi_web_access.privacy_note" = "預設不會啟用遠端託管的網頁解析服務。";
 "extensions.error.unreadable_response" = "pi.dev 傳回無法讀取的內容";
 "extensions.error.catalog_parse" = "無法從 pi.dev 回應中解析擴充功能目錄";
 "extensions.error.invalid_url" = "pi.dev 網址無效";

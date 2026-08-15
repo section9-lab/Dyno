@@ -7,6 +7,7 @@ struct SkillsCatalogView: View {
     @StateObject private var installedSkillsStore = InstalledSkillsStore()
     @State private var query = ""
     @State private var selectedCategory: SkillsCatalogCategory = .all
+    @State private var isInstalledSkillsPresented = false
 
     private var normalizedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -94,6 +95,21 @@ struct SkillsCatalogView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollIndicators(.hidden)
+        .overlayPreferenceValue(CatalogInstalledManagerAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                InWindowFloatingPanel(
+                    isPresented: $isInstalledSkillsPresented,
+                    layout: BoundedFloatingPanelLayout(
+                        idealWidth: 460,
+                        idealMaximumHeight: 520,
+                        inset: 16
+                    ),
+                    anchorFrame: anchor.map { proxy[$0] }
+                ) {
+                    InstalledSkillsPanel(store: installedSkillsStore)
+                }
+            }
+        }
         .onAppear { installedSkillsStore.reload() }
         .task { await store.loadIfNeeded() }
         .task(id: query) { await updateSearch() }
@@ -116,7 +132,10 @@ struct SkillsCatalogView: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 HStack(spacing: 8) {
-                    InstalledSkillsButton(store: installedSkillsStore)
+                    InstalledSkillsButton(
+                        store: installedSkillsStore,
+                        isPresented: $isInstalledSkillsPresented
+                    )
 
                     Button {
                         Task { await store.refresh() }
@@ -429,7 +448,7 @@ struct SkillsCatalogView: View {
 
 private struct InstalledSkillsButton: View {
     @ObservedObject var store: InstalledSkillsStore
-    @State private var isPresented = false
+    @Binding var isPresented: Bool
 
     var body: some View {
         Button {
@@ -456,22 +475,24 @@ private struct InstalledSkillsButton: View {
         .buttonStyle(
             RoundedInteractionButtonStyle(
                 cornerRadius: 10,
+                isSelected: isPresented,
                 baseFill: AppPalette.translucentSurface
             )
         )
+        .anchorPreference(
+            key: CatalogInstalledManagerAnchorKey.self,
+            value: .bounds
+        ) { $0 }
         .help(L10n.string("skills.installed.open_help"))
         .accessibilityLabel(L10n.string("skills.installed.open_accessibility"))
         .accessibilityValue(L10n.format(
             "skills.installed.count_accessibility",
             store.skills.count
         ))
-        .popover(isPresented: $isPresented, arrowEdge: .top) {
-            InstalledSkillsPopover(store: store)
-        }
     }
 }
 
-private struct InstalledSkillsPopover: View {
+private struct InstalledSkillsPanel: View {
     @ObservedObject var store: InstalledSkillsStore
     @State private var pendingRemoval: InstalledSkill?
 
@@ -541,7 +562,7 @@ private struct InstalledSkillsPopover: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
         }
-        .frame(width: 460)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(AppPalette.raisedSurface)
         .alert(item: $pendingRemoval) { skill in
             Alert(
@@ -572,7 +593,7 @@ private struct InstalledSkillsPopover: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 320)
             }
-            .frame(maxWidth: .infinity, minHeight: 170)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 20)
         } else {
             ScrollView {
@@ -595,7 +616,7 @@ private struct InstalledSkillsPopover: View {
                     }
                 }
             }
-            .frame(maxHeight: 380)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

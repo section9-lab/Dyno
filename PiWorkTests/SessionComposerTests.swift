@@ -1346,7 +1346,7 @@ final class SessionComposerTests: XCTestCase {
         XCTAssertFalse(source.contains("let visibleMessages = record.transcript.map"))
     }
 
-    func testSessionPresentationScrollsToNewestMessageBeforeRevealingTranscript() throws {
+    func testSessionPresentationRevealsTheInitialBatchBeforeExpandingTheWindow() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -1360,26 +1360,30 @@ final class SessionComposerTests: XCTestCase {
             source.components(separatedBy: ".task(id: sessionPresentationID) {").last?
                 .components(separatedBy: "\n        }").first
         )
-        let windowReady = try XCTUnwrap(
-            task.range(of: "presentedMessageLimit = transcriptMessageLimit")
+        let initialWindow = try XCTUnwrap(
+            task.range(of: "presentedMessageLimit = SessionPresentationBatch.initialCount")
         )
         let finalScroll = try XCTUnwrap(
             task.range(
                 of: "transcriptScrollRequest &+= 1",
-                range: windowReady.upperBound..<task.endIndex
+                range: initialWindow.upperBound..<task.endIndex
             )
         )
         let reveal = try XCTUnwrap(
             task.range(
                 of: "isPreparingSessionPresentation = false",
-                range: windowReady.upperBound..<task.endIndex
+                range: finalScroll.upperBound..<task.endIndex
+            )
+        )
+        let progressiveExpansion = try XCTUnwrap(
+            task.range(
+                of: "while presentedMessageLimit < transcriptMessageLimit",
+                range: reveal.upperBound..<task.endIndex
             )
         )
 
         XCTAssertLessThan(finalScroll.lowerBound, reveal.lowerBound)
-        // The window renders in one pass: staged reveal re-parsed the markdown
-        // of every visible message once per batch.
-        XCTAssertFalse(task.contains("while presentedMessageLimit"))
+        XCTAssertLessThan(reveal.lowerBound, progressiveExpansion.lowerBound)
     }
 
     func testTranscriptAutomaticallyLoadsEarlierMessagesNearTop() throws {

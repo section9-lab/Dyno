@@ -2,6 +2,14 @@ import XCTest
 @testable import PiWork
 
 final class AssistantTimelinePresentationTests: XCTestCase {
+    func testSessionPresentationGrowsFromACompactFirstFrameToTheRequestedWindow() {
+        XCTAssertEqual(SessionPresentationBatch.initialCount, 4)
+        XCTAssertEqual(SessionPresentationBatch.growthCount, 12)
+        XCTAssertEqual(SessionPresentationBatch.nextLimit(current: 4, target: 40), 16)
+        XCTAssertEqual(SessionPresentationBatch.nextLimit(current: 28, target: 35), 35)
+        XCTAssertEqual(SessionPresentationBatch.nextLimit(current: 40, target: 40), 40)
+    }
+
     func testTranscriptWindowInitiallyKeepsOnlyNewestMessages() {
         let messages = (0..<75).map { index in
             PiChatMessage(id: "message-\(index)", role: .user, text: "Message \(index)")

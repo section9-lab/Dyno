@@ -144,6 +144,30 @@ final class AgentHostExecutableTests: XCTestCase {
         XCTAssertTrue(configuration.contains("cp -R \"$HOST_THEME_ASSETS_SOURCE/.\""))
     }
 
+    func testPiCodingAgentVersionIsReadFromTheBundledHostMetadata() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let appURL = root.appendingPathComponent("PiWork.app", isDirectory: true)
+        let versionURL = appURL.appendingPathComponent(
+            "Contents/Helpers/AgentHost/pi-coding-agent-version",
+            isDirectory: false
+        )
+        try FileManager.default.createDirectory(
+            at: versionURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "0.84.1\n".write(to: versionURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        XCTAssertEqual(AgentHostExecutable.piCodingAgentVersion(in: appURL), "0.84.1")
+    }
+
+    func testPiCodingAgentVersionIsNilWhenBundledMetadataIsMissing() {
+        let appURL = URL(fileURLWithPath: "/missing/PiWork.app", isDirectory: true)
+
+        XCTAssertNil(AgentHostExecutable.piCodingAgentVersion(in: appURL))
+    }
+
     func testResolveFindsOnlyAnExecutableInContentsHelpers() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

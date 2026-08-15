@@ -7,6 +7,7 @@ struct ExtensionsCatalogView: View {
     @Environment(\.locale) private var locale
     @State private var query = ""
     @State private var selectedCategory: PiExtensionCategory = .all
+    @State private var isInstalledExtensionsPresented = false
 
     private var request: ExtensionsCatalogRequest {
         ExtensionsCatalogRequest(query: query)
@@ -54,6 +55,21 @@ struct ExtensionsCatalogView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .scrollIndicators(.hidden)
+        .overlayPreferenceValue(CatalogInstalledManagerAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                InWindowFloatingPanel(
+                    isPresented: $isInstalledExtensionsPresented,
+                    layout: BoundedFloatingPanelLayout(
+                        idealWidth: 420,
+                        idealMaximumHeight: 500,
+                        inset: 16
+                    ),
+                    anchorFrame: anchor.map { proxy[$0] }
+                ) {
+                    InstalledExtensionsPanel(store: installedStore)
+                }
+            }
+        }
         .task(id: request) { await updateCatalog(for: request) }
         .task { await installedStore.load() }
     }
@@ -75,7 +91,10 @@ struct ExtensionsCatalogView: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 HStack(spacing: 8) {
-                    InstalledExtensionsButton(store: installedStore)
+                    InstalledExtensionsButton(
+                        store: installedStore,
+                        isPresented: $isInstalledExtensionsPresented
+                    )
 
                     Button {
                         Task { await store.refresh(request) }
@@ -342,7 +361,7 @@ struct ExtensionsCatalogView: View {
 
 private struct InstalledExtensionsButton: View {
     @ObservedObject var store: InstalledExtensionsStore
-    @State private var isPresented = false
+    @Binding var isPresented: Bool
 
     var body: some View {
         Button {
@@ -371,25 +390,26 @@ private struct InstalledExtensionsButton: View {
         .buttonStyle(
             RoundedInteractionButtonStyle(
                 cornerRadius: 10,
+                isSelected: isPresented,
                 baseFill: AppPalette.translucentSurface
             )
         )
+        .anchorPreference(
+            key: CatalogInstalledManagerAnchorKey.self,
+            value: .bounds
+        ) { $0 }
         .help(L10n.string("extensions.installed.open_help"))
         .accessibilityLabel(L10n.string("extensions.installed.open_accessibility"))
         .accessibilityValue(L10n.format(
             "extensions.installed.count_accessibility",
             store.packages.count
         ))
-        .popover(isPresented: $isPresented, arrowEdge: .top) {
-            InstalledExtensionsPopover(store: store)
-        }
     }
 }
 
-private struct InstalledExtensionsPopover: View {
+private struct InstalledExtensionsPanel: View {
     @ObservedObject var store: InstalledExtensionsStore
     @State private var pendingRemoval: AgentHostInstalledExtensionPackage?
-    @State private var isPiWebAccessConfigurationPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -450,7 +470,7 @@ private struct InstalledExtensionsPopover: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Color.primary.opacity(0.52))
                 }
-                .frame(maxWidth: .infinity, minHeight: 150)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if store.packages.isEmpty {
                 VStack(spacing: 9) {
                     Image(systemName: "shippingbox")
@@ -464,7 +484,7 @@ private struct InstalledExtensionsPopover: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 300)
                 }
-                .frame(maxWidth: .infinity, minHeight: 150)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 20)
             } else {
                 ScrollView {
@@ -479,9 +499,6 @@ private struct InstalledExtensionsPopover: View {
                                     }
                                 },
                                 onUpdate: { Task { await store.update(package) } },
-                                onConfigure: {
-                                    isPiWebAccessConfigurationPresented = true
-                                },
                                 onRemove: { pendingRemoval = package }
                             )
 
@@ -493,7 +510,7 @@ private struct InstalledExtensionsPopover: View {
                         }
                     }
                 }
-                .frame(maxHeight: 330)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             Divider()
@@ -508,7 +525,7 @@ private struct InstalledExtensionsPopover: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
         }
-        .frame(width: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(nsColor: .windowBackgroundColor))
         .alert(item: $pendingRemoval) { package in
             Alert(
@@ -525,9 +542,6 @@ private struct InstalledExtensionsPopover: View {
                 secondaryButton: .cancel(Text(L10n.string("common.cancel")))
             )
         }
-        .sheet(isPresented: $isPiWebAccessConfigurationPresented) {
-            PiWebAccessConfigurationView(store: store)
-        }
     }
 }
 
@@ -536,7 +550,6 @@ private struct InstalledExtensionRow: View {
     let isWorking: Bool
     let onSetEnabled: (Bool) -> Void
     let onUpdate: () -> Void
-    let onConfigure: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
@@ -606,16 +619,7 @@ private struct InstalledExtensionRow: View {
                     .frame(width: 26, height: 26)
             } else {
                 HStack(spacing: 3) {
-                    if package.isRequiredPiWebAccess {
-                        Button(action: onConfigure) {
-                            Label(L10n.string("extensions.pi_web_access.configure"), systemImage: "slider.horizontal.3")
-                                .font(.system(size: 11, weight: .medium))
-                                .padding(.horizontal, 8)
-                                .frame(height: 26)
-                        }
-                        .help(L10n.string("extensions.pi_web_access.configure"))
-                        .accessibilityLabel(L10n.string("extensions.pi_web_access.configure"))
-                    } else if let installedPath = package.installedPath {
+                    if let installedPath = package.installedPath {
                         Button {
                             NSWorkspace.shared.activateFileViewerSelecting([
                                 URL(fileURLWithPath: installedPath)
@@ -652,72 +656,6 @@ private struct InstalledExtensionRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
-    }
-}
-
-private struct PiWebAccessConfigurationView: View {
-    @ObservedObject var store: InstalledExtensionsStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var provider = "auto"
-    @State private var workflow = "auto-summary"
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.string("extensions.pi_web_access.title"))
-                    .font(.system(size: 20, weight: .semibold))
-                Text(L10n.string("extensions.pi_web_access.subtitle"))
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.primary.opacity(0.58))
-            }
-
-            Form {
-                Picker(L10n.string("extensions.pi_web_access.provider"), selection: $provider) {
-                    Text(L10n.string("extensions.pi_web_access.provider_auto"))
-                        .tag("auto")
-                    Text(L10n.string("extensions.pi_web_access.provider_duckduckgo"))
-                        .tag("duckduckgo")
-                }
-
-                Picker(L10n.string("extensions.pi_web_access.result_mode"), selection: $workflow) {
-                    Text(L10n.string("extensions.pi_web_access.result_mode_summary"))
-                        .tag("auto-summary")
-                    Text(L10n.string("extensions.pi_web_access.result_mode_raw"))
-                        .tag("none")
-                }
-            }
-            .formStyle(.grouped)
-
-            HStack {
-                Text(L10n.string("extensions.pi_web_access.privacy_note"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.primary.opacity(0.48))
-
-                Spacer()
-
-                Button(L10n.string("common.cancel")) { dismiss() }
-                Button(L10n.string("common.done")) {
-                    Task {
-                        await store.updatePiWebAccessConfiguration(
-                            provider: provider,
-                            workflow: workflow
-                        )
-                        dismiss()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(store.isLoadingPiWebAccessConfiguration)
-            }
-        }
-        .padding(24)
-        .frame(width: 460)
-        .task {
-            await store.loadPiWebAccessConfiguration()
-            if let configuration = store.piWebAccessConfiguration {
-                provider = configuration.provider
-                workflow = configuration.workflow
-            }
-        }
     }
 }
 

@@ -3,6 +3,42 @@ import XCTest
 
 @MainActor
 final class SessionStoreTests: XCTestCase {
+    func testOpenSessionEmitsEveryStorePerformanceStage() async throws {
+        var events: [SessionOpenPerformanceEvent] = []
+        let tracer = SessionOpenPerformanceTracer(
+            nowNanoseconds: { 1_000_000_000 },
+            sink: { events.append($0) }
+        )
+        let host = FakeAgentHost()
+        let store = SessionStore(service: host, performanceTracer: tracer)
+        let summary = makeSummary()
+        let traceID = store.beginSessionOpenPerformanceTrace(
+            sessionID: summary.id,
+            profile: .work
+        )
+
+        try await store.openSession(
+            summary,
+            profile: .work,
+            sessionDirectory: nil,
+            selectSession: false,
+            performanceTraceID: traceID
+        )
+
+        XCTAssertEqual(events.map(\.stage), [
+            .requested,
+            .hostReady,
+            .openRPCCompleted,
+            .snapshotCompleted,
+            .projectionCompleted,
+            .storePublished,
+            .cacheTrimCompleted
+        ])
+        XCTAssertEqual(events[3].messageCount, 0)
+        XCTAssertEqual(events[4].transcriptCount, 0)
+        await store.stop()
+    }
+
     func testHTMLReportDestinationUsesAUniqueSanitizedDownloadsFilename() throws {
         let downloads = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -172,13 +172,15 @@ protocol AgentSettingsServicing: Actor {
 }
 
 protocol InstalledExtensionsServicing: Actor {
-    func getPiWebAccessConfiguration(
+    func listExtensionSettings(
         requestID: String
-    ) async throws -> AgentHostPiWebAccessConfiguration
-    func updatePiWebAccessConfiguration(
-        _ configuration: AgentHostPiWebAccessConfiguration,
+    ) async throws -> [AgentHostExtensionSettings]
+    func updateExtensionSettings(
+        source: String,
+        scope: AgentHostExtensionPackageScope,
+        changes: [AgentHostExtensionSettingChange],
         requestID: String
-    ) async throws -> AgentHostPiWebAccessConfiguration
+    ) async throws -> AgentHostExtensionSettings
     func listInstalledExtensions(
         requestID: String
     ) async throws -> [AgentHostInstalledExtensionPackage]
@@ -223,6 +225,8 @@ actor AgentHostService: AgentHostServicing,
         "extensions.setEnabled",
         "extensions.update",
         "extensions.remove",
+        "extensions.settings.list",
+        "extensions.settings.update",
         "git.branches",
         "session.createDraft",
         "session.exportHtml",
@@ -515,26 +519,33 @@ actor AgentHostService: AgentHostServicing,
         return result.packages
     }
 
-    func getPiWebAccessConfiguration(
+    func listExtensionSettings(
         requestID: String = UUID().uuidString
-    ) async throws -> AgentHostPiWebAccessConfiguration {
-        try await request(
+    ) async throws -> [AgentHostExtensionSettings] {
+        let result: AgentHostExtensionSettingsResult = try await request(
             id: requestID,
-            method: "extensions.piWebAccess.getConfiguration",
+            method: "extensions.settings.list",
             params: AgentHostEmptyParameters(),
-            as: AgentHostPiWebAccessConfiguration.self
+            as: AgentHostExtensionSettingsResult.self
         )
+        return result.extensions
     }
 
-    func updatePiWebAccessConfiguration(
-        _ configuration: AgentHostPiWebAccessConfiguration,
+    func updateExtensionSettings(
+        source: String,
+        scope: AgentHostExtensionPackageScope,
+        changes: [AgentHostExtensionSettingChange],
         requestID: String = UUID().uuidString
-    ) async throws -> AgentHostPiWebAccessConfiguration {
+    ) async throws -> AgentHostExtensionSettings {
         try await request(
             id: requestID,
-            method: "extensions.piWebAccess.updateConfiguration",
-            params: configuration,
-            as: AgentHostPiWebAccessConfiguration.self
+            method: "extensions.settings.update",
+            params: AgentHostExtensionSettingsUpdateParameters(
+                source: source,
+                scope: scope,
+                changes: changes
+            ),
+            as: AgentHostExtensionSettings.self
         )
     }
 

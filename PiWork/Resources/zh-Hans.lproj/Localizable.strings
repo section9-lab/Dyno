@@ -9,6 +9,7 @@
 "common.retry" = "重试";
 
 /* 设置 */
+"about.menu" = "关于 %@";
 "settings.title" = "设置";
 "settings.sidebar.section" = "PI-CODING-AGENT";
 "settings.sidebar.general" = "通用";
@@ -16,7 +17,24 @@
 "settings.sidebar.personal_preferences" = "个人偏好";
 "settings.sidebar.models_auth" = "模型与认证";
 "settings.sidebar.experiments" = "实验";
+"settings.sidebar.extensions" = "插件";
 "settings.sidebar.isolated" = "pi-work 使用独立配置，不会修改终端中的 pi。";
+"settings.extensions.title" = "插件设置";
+"settings.extensions.subtitle" = "根据插件声明的配置项设置已安装插件";
+"settings.extensions.refresh" = "刷新插件设置";
+"settings.extensions.loading" = "正在载入插件设置…";
+"settings.extensions.empty" = "尚未安装插件";
+"settings.extensions.changes_apply" = "只保存已修改的值；未显示的配置会保持不变。";
+"settings.extensions.expand" = "展开插件设置";
+"settings.extensions.no_options" = "此插件未声明可配置项";
+"settings.extensions.advanced" = "高级";
+"settings.extensions.schema_note" = "字段由插件的配置 Schema 提供。";
+"settings.extensions.saving" = "正在保存";
+"settings.extensions.save" = "保存更改";
+"settings.extensions.reset" = "重置";
+"settings.extensions.clear_secret" = "清除";
+"settings.extensions.secure_configured" = "已配置；输入新值可替换";
+"settings.extensions.secure_placeholder" = "输入密钥";
 "settings.personal_preferences.title" = "个人偏好";
 "settings.personal_preferences.subtitle" = "使用 Markdown 全局指令告诉 pi-work 如何协助你";
 "settings.personal_preferences.file_title" = "pi-work 全局指令";
@@ -482,16 +500,6 @@
 "extensions.installed.project_scope" = "项目";
 "extensions.installed.filtered" = "自定义资源";
 "extensions.unknown_author" = "未知作者";
-"extensions.pi_web_access.configure" = "配置联网访问";
-"extensions.pi_web_access.title" = "联网访问";
-"extensions.pi_web_access.subtitle" = "默认搜索源无需配置即可使用。";
-"extensions.pi_web_access.provider" = "搜索源";
-"extensions.pi_web_access.provider_auto" = "自动（Exa，无需 API Key）";
-"extensions.pi_web_access.provider_duckduckgo" = "DuckDuckGo（无需 API Key）";
-"extensions.pi_web_access.result_mode" = "结果处理";
-"extensions.pi_web_access.result_mode_summary" = "自动摘要";
-"extensions.pi_web_access.result_mode_raw" = "原始结果";
-"extensions.pi_web_access.privacy_note" = "默认不会启用远程托管的网页解析服务。";
 "extensions.error.unreadable_response" = "pi.dev 返回了无法读取的内容";
 "extensions.error.catalog_parse" = "未能从 pi.dev 响应中解析扩展目录";
 "extensions.error.invalid_url" = "pi.dev 地址无效";

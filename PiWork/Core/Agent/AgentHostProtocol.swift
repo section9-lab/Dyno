@@ -662,9 +662,148 @@ struct AgentHostInstalledExtensionsResult: Decodable, Equatable {
     let packages: [AgentHostInstalledExtensionPackage]
 }
 
-struct AgentHostPiWebAccessConfiguration: Codable, Equatable {
-    let provider: String
-    let workflow: String
+enum AgentHostExtensionSettingFieldKind: String, Decodable, Equatable {
+    case boolean
+    case choice
+    case secure
+    case integer
+    case number
+    case text
+    case json
+}
+
+struct AgentHostExtensionSettingOption: Decodable, Equatable {
+    let value: String
+    let label: String
+}
+
+struct AgentHostExtensionSettingField: Decodable, Equatable, Identifiable {
+    let path: String
+    let title: String
+    let description: String?
+    let kind: AgentHostExtensionSettingFieldKind
+    let value: String?
+    let defaultValue: String?
+    let hasValue: Bool
+    let options: [AgentHostExtensionSettingOption]?
+    let group: String?
+    let required: Bool
+    let readOnly: Bool
+    let advanced: Bool
+
+    var id: String { path }
+
+    init(
+        path: String,
+        title: String,
+        description: String?,
+        kind: AgentHostExtensionSettingFieldKind,
+        value: String?,
+        defaultValue: String?,
+        hasValue: Bool,
+        options: [AgentHostExtensionSettingOption]?,
+        group: String?,
+        required: Bool,
+        readOnly: Bool,
+        advanced: Bool
+    ) {
+        self.path = path
+        self.title = title
+        self.description = description
+        self.kind = kind
+        self.value = value
+        self.defaultValue = defaultValue
+        self.hasValue = hasValue
+        self.options = options
+        self.group = group
+        self.required = required
+        self.readOnly = readOnly
+        self.advanced = advanced
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case path
+        case title
+        case description
+        case kind
+        case value
+        case defaultValue
+        case hasValue
+        case options
+        case group
+        case required
+        case readOnly
+        case advanced
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try container.decode(String.self, forKey: .path)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+            ?? Self.fallbackTitle(for: path)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        kind = try container.decode(AgentHostExtensionSettingFieldKind.self, forKey: .kind)
+        value = try container.decodeIfPresent(String.self, forKey: .value)
+        defaultValue = try container.decodeIfPresent(String.self, forKey: .defaultValue)
+        hasValue = try container.decodeIfPresent(Bool.self, forKey: .hasValue) ?? false
+        options = try container.decodeIfPresent(
+            [AgentHostExtensionSettingOption].self,
+            forKey: .options
+        )
+        group = try container.decodeIfPresent(String.self, forKey: .group)
+        required = try container.decodeIfPresent(Bool.self, forKey: .required) ?? false
+        readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
+        advanced = try container.decodeIfPresent(Bool.self, forKey: .advanced) ?? false
+    }
+
+    private static func fallbackTitle(for path: String) -> String {
+        let component = path.split(separator: "/").last.map(String.init) ?? path
+        return component
+            .replacingOccurrences(of: "~1", with: "/")
+            .replacingOccurrences(of: "~0", with: "~")
+    }
+}
+
+struct AgentHostExtensionSettings: Decodable, Equatable, Identifiable {
+    let source: String
+    let scope: AgentHostExtensionPackageScope
+    let configurable: Bool
+    let fields: [AgentHostExtensionSettingField]
+
+    var id: String { "\(scope.rawValue):\(source)" }
+}
+
+struct AgentHostExtensionSettingsResult: Decodable, Equatable {
+    let extensions: [AgentHostExtensionSettings]
+}
+
+enum AgentHostExtensionSettingChangeOperation: String, Encodable, Equatable {
+    case set
+    case remove
+}
+
+struct AgentHostExtensionSettingChange: Encodable, Equatable {
+    let path: String
+    let operation: AgentHostExtensionSettingChangeOperation
+    let value: String?
+
+    init(path: String, value: String) {
+        self.path = path
+        operation = .set
+        self.value = value
+    }
+
+    init(removing path: String) {
+        self.path = path
+        operation = .remove
+        value = nil
+    }
+}
+
+struct AgentHostExtensionSettingsUpdateParameters: Encodable, Equatable {
+    let source: String
+    let scope: AgentHostExtensionPackageScope
+    let changes: [AgentHostExtensionSettingChange]
 }
 
 enum AgentHostSlashCommandSource: String, Decodable, Equatable {

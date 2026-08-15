@@ -9,6 +9,7 @@
 "common.retry" = "再試行";
 
 /* 設定 */
+"about.menu" = "%@ について";
 "settings.title" = "設定";
 "settings.sidebar.section" = "PI-CODING-AGENT";
 "settings.sidebar.general" = "一般";
@@ -16,7 +17,24 @@
 "settings.sidebar.personal_preferences" = "個人設定";
 "settings.sidebar.models_auth" = "モデルと認証";
 "settings.sidebar.experiments" = "実験";
+"settings.sidebar.extensions" = "プラグイン";
 "settings.sidebar.isolated" = "pi-work は独立した設定を使用し、ターミナルの pi を変更しません。";
+"settings.extensions.title" = "プラグイン設定";
+"settings.extensions.subtitle" = "プラグインが宣言した項目からインストール済みプラグインを設定します";
+"settings.extensions.refresh" = "プラグイン設定を更新";
+"settings.extensions.loading" = "プラグイン設定を読み込み中…";
+"settings.extensions.empty" = "プラグインはインストールされていません";
+"settings.extensions.changes_apply" = "変更した値のみ保存され、ここに表示されない設定は保持されます。";
+"settings.extensions.expand" = "プラグイン設定を表示";
+"settings.extensions.no_options" = "このプラグインには宣言された設定項目がありません";
+"settings.extensions.advanced" = "詳細";
+"settings.extensions.schema_note" = "項目はプラグインの設定 Schema によって提供されます。";
+"settings.extensions.saving" = "保存中";
+"settings.extensions.save" = "変更を保存";
+"settings.extensions.reset" = "リセット";
+"settings.extensions.clear_secret" = "消去";
+"settings.extensions.secure_configured" = "設定済み — 新しい値を入力して置き換え";
+"settings.extensions.secure_placeholder" = "秘密の値を入力";
 "settings.personal_preferences.title" = "個人設定";
 "settings.personal_preferences.subtitle" = "Markdown のグローバル指示で pi-work の応答方法を設定します";
 "settings.personal_preferences.file_title" = "pi-work グローバル指示";
@@ -482,16 +500,6 @@
 "extensions.installed.project_scope" = "プロジェクト";
 "extensions.installed.filtered" = "カスタムリソース";
 "extensions.unknown_author" = "作者不明";
-"extensions.pi_web_access.configure" = "Web アクセスを設定";
-"extensions.pi_web_access.title" = "Web アクセス";
-"extensions.pi_web_access.subtitle" = "既定の検索プロバイダーは設定なしですぐに使用できます。";
-"extensions.pi_web_access.provider" = "検索プロバイダー";
-"extensions.pi_web_access.provider_auto" = "自動（Exa、API キー不要）";
-"extensions.pi_web_access.provider_duckduckgo" = "DuckDuckGo（API キー不要）";
-"extensions.pi_web_access.result_mode" = "結果の処理";
-"extensions.pi_web_access.result_mode_summary" = "自動要約";
-"extensions.pi_web_access.result_mode_raw" = "生の結果";
-"extensions.pi_web_access.privacy_note" = "リモートホスト型のページ抽出は既定で無効です。";
 "extensions.error.unreadable_response" = "pi.dev から読み取れない内容が返されました";
 "extensions.error.catalog_parse" = "pi.dev の応答から拡張機能カタログを解析できません";
 "extensions.error.invalid_url" = "pi.dev の URL が無効です";

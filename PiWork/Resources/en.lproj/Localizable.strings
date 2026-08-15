@@ -9,6 +9,7 @@
 "common.retry" = "Retry";
 
 /* Settings */
+"about.menu" = "About %@";
 "settings.title" = "Settings";
 "settings.sidebar.section" = "PI-CODING-AGENT";
 "settings.sidebar.general" = "General";
@@ -16,7 +17,24 @@
 "settings.sidebar.personal_preferences" = "Personal Preferences";
 "settings.sidebar.models_auth" = "Models & Authentication";
 "settings.sidebar.experiments" = "Experiments";
+"settings.sidebar.extensions" = "Plugins";
 "settings.sidebar.isolated" = "pi-work uses an isolated configuration and never modifies terminal pi.";
+"settings.extensions.title" = "Plugin Settings";
+"settings.extensions.subtitle" = "Configure installed plugins from their declared settings";
+"settings.extensions.refresh" = "Refresh plugin settings";
+"settings.extensions.loading" = "Loading plugin settings…";
+"settings.extensions.empty" = "No plugins are installed";
+"settings.extensions.changes_apply" = "Only changed values are saved; settings not shown here are preserved.";
+"settings.extensions.expand" = "Show plugin settings";
+"settings.extensions.no_options" = "This plugin has no declared settings";
+"settings.extensions.advanced" = "Advanced";
+"settings.extensions.schema_note" = "Fields are provided by the plugin's configuration schema.";
+"settings.extensions.saving" = "Saving";
+"settings.extensions.save" = "Save Changes";
+"settings.extensions.reset" = "Reset";
+"settings.extensions.clear_secret" = "Clear";
+"settings.extensions.secure_configured" = "Configured — enter a new value to replace";
+"settings.extensions.secure_placeholder" = "Enter a secret value";
 "settings.personal_preferences.title" = "Personal Preferences";
 "settings.personal_preferences.subtitle" = "Guide pi-work with global instructions written in Markdown";
 "settings.personal_preferences.file_title" = "pi-work global instructions";
@@ -482,16 +500,6 @@
 "extensions.installed.project_scope" = "Project";
 "extensions.installed.filtered" = "Custom resources";
 "extensions.unknown_author" = "Unknown author";
-"extensions.pi_web_access.configure" = "Configure web access";
-"extensions.pi_web_access.title" = "Web Access";
-"extensions.pi_web_access.subtitle" = "Search works immediately with the default zero-configuration provider.";
-"extensions.pi_web_access.provider" = "Search provider";
-"extensions.pi_web_access.provider_auto" = "Automatic (Exa, no API key)";
-"extensions.pi_web_access.provider_duckduckgo" = "DuckDuckGo (no API key)";
-"extensions.pi_web_access.result_mode" = "Result handling";
-"extensions.pi_web_access.result_mode_summary" = "Automatic summary";
-"extensions.pi_web_access.result_mode_raw" = "Raw results";
-"extensions.pi_web_access.privacy_note" = "Remote hosted page extraction remains disabled by default.";
 "extensions.error.unreadable_response" = "pi.dev returned unreadable content";
 "extensions.error.catalog_parse" = "Unable to parse the extensions catalog response";
 "extensions.error.invalid_url" = "The pi.dev URL is invalid";

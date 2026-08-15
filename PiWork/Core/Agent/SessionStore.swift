@@ -1137,6 +1137,7 @@ final class SessionStore: ObservableObject {
     private let service: any AgentHostServicing
     private let now: () -> Date
     private let maximumCachedSessionCount: Int
+    private let performanceTracer: SessionOpenPerformanceTracer
     private var reducer = SessionStoreReducer()
     private var eventTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
@@ -1151,11 +1152,49 @@ final class SessionStore: ObservableObject {
     init(
         service: any AgentHostServicing,
         now: @escaping () -> Date = Date.init,
-        maximumCachedSessionCount: Int = 6
+        maximumCachedSessionCount: Int = 6,
+        performanceTracer: SessionOpenPerformanceTracer? = nil
     ) {
         self.service = service
         self.now = now
         self.maximumCachedSessionCount = maximumCachedSessionCount
+        self.performanceTracer = performanceTracer ?? SessionOpenPerformanceTracer()
+    }
+
+    func beginSessionOpenPerformanceTrace(
+        sessionID: String,
+        profile: AgentHostSessionProfile
+    ) -> UUID {
+        performanceTracer.begin(sessionID: sessionID, profile: profile)
+    }
+
+    func markSessionOpenPerformanceTrace(
+        _ traceID: UUID,
+        stage: SessionOpenPerformanceStage
+    ) {
+        performanceTracer.mark(traceID: traceID, stage: stage)
+    }
+
+    func markActiveSessionOpenPerformance(
+        sessionID: String,
+        stage: SessionOpenPerformanceStage
+    ) {
+        performanceTracer.markActive(sessionID: sessionID, stage: stage)
+    }
+
+    func finishActiveSessionOpenPerformance(sessionID: String) {
+        performanceTracer.finishActive(
+            sessionID: sessionID,
+            transcriptCount: records[sessionID]?.transcript.count
+        )
+    }
+
+    func cancelSessionOpenPerformanceTrace(_ traceID: UUID) {
+        performanceTracer.cancel(traceID: traceID)
+    }
+
+    func failSessionOpenPerformanceTrace(_ traceID: UUID) {
+        performanceTracer.fail(traceID: traceID)
     }
 
     func start() async throws {
@@ -1201,47 +1240,97 @@ final class SessionStore: ObservableObject {
         _ summary: AgentHostSessionSummary,
         profile: AgentHostSessionProfile,
         sessionDirectory: String?,
-        selectSession: Bool = true
+        selectSession: Bool = true,
+        performanceTraceID: UUID? = nil
     ) async throws {
-        try await start()
-        if let record = records[summary.id] {
-            touchSession(summary.id)
-            if selectSession {
-                select(summary.id, profile: record.profile, cwd: record.descriptor.cwd)
-            }
-            return
-        }
         do {
-            _ = try await service.openSession(
-                path: summary.path,
-                sessionDirectory: sessionDirectory,
-                profile: profile,
+            try await start()
+            if let performanceTraceID {
+                performanceTracer.mark(traceID: performanceTraceID, stage: .hostReady)
+            }
+            if let record = records[summary.id] {
+                touchSession(summary.id)
+                if let performanceTraceID {
+                    performanceTracer.mark(traceID: performanceTraceID, stage: .cacheHit)
+                }
+                if selectSession {
+                    select(summary.id, profile: record.profile, cwd: record.descriptor.cwd)
+                    if let performanceTraceID {
+                        performanceTracer.mark(
+                            traceID: performanceTraceID,
+                            stage: .selectionCommitted
+                        )
+                    }
+                }
+                return
+            }
+            do {
+                _ = try await service.openSession(
+                    path: summary.path,
+                    sessionDirectory: sessionDirectory,
+                    profile: profile,
+                    requestID: UUID().uuidString
+                )
+            } catch AgentHostClientError.requestTimedOut {
+                _ = try await service.openSession(
+                    path: summary.path,
+                    sessionDirectory: sessionDirectory,
+                    profile: profile,
+                    requestID: UUID().uuidString
+                )
+            }
+            if let performanceTraceID {
+                performanceTracer.mark(traceID: performanceTraceID, stage: .openRPCCompleted)
+            }
+            let snapshot = try await service.snapshot(
+                sessionId: summary.id,
                 requestID: UUID().uuidString
             )
-        } catch AgentHostClientError.requestTimedOut {
-            _ = try await service.openSession(
-                path: summary.path,
-                sessionDirectory: sessionDirectory,
+            if let performanceTraceID {
+                performanceTracer.mark(
+                    traceID: performanceTraceID,
+                    stage: .snapshotCompleted,
+                    messageCount: snapshot.messages.count,
+                    hasEarlierMessages: snapshot.history?.hasMore
+                )
+            }
+            let projectedRecord = await project(
+                snapshot: snapshot,
                 profile: profile,
-                requestID: UUID().uuidString
+                sessionDirectory: sessionDirectory
             )
+            if let performanceTraceID {
+                performanceTracer.mark(
+                    traceID: performanceTraceID,
+                    stage: .projectionCompleted,
+                    transcriptCount: projectedRecord.transcript.count
+                )
+            }
+            reducer.apply(projectedRecord)
+            touchSession(projectedRecord.id)
+            if selectSession {
+                select(snapshot.session.id, profile: profile, cwd: snapshot.session.cwd)
+                if let performanceTraceID {
+                    performanceTracer.mark(
+                        traceID: performanceTraceID,
+                        stage: .selectionCommitted
+                    )
+                }
+            }
+            publishReducerState()
+            if let performanceTraceID {
+                performanceTracer.mark(traceID: performanceTraceID, stage: .storePublished)
+            }
+            await trimSessionCache(protecting: [projectedRecord.id])
+            if let performanceTraceID {
+                performanceTracer.mark(traceID: performanceTraceID, stage: .cacheTrimCompleted)
+            }
+        } catch {
+            if let performanceTraceID {
+                performanceTracer.fail(traceID: performanceTraceID)
+            }
+            throw error
         }
-        let snapshot = try await service.snapshot(
-            sessionId: summary.id,
-            requestID: UUID().uuidString
-        )
-        let projectedRecord = await project(
-            snapshot: snapshot,
-            profile: profile,
-            sessionDirectory: sessionDirectory
-        )
-        reducer.apply(projectedRecord)
-        touchSession(projectedRecord.id)
-        if selectSession {
-            select(snapshot.session.id, profile: profile, cwd: snapshot.session.cwd)
-        }
-        publishReducerState()
-        await trimSessionCache(protecting: [projectedRecord.id])
     }
 
     func exportHTMLReport(

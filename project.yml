@@ -91,6 +91,18 @@ targets:
             (cd "$HOST_SOURCE_ROOT" && "$HOST_BUN" install --frozen-lockfile)
           fi
 
+          PI_CODING_AGENT_VERSION="$(
+            cd "$HOST_SOURCE_ROOT"
+            "$HOST_BUN" -e 'console.log(require("./node_modules/@earendil-works/pi-coding-agent/package.json").version)'
+          )"
+          if [ -z "$PI_CODING_AGENT_VERSION" ]; then
+            echo "error: pi-coding-agent version is missing."
+            exit 1
+          fi
+          HOST_VERSION_DESTINATION="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers/AgentHost/pi-coding-agent-version"
+          mkdir -p "$(dirname "$HOST_VERSION_DESTINATION")"
+          printf '%s\n' "$PI_CODING_AGENT_VERSION" > "$HOST_VERSION_DESTINATION"
+
           HOST_BUILD_ROOT="$DERIVED_FILE_DIR/PiWorkAgentHost"
           mkdir -p "$HOST_BUILD_ROOT"
 

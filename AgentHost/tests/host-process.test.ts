@@ -154,6 +154,8 @@ describe("agent host process", () => {
         "extensions.setEnabled",
         "extensions.update",
         "extensions.remove",
+        "extensions.settings.list",
+        "extensions.settings.update",
       ]));
 
       child.stdin.write(`${JSON.stringify({
@@ -222,6 +224,43 @@ describe("agent host process", () => {
         id: "extensions-list-one",
         ok: true,
         result: { packages: [] },
+      });
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "extension-settings-list-one",
+        method: "extensions.settings.list",
+        params: {},
+      })}\n`);
+      await child.stdin.flush();
+      expect(await lines.read()).toEqual({
+        version: 1,
+        kind: "response",
+        id: "extension-settings-list-one",
+        ok: true,
+        result: { extensions: [] },
+      });
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "extension-settings-update-missing",
+        method: "extensions.settings.update",
+        params: {
+          source: "npm:missing",
+          scope: "user",
+          changes: [{ path: "/enabled", operation: "set", value: "true" }],
+        },
+      })}\n`);
+      await child.stdin.flush();
+      expect(await lines.read()).toMatchObject({
+        id: "extension-settings-update-missing",
+        ok: false,
+        error: {
+          code: "invalid_request",
+          message: "No matching installed extension found: npm:missing (user)",
+        },
       });
 
       child.stdin.write(`${JSON.stringify({
@@ -647,8 +686,8 @@ describe("agent host process", () => {
           "extensions.setEnabled",
           "extensions.update",
           "extensions.remove",
-          "extensions.piWebAccess.getConfiguration",
-          "extensions.piWebAccess.updateConfiguration",
+          "extensions.settings.list",
+          "extensions.settings.update",
           "git.branches",
           "session.createDraft",
           "session.open",

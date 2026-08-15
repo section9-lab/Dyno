@@ -151,6 +151,8 @@ final class AgentHostServiceTests: XCTestCase {
                     "extensions.listInstalled",
                     "extensions.remove",
                     "extensions.setEnabled",
+                    "extensions.settings.list",
+                    "extensions.settings.update",
                     "extensions.update",
                     "git.branches",
                     "models.list",
@@ -239,6 +241,8 @@ final class AgentHostServiceTests: XCTestCase {
             "extensions.setEnabled",
             "extensions.update",
             "extensions.remove",
+            "extensions.settings.list",
+            "extensions.settings.update",
             "git.branches",
             "session.createDraft",
             "session.exportHtml",
@@ -564,7 +568,9 @@ final class AgentHostServiceTests: XCTestCase {
             "extensions.install",
             "extensions.setEnabled",
             "extensions.update",
-            "extensions.remove"
+            "extensions.remove",
+            "extensions.settings.list",
+            "extensions.settings.update"
         ]
         let capabilitiesJSON = try String(
             data: JSONEncoder().encode(capabilities),
@@ -572,8 +578,11 @@ final class AgentHostServiceTests: XCTestCase {
         )!
         let hello = #"{"version":1,"kind":"event","event":"host.hello","payload":{"hostVersion":"test-host","piVersion":"0.83.0","capabilities":\#(capabilitiesJSON)}}"#
         let package = #"{"source":"npm:pi-tools","scope":"user","filtered":false,"installedPath":"/tmp/pi-tools","enabled":true}"#
+        let settings = #"{"source":"npm:pi-tools","scope":"user","configurable":true,"fields":[{"path":"/mode","title":"Mode","kind":"text","value":"safe","hasValue":true,"required":false,"readOnly":false,"advanced":false}]}"#
         let responses = [
             #"{"version":1,"kind":"response","id":"extensions-list","ok":true,"result":{"packages":[\#(package)]}}"#,
+            #"{"version":1,"kind":"response","id":"extension-settings-list","ok":true,"result":{"extensions":[\#(settings)]}}"#,
+            #"{"version":1,"kind":"response","id":"extension-settings-update","ok":true,"result":\#(settings)}"#,
             #"{"version":1,"kind":"response","id":"extensions-install","ok":true,"result":{"packages":[\#(package)]}}"#,
             #"{"version":1,"kind":"response","id":"extensions-disable","ok":true,"result":{"packages":[\#(package)]}}"#,
             #"{"version":1,"kind":"response","id":"extensions-update","ok":true,"result":{"packages":[\#(package)]}}"#,
@@ -592,6 +601,15 @@ final class AgentHostServiceTests: XCTestCase {
         )
 
         let listed = try await service.listInstalledExtensions(requestID: "extensions-list")
+        let listedSettings = try await service.listExtensionSettings(
+            requestID: "extension-settings-list"
+        )
+        let savedSettings = try await service.updateExtensionSettings(
+            source: "npm:pi-tools",
+            scope: .user,
+            changes: [AgentHostExtensionSettingChange(path: "/mode", value: "safe")],
+            requestID: "extension-settings-update"
+        )
         let installed = try await service.installExtension(
             source: "npm:pi-tools",
             requestID: "extensions-install"
@@ -614,6 +632,8 @@ final class AgentHostServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(listed.first?.source, "npm:pi-tools")
+        XCTAssertEqual(listedSettings.first?.fields.first?.value, "safe")
+        XCTAssertEqual(savedSettings.source, "npm:pi-tools")
         XCTAssertEqual(installed.first?.source, "npm:pi-tools")
         XCTAssertEqual(disabled.first?.source, "npm:pi-tools")
         XCTAssertEqual(updated.first?.installedPath, "/tmp/pi-tools")
@@ -626,17 +646,24 @@ final class AgentHostServiceTests: XCTestCase {
             requests.compactMap { $0["method"] as? String },
             [
                 "extensions.listInstalled",
+                "extensions.settings.list",
+                "extensions.settings.update",
                 "extensions.install",
                 "extensions.setEnabled",
                 "extensions.update",
                 "extensions.remove"
             ]
         )
-        let installParams = try XCTUnwrap(requests[1]["params"] as? [String: Any])
+        let settingsUpdateParams = try XCTUnwrap(requests[2]["params"] as? [String: Any])
+        let changes = try XCTUnwrap(settingsUpdateParams["changes"] as? [[String: Any]])
+        XCTAssertEqual(changes.first?["path"] as? String, "/mode")
+        XCTAssertEqual(changes.first?["operation"] as? String, "set")
+        XCTAssertEqual(changes.first?["value"] as? String, "safe")
+        let installParams = try XCTUnwrap(requests[3]["params"] as? [String: Any])
         XCTAssertEqual(installParams["source"] as? String, "npm:pi-tools")
-        let enabledParams = try XCTUnwrap(requests[2]["params"] as? [String: Any])
+        let enabledParams = try XCTUnwrap(requests[4]["params"] as? [String: Any])
         XCTAssertEqual(enabledParams["enabled"] as? Bool, false)
-        let updateParams = try XCTUnwrap(requests[3]["params"] as? [String: Any])
+        let updateParams = try XCTUnwrap(requests[5]["params"] as? [String: Any])
         XCTAssertEqual(updateParams["source"] as? String, "npm:pi-tools")
         XCTAssertEqual(updateParams["scope"] as? String, "user")
 
