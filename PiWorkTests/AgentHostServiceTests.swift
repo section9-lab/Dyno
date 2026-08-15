@@ -160,6 +160,7 @@ final class AgentHostServiceTests: XCTestCase {
                     "session.commands",
                     "session.createDraft",
                     "session.delete",
+                    "session.exportHtml",
                     "session.open",
                     "session.prompt",
                     "session.promptImages",
@@ -184,6 +185,42 @@ final class AgentHostServiceTests: XCTestCase {
         await service.stop()
     }
 
+    func testHTMLExportUsesTheCompleteWireContract() async throws {
+        let markerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pi-work-agent-host-export-\(UUID().uuidString)")
+        let hello = #"{"version":1,"kind":"event","event":"host.hello","payload":{"hostVersion":"test-host","piVersion":"0.84.1","capabilities":["session.exportHtml"]}}"#
+        let response = #"{"version":1,"kind":"response","id":"export-one","ok":true,"result":{"sessionId":"session-one","path":"/Users/test/Downloads/report.html"}}"#
+        let script = "printf '%s\\n' '\(hello)'; IFS= read -r line; printf '%s\\n' \"$line\" > '\(markerURL.path)'; printf '%s\\n' '\(response)'; cat >/dev/null"
+        let service = AgentHostService(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", script],
+            requiredCapabilities: ["session.exportHtml"]
+        )
+        defer { try? FileManager.default.removeItem(at: markerURL) }
+
+        let result = try await service.exportHTML(
+            sessionId: "session-one",
+            path: "/tmp/session-one.jsonl",
+            sessionDirectory: "/tmp/sessions",
+            profile: .work,
+            outputPath: "/Users/test/Downloads/report.html",
+            requestID: "export-one"
+        )
+
+        XCTAssertEqual(result.path, "/Users/test/Downloads/report.html")
+        let requestData = try Data(contentsOf: markerURL)
+        let request = try JSONSerialization.jsonObject(with: requestData) as! [String: Any]
+        XCTAssertEqual(request["method"] as? String, "session.exportHtml")
+        let params = try XCTUnwrap(request["params"] as? [String: Any])
+        XCTAssertEqual(params["sessionId"] as? String, "session-one")
+        XCTAssertEqual(params["path"] as? String, "/tmp/session-one.jsonl")
+        XCTAssertEqual(params["sessionDirectory"] as? String, "/tmp/sessions")
+        XCTAssertEqual(params["profile"] as? String, "work")
+        XCTAssertEqual(params["outputPath"] as? String, "/Users/test/Downloads/report.html")
+
+        await service.stop()
+    }
+
     func testTypedMethodsUseTheCompleteSessionWireContract() async throws {
         let markerURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("pi-work-agent-host-requests-\(UUID().uuidString)")
@@ -204,6 +241,7 @@ final class AgentHostServiceTests: XCTestCase {
             "extensions.remove",
             "git.branches",
             "session.createDraft",
+            "session.exportHtml",
             "session.open",
             "session.snapshot",
             "session.transcriptPage",

@@ -233,6 +233,7 @@
 "sidebar.expand_project" = "Expandir %@";
 "sidebar.new_project_session" = "Iniciar una sesión en %@";
 "sidebar.copy_session_id" = "Copiar ID de sesión";
+"sidebar.export_html_report" = "Exportar informe HTML";
 "sidebar.delete_session" = "Eliminar sesión";
 "sidebar.add_mac_folder" = "Añadir carpeta del Mac";
 "sidebar.remove_project" = "Eliminar proyecto";

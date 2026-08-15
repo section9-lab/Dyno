@@ -233,6 +233,7 @@
 "sidebar.expand_project" = "%@ を展開";
 "sidebar.new_project_session" = "%@ でセッションを開始";
 "sidebar.copy_session_id" = "Session ID をコピー";
+"sidebar.export_html_report" = "HTML レポートを書き出す";
 "sidebar.delete_session" = "セッションを削除";
 "sidebar.remove_project" = "プロジェクトを削除";
 "sidebar.remove_project_title" = "%@ を削除しますか？";

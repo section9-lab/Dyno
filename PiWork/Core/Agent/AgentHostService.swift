@@ -48,6 +48,14 @@ protocol AgentHostServicing: Actor {
         profile: AgentHostSessionProfile,
         requestID: String
     ) async throws -> AgentHostSessionOpenResult
+    func exportHTML(
+        sessionId: String,
+        path: String,
+        sessionDirectory: String?,
+        profile: AgentHostSessionProfile,
+        outputPath: String,
+        requestID: String
+    ) async throws -> AgentHostSessionExportHTMLResult
     func snapshot(
         sessionId: String,
         requestID: String
@@ -217,6 +225,7 @@ actor AgentHostService: AgentHostServicing,
         "extensions.remove",
         "git.branches",
         "session.createDraft",
+        "session.exportHtml",
         "session.open",
         "session.snapshot",
         "session.transcriptPage",
@@ -698,6 +707,28 @@ actor AgentHostService: AgentHostServicing,
                 profile: profile
             ),
             as: AgentHostSessionOpenResult.self
+        )
+    }
+
+    func exportHTML(
+        sessionId: String,
+        path: String,
+        sessionDirectory: String?,
+        profile: AgentHostSessionProfile,
+        outputPath: String,
+        requestID: String = UUID().uuidString
+    ) async throws -> AgentHostSessionExportHTMLResult {
+        try await request(
+            id: requestID,
+            method: "session.exportHtml",
+            params: AgentHostSessionExportHTMLParameters(
+                sessionId: sessionId,
+                path: path,
+                sessionDirectory: sessionDirectory,
+                profile: profile,
+                outputPath: outputPath
+            ),
+            as: AgentHostSessionExportHTMLResult.self
         )
     }
 

@@ -233,6 +233,7 @@
 "sidebar.expand_project" = "Expand %@";
 "sidebar.new_project_session" = "Start a session in %@";
 "sidebar.copy_session_id" = "Copy Session ID";
+"sidebar.export_html_report" = "Export HTML Report";
 "sidebar.delete_session" = "Delete Session";
 "sidebar.remove_project" = "Remove Project";
 "sidebar.remove_project_title" = "Remove %@?";

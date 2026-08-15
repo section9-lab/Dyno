@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var sessionOpeningState = SessionOpeningState()
     @State private var sessionOpenTask: Task<Void, Never>?
     @State private var agentError: String?
+    @State private var exportingSessionIDs: Set<String> = []
 
     init(
         sessionStore: SessionStore,
@@ -54,10 +55,11 @@ struct ContentView: View {
                 onSelectChatSession: openChatSession,
                 onDeleteChatSession: deleteChatSession,
                 workSessionsByProjectPath: sessionStore.workSessionsByProjectPath,
-                activeSessionIDs: activeSessionIDs,
+                activeSessionIDs: activeSessionIDs.union(exportingSessionIDs),
                 selectedWorkSidebarItem: workSession.sidebarItem,
                 pendingWorkSidebarItem: sessionOpeningState.pendingWorkSidebarItem,
                 onSelectWorkSession: openWorkSession,
+                onExportWorkSession: exportWorkSession,
                 onDeleteWorkSession: deleteWorkSession,
                 onDeleteWorkProject: deleteWorkProject,
                 onSelectCustomDestination: {
@@ -363,6 +365,32 @@ struct ContentView: View {
                     profile: .work,
                     sessionDirectory: nil
                 )
+                agentError = nil
+            } catch {
+                agentError = String(describing: error)
+            }
+        }
+    }
+
+    private func exportWorkSession(
+        _ project: PiProject,
+        _ session: AgentHostSessionSummary
+    ) {
+        guard project.path == session.cwd,
+              !activeSessionIDs.contains(session.id),
+              !exportingSessionIDs.contains(session.id) else { return }
+        exportingSessionIDs.insert(session.id)
+        Task {
+            defer { exportingSessionIDs.remove(session.id) }
+            do {
+                let reportURL = try await sessionStore.exportHTMLReport(
+                    session,
+                    profile: .work,
+                    sessionDirectory: nil
+                )
+                guard NSWorkspace.shared.open(reportURL) else {
+                    throw SessionStoreError.cannotOpenExportedReport(reportURL.path)
+                }
                 agentError = nil
             } catch {
                 agentError = String(describing: error)

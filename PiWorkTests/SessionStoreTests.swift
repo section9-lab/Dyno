@@ -3,6 +3,81 @@ import XCTest
 
 @MainActor
 final class SessionStoreTests: XCTestCase {
+    func testHTMLReportDestinationUsesAUniqueSanitizedDownloadsFilename() throws {
+        let downloads = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: downloads) }
+        try FileManager.default.createDirectory(
+            at: downloads,
+            withIntermediateDirectories: true
+        )
+        let summary = AgentHostSessionSummary(
+            id: "01a00434-248d-7000-8000-000000000000",
+            path: "/tmp/session.jsonl",
+            cwd: "/tmp/project",
+            title: "Planning / rollout",
+            firstMessage: "",
+            messageCount: 2,
+            createdAt: "2026-08-15T06:30:00.000Z",
+            modifiedAt: "2026-08-15T06:30:00.000Z"
+        )
+        let now = Date(timeIntervalSince1970: 1_776_235_800)
+
+        let first = try SessionHTMLReportDestination.makeURL(
+            for: summary,
+            downloadsDirectory: downloads,
+            now: now
+        )
+        try Data().write(to: first)
+        let second = try SessionHTMLReportDestination.makeURL(
+            for: summary,
+            downloadsDirectory: downloads,
+            now: now
+        )
+
+        XCTAssertEqual(first.deletingLastPathComponent(), downloads)
+        XCTAssertEqual(
+            first.lastPathComponent,
+            "Planning-rollout-20260415-065000-01a00434.html"
+        )
+        XCTAssertEqual(
+            second.lastPathComponent,
+            "Planning-rollout-20260415-065000-01a00434-2.html"
+        )
+    }
+
+    func testExportHTMLReportWritesIntoTheProvidedDownloadsDirectory() async throws {
+        let downloads = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: downloads) }
+        let host = FakeAgentHost()
+        let store = SessionStore(
+            service: host,
+            now: { Date(timeIntervalSince1970: 1_776_235_800) }
+        )
+
+        let reportURL = try await store.exportHTMLReport(
+            makeSummary(),
+            profile: .work,
+            sessionDirectory: nil,
+            downloadsDirectory: downloads
+        )
+
+        XCTAssertEqual(reportURL.deletingLastPathComponent(), downloads)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reportURL.path))
+        let requests = await host.htmlExportRequests
+        XCTAssertEqual(requests, [
+            HTMLExportRequest(
+                sessionId: "session-one",
+                path: "/tmp/session-one.jsonl",
+                sessionDirectory: nil,
+                profile: .work,
+                outputPath: reportURL.path
+            )
+        ])
+        await store.stop()
+    }
+
     func testSessionCacheEvictsOnlyOldestInactiveSessions() {
         let candidates = SessionCachePolicy.evictionCandidates(
             recency: ["oldest", "selected", "running", "older", "newest"],
@@ -757,6 +832,7 @@ private actor FakeAgentHost: AgentHostServicing {
     private(set) var deletedSessionIds: [String] = []
     private(set) var listModelsCount = 0
     private(set) var selectedGitBranches: [String] = []
+    private(set) var htmlExportRequests: [HTMLExportRequest] = []
 
     init() {
         var eventContinuation: AsyncStream<AgentHostServerEvent>.Continuation!
@@ -877,6 +953,27 @@ private actor FakeAgentHost: AgentHostServicing {
             path: path,
             cwd: snapshotResult.session.cwd
         )
+    }
+
+    func exportHTML(
+        sessionId: String,
+        path: String,
+        sessionDirectory: String?,
+        profile: AgentHostSessionProfile,
+        outputPath: String,
+        requestID: String
+    ) async throws -> AgentHostSessionExportHTMLResult {
+        htmlExportRequests.append(
+            HTMLExportRequest(
+                sessionId: sessionId,
+                path: path,
+                sessionDirectory: sessionDirectory,
+                profile: profile,
+                outputPath: outputPath
+            )
+        )
+        try Data("<!DOCTYPE html>".utf8).write(to: URL(fileURLWithPath: outputPath))
+        return AgentHostSessionExportHTMLResult(sessionId: sessionId, path: outputPath)
     }
 
     func snapshot(
@@ -1083,6 +1180,14 @@ private actor FakeAgentHost: AgentHostServicing {
 
 private enum FakeAgentHostError: Error {
     case promptRejected
+}
+
+private struct HTMLExportRequest: Equatable {
+    let sessionId: String
+    let path: String
+    let sessionDirectory: String?
+    let profile: AgentHostSessionProfile
+    let outputPath: String
 }
 
 private struct ApprovalResolution: Equatable {

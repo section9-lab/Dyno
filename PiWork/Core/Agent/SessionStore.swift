@@ -1060,6 +1060,51 @@ enum SessionStoreError: Error {
     case sessionNotOpen(String)
     case sessionBusy(String)
     case historyChanged(String)
+    case downloadsDirectoryUnavailable
+    case exportedReportMismatch(String)
+    case exportedReportMissing(String)
+    case cannotOpenExportedReport(String)
+}
+
+enum SessionHTMLReportDestination {
+    static func makeURL(
+        for summary: AgentHostSessionSummary,
+        downloadsDirectory: URL,
+        now: Date,
+        fileManager: FileManager = .default
+    ) throws -> URL {
+        try fileManager.createDirectory(
+            at: downloadsDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let title = sanitizedComponent(summary.title, fallback: "pi-work-session", limit: 60)
+        let sessionID = sanitizedComponent(summary.id, fallback: "session", limit: 8)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let stem = "\(title)-\(formatter.string(from: now))-\(sessionID)"
+
+        var suffix = 1
+        var candidate = downloadsDirectory.appendingPathComponent("\(stem).html")
+        while fileManager.fileExists(atPath: candidate.path) {
+            suffix += 1
+            candidate = downloadsDirectory.appendingPathComponent("\(stem)-\(suffix).html")
+        }
+        return candidate
+    }
+
+    private static func sanitizedComponent(
+        _ value: String,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        let parts = value.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        let sanitized = parts.joined(separator: "-")
+        return sanitized.isEmpty ? fallback : String(sanitized.prefix(limit))
+    }
 }
 
 enum SessionCachePolicy {
@@ -1197,6 +1242,54 @@ final class SessionStore: ObservableObject {
         }
         publishReducerState()
         await trimSessionCache(protecting: [projectedRecord.id])
+    }
+
+    func exportHTMLReport(
+        _ summary: AgentHostSessionSummary,
+        profile: AgentHostSessionProfile,
+        sessionDirectory: String?,
+        downloadsDirectory: URL? = nil
+    ) async throws -> URL {
+        try await start()
+        let destinationDirectory: URL
+        if let downloadsDirectory {
+            destinationDirectory = downloadsDirectory
+        } else if let downloadsDirectory = FileManager.default.urls(
+            for: .downloadsDirectory,
+            in: .userDomainMask
+        ).first {
+            destinationDirectory = downloadsDirectory
+        } else {
+            throw SessionStoreError.downloadsDirectoryUnavailable
+        }
+        let outputURL = try SessionHTMLReportDestination.makeURL(
+            for: summary,
+            downloadsDirectory: destinationDirectory,
+            now: now()
+        )
+        let result = try await service.exportHTML(
+            sessionId: summary.id,
+            path: summary.path,
+            sessionDirectory: sessionDirectory,
+            profile: profile,
+            outputPath: outputURL.path,
+            requestID: UUID().uuidString
+        )
+        guard result.sessionId == summary.id else {
+            throw SessionStoreError.exportedReportMismatch(summary.id)
+        }
+        let exportedURL = URL(fileURLWithPath: result.path).standardizedFileURL
+        guard exportedURL == outputURL.standardizedFileURL else {
+            throw SessionStoreError.exportedReportMismatch(summary.id)
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: exportedURL.path,
+            isDirectory: &isDirectory
+        ), !isDirectory.boolValue else {
+            throw SessionStoreError.exportedReportMissing(exportedURL.path)
+        }
+        return exportedURL
     }
 
     func selectOpenSession(

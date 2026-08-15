@@ -233,6 +233,7 @@
 "sidebar.expand_project" = "展开 %@";
 "sidebar.new_project_session" = "基于 %@ 新建会话";
 "sidebar.copy_session_id" = "复制 Session ID";
+"sidebar.export_html_report" = "导出 HTML 报告";
 "sidebar.delete_session" = "删除 Session";
 "sidebar.remove_project" = "移除项目";
 "sidebar.remove_project_title" = "移除 %@？";

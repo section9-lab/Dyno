@@ -233,6 +233,7 @@
 "sidebar.expand_project" = "展開 %@";
 "sidebar.new_project_session" = "在 %@ 中建立工作階段";
 "sidebar.copy_session_id" = "複製 Session ID";
+"sidebar.export_html_report" = "匯出 HTML 報告";
 "sidebar.delete_session" = "刪除 Session";
 "sidebar.remove_project" = "移除專案";
 "sidebar.remove_project_title" = "移除 %@？";

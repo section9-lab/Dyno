@@ -233,6 +233,7 @@
 "sidebar.expand_project" = "%@ 펼치기";
 "sidebar.new_project_session" = "%@에서 세션 시작";
 "sidebar.copy_session_id" = "Session ID 복사";
+"sidebar.export_html_report" = "HTML 보고서 내보내기";
 "sidebar.delete_session" = "세션 삭제";
 "sidebar.remove_project" = "프로젝트 제거";
 "sidebar.remove_project_title" = "%@을(를) 제거할까요?";

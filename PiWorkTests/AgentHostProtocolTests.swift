@@ -2,6 +2,23 @@ import XCTest
 @testable import PiWork
 
 final class AgentHostProtocolTests: XCTestCase {
+    func testDecodesHTMLExportResult() throws {
+        let data = Data(#"{"sessionId":"session-one","path":"/Users/test/Downloads/report.html"}"#.utf8)
+
+        let result = try JSONDecoder().decode(
+            AgentHostSessionExportHTMLResult.self,
+            from: data
+        )
+
+        XCTAssertEqual(
+            result,
+            AgentHostSessionExportHTMLResult(
+                sessionId: "session-one",
+                path: "/Users/test/Downloads/report.html"
+            )
+        )
+    }
+
     func testSessionImageContentCarriesOptionalPreviewData() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

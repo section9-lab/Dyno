@@ -581,6 +581,52 @@ final class SidebarHoverActionsTests: XCTestCase {
         XCTAssertTrue(source.contains("onDeleteWorkSession(project, session)"))
     }
 
+    func testOnlyWorkSessionContextMenuOffersHTMLExport() throws {
+        let source = try sidebarSource()
+        let workSessionRow = try XCTUnwrap(
+            source.components(separatedBy: "private struct WorkSessionRow").last?
+                .components(separatedBy: "private struct WorkSessionEmptyState").first
+        )
+        let chatSessionRow = try XCTUnwrap(
+            source.components(separatedBy: "private struct ChatSessionRow").last?
+                .components(separatedBy: "private struct FolderRow").first
+        )
+
+        XCTAssertTrue(workSessionRow.contains("onExport: onExport"))
+        XCTAssertFalse(chatSessionRow.contains("onExport:"))
+        XCTAssertTrue(source.contains("L10n.string(\"sidebar.export_html_report\")"))
+        XCTAssertTrue(source.contains("onExportWorkSession(project, session)"))
+    }
+
+    func testHTMLExportLabelIsLocalizedForEverySupportedLanguage() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        for locale in ["en", "es", "ja", "ko", "zh-Hans", "zh-Hant"] {
+            let strings = try String(
+                contentsOf: repositoryRoot.appendingPathComponent(
+                    "PiWork/Resources/\(locale).lproj/Localizable.strings"
+                ),
+                encoding: .utf8
+            )
+            XCTAssertTrue(strings.contains("\"sidebar.export_html_report\""), locale)
+        }
+    }
+
+    func testContentViewExportsThenOpensTheHTMLReport() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("PiWork/App/Root/ContentView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("onExportWorkSession: exportWorkSession"))
+        XCTAssertTrue(source.contains("try await sessionStore.exportHTMLReport("))
+        XCTAssertTrue(source.contains("NSWorkspace.shared.open(reportURL)"))
+    }
+
     func testChatSessionContextMenuOffersCopyAndDelete() throws {
         let source = try sidebarSource()
         let sessionRow = try XCTUnwrap(

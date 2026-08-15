@@ -742,6 +742,14 @@ struct AgentHostSessionOpenParameters: Encodable, Equatable {
     }
 }
 
+struct AgentHostSessionExportHTMLParameters: Encodable, Equatable {
+    let sessionId: String
+    let path: String
+    let sessionDirectory: String?
+    let profile: AgentHostSessionProfile
+    let outputPath: String
+}
+
 struct AgentHostSessionIdentifierParameters: Encodable, Equatable {
     let sessionId: String
 }
@@ -855,6 +863,11 @@ struct AgentHostSessionOpenResult: Decodable, Equatable {
     let sessionId: String
     let path: String
     let cwd: String
+}
+
+struct AgentHostSessionExportHTMLResult: Decodable, Equatable {
+    let sessionId: String
+    let path: String
 }
 
 struct AgentHostSessionRenameResult: Decodable, Equatable {
