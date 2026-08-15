@@ -120,6 +120,24 @@ targets:
             cp "$HOST_OUTPUT" "$HOST_DESTINATION"
             chmod +x "$HOST_DESTINATION"
 
+            HOST_EXPORT_ASSETS_SOURCE="$HOST_SOURCE_ROOT/node_modules/@earendil-works/pi-coding-agent/dist/core/export-html"
+            HOST_EXPORT_ASSETS_DESTINATION="$HOST_DESTINATION_DIR/export-html"
+            if [ ! -d "$HOST_EXPORT_ASSETS_SOURCE" ]; then
+              echo "error: pi-coding-agent HTML export assets are missing."
+              exit 1
+            fi
+            mkdir -p "$HOST_EXPORT_ASSETS_DESTINATION"
+            cp -R "$HOST_EXPORT_ASSETS_SOURCE/." "$HOST_EXPORT_ASSETS_DESTINATION"
+
+            HOST_THEME_ASSETS_SOURCE="$HOST_SOURCE_ROOT/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme"
+            HOST_THEME_ASSETS_DESTINATION="$HOST_DESTINATION_DIR/theme"
+            if [ ! -d "$HOST_THEME_ASSETS_SOURCE" ]; then
+              echo "error: pi-coding-agent theme assets are missing."
+              exit 1
+            fi
+            mkdir -p "$HOST_THEME_ASSETS_DESTINATION"
+            cp -R "$HOST_THEME_ASSETS_SOURCE/." "$HOST_THEME_ASSETS_DESTINATION"
+
             if [ "$CODE_SIGNING_ALLOWED" != "NO" ]; then
               HOST_SIGN_IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:--}"
               if [ "$ENABLE_HARDENED_RUNTIME" = "YES" ]; then

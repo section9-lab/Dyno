@@ -116,6 +116,34 @@ final class AgentHostExecutableTests: XCTestCase {
         XCTAssertFalse(configuration.contains("Stage bundled pi agent binary"))
     }
 
+    func testBuildStagesNativeHTMLExportAssetsBesideEachAgentHost() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let configuration = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(configuration.contains("dist/core/export-html"))
+        XCTAssertTrue(configuration.contains("$HOST_DESTINATION_DIR/export-html"))
+        XCTAssertTrue(configuration.contains("cp -R \"$HOST_EXPORT_ASSETS_SOURCE/.\""))
+    }
+
+    func testBuildStagesNativeThemeAssetsBesideEachAgentHost() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let configuration = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(configuration.contains("dist/modes/interactive/theme"))
+        XCTAssertTrue(configuration.contains("$HOST_DESTINATION_DIR/theme"))
+        XCTAssertTrue(configuration.contains("cp -R \"$HOST_THEME_ASSETS_SOURCE/.\""))
+    }
+
     func testResolveFindsOnlyAnExecutableInContentsHelpers() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
