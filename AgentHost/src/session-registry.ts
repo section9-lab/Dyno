@@ -172,6 +172,7 @@ export interface SessionHandle {
   snapshot(options?: { messageLimit?: number }): SessionHandleSnapshot;
   transcriptPage(cursor: string, limit: number): SessionTranscriptPage;
   toolOutput(toolCallId: string): string;
+  exportHtml(outputPath: string): Promise<string>;
   contextUsage(): SessionContextUsage | undefined;
   commands(): SessionSlashCommand[];
   rename(title: string): string;
@@ -355,6 +356,14 @@ export class SessionRegistry {
 
   toolOutput(sessionId: string, toolCallId: string): string {
     return this.requireSession(sessionId).handle.toolOutput(toolCallId);
+  }
+
+  async exportHtml(
+    sessionId: string,
+    outputPath: string,
+  ): Promise<{ sessionId: string; path: string }> {
+    const path = await this.requireSession(sessionId).handle.exportHtml(outputPath);
+    return { sessionId, path };
   }
 
   descriptor(sessionId: string): SessionHandleSnapshot["session"] | undefined {

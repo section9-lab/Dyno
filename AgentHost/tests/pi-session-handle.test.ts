@@ -78,6 +78,7 @@ function makePiSession(overrides: Record<string, unknown> = {}) {
     prompt: async () => {},
     abort: async () => {},
     reload: async () => {},
+    exportToHtml: async (outputPath: string) => outputPath,
     dispose: () => {},
     subscribe: () => () => {},
     ...overrides,
@@ -279,6 +280,20 @@ describe("normalizeAgentSessionEvent", () => {
 });
 
 describe("PiSessionHandle", () => {
+  test("delegates HTML export to the native Pi session", async () => {
+    const manager = SessionManager.inMemory("/tmp/project");
+    const requests: string[] = [];
+    const handle = new PiSessionHandle(makePiSession({
+      exportToHtml: async (outputPath: string) => {
+        requests.push(outputPath);
+        return outputPath;
+      },
+    }), manager);
+
+    await expect(handle.exportHtml("/tmp/report.html")).resolves.toBe("/tmp/report.html");
+    expect(requests).toEqual(["/tmp/report.html"]);
+  });
+
   test("lists invokable extension and skill slash commands from the live Pi session", () => {
     const manager = SessionManager.inMemory("/tmp/project");
     const piSession = makePiSession({

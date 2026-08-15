@@ -652,6 +652,7 @@ describe("agent host process", () => {
           "git.branches",
           "session.createDraft",
           "session.open",
+          "session.exportHtml",
           "session.snapshot",
           "session.transcriptPage",
           "session.toolOutput",
@@ -1118,6 +1119,70 @@ describe("agent host process", () => {
           cwd,
         },
       });
+    } finally {
+      child.stdin.end();
+      await child.exited;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("exports an unopened native Pi session to HTML", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pi-work-host-export-process-test-"));
+    const cwd = join(root, "project");
+    const sessionDirectory = join(root, "sessions");
+    const outputPath = join(root, "session-report.html");
+    mkdirSync(cwd, { recursive: true });
+    mkdirSync(sessionDirectory, { recursive: true });
+    const manager = SessionManager.create(cwd, sessionDirectory, { id: "session-export" });
+    manager.appendMessage({
+      role: "user",
+      content: "Export this report",
+      timestamp: Date.now(),
+    });
+    appendTestAssistant(manager, "Report ready", Date.now() + 1);
+    const sessionPath = manager.getSessionFile()!;
+    const child = Bun.spawn({
+      cmd: [process.execPath, "run", join(import.meta.dir, "../src/main.ts")],
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    try {
+      const lines = new JSONLineReader(child.stdout.getReader());
+      const hello = await lines.read() as { payload: { capabilities: string[] } };
+      expect(hello.payload.capabilities).toContain("session.exportHtml");
+
+      child.stdin.write(`${JSON.stringify({
+        version: 1,
+        kind: "request",
+        id: "export-one",
+        method: "session.exportHtml",
+        params: {
+          sessionId: "session-export",
+          path: sessionPath,
+          sessionDirectory,
+          profile: "work",
+          outputPath,
+        },
+      })}\n`);
+      await child.stdin.flush();
+
+      expect(await lines.read()).toEqual({
+        version: 1,
+        kind: "response",
+        id: "export-one",
+        ok: true,
+        result: { sessionId: "session-export", path: outputPath },
+      });
+      expect(existsSync(outputPath)).toBe(true);
+      const html = readFileSync(outputPath, "utf8");
+      const encodedSession = html.match(
+        /<script id="session-data" type="application\/json">([^<]+)<\/script>/,
+      )?.[1];
+      expect(encodedSession).toBeDefined();
+      const exportedSession = Buffer.from(encodedSession!, "base64").toString("utf8");
+      expect(exportedSession).toContain("Export this report");
     } finally {
       child.stdin.end();
       await child.exited;

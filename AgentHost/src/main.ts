@@ -1,4 +1,5 @@
 import packageMetadata from "../package.json";
+import { extname, isAbsolute } from "node:path";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { getAgentDir, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
@@ -111,6 +112,7 @@ writeHostRecord(
       "git.branches",
       "session.createDraft",
       "session.open",
+      "session.exportHtml",
       "session.snapshot",
       "session.transcriptPage",
       "session.toolOutput",
@@ -504,6 +506,66 @@ async function handleRequest(request: HostRequest): Promise<HostResponse> {
       ok: true,
       result: sessionRegistry.snapshot(sessionId),
     };
+  }
+
+  if (request.method === "session.exportHtml") {
+    const sessionId = request.params?.sessionId;
+    const path = request.params?.path;
+    const sessionDirectory = request.params?.sessionDirectory;
+    const profile = request.params?.profile;
+    const outputPath = request.params?.outputPath;
+    if (
+      typeof sessionId !== "string"
+      || typeof path !== "string"
+      || (sessionDirectory !== undefined && typeof sessionDirectory !== "string")
+      || (profile !== "chat" && profile !== "work")
+      || typeof outputPath !== "string"
+      || !isAbsolute(outputPath)
+      || extname(outputPath).toLowerCase() !== ".html"
+    ) {
+      throw new Error(
+        "session.exportHtml requires string sessionId/path, optional sessionDirectory, "
+        + "a valid profile, and an absolute HTML outputPath",
+      );
+    }
+
+    const existing = sessionRegistry.descriptor(sessionId);
+    if (existing) {
+      if (existing.path !== path) {
+        throw new Error(`Session path does not match open session: ${sessionId}`);
+      }
+      return {
+        version: PROTOCOL_VERSION,
+        kind: "response",
+        id: request.id,
+        ok: true,
+        result: await sessionRegistry.exportHtml(sessionId, outputPath),
+      };
+    }
+
+    await getExtensionPackagesCoordinator().list();
+    const manager = sessionCatalog.open(path, sessionDirectory);
+    if (manager.getSessionId() !== sessionId) {
+      throw new Error(`Session ID does not match file: ${sessionId}`);
+    }
+    const handle = await createPiSessionHandle({
+      sessionManager: manager,
+      profile,
+      modelRuntime: await getModelRuntime(),
+      agentDir: agentDirectory(Bun.env),
+      settingsManager: createAgentSettingsManager(manager.getCwd(), Bun.env),
+    });
+    try {
+      return {
+        version: PROTOCOL_VERSION,
+        kind: "response",
+        id: request.id,
+        ok: true,
+        result: { sessionId, path: await handle.exportHtml(outputPath) },
+      };
+    } finally {
+      handle.dispose();
+    }
   }
 
   if (request.method === "session.transcriptPage") {

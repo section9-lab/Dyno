@@ -56,6 +56,7 @@ type PiAgentSession = Pick<
   | "prompt"
   | "abort"
   | "reload"
+  | "exportToHtml"
   | "dispose"
   | "subscribe"
 > & {
@@ -390,6 +391,10 @@ export class PiSessionHandle implements SessionHandle {
       "tool_output_not_found",
       `Tool output not found: ${toolCallId}`,
     );
+  }
+
+  exportHtml(outputPath: string): Promise<string> {
+    return this.session.exportToHtml(outputPath);
   }
 
   contextUsage(): SessionContextUsage | undefined {

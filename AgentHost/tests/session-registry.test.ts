@@ -30,6 +30,7 @@ class ControllableSession implements SessionHandle {
   readonly approvalResolutions: Array<{ requestId: string; decision: "allowOnce" | "deny" }> = [];
   readonly snapshotMessageLimits: Array<number | undefined> = [];
   readonly transcriptPageRequests: Array<{ cursor: string; limit: number }> = [];
+  readonly exportHtmlRequests: string[] = [];
   selectedModel = {
     provider: "openai",
     id: "gpt-test",
@@ -116,6 +117,11 @@ class ControllableSession implements SessionHandle {
 
   toolOutput(toolCallId: string): string {
     return `full output for ${toolCallId}`;
+  }
+
+  async exportHtml(outputPath: string): Promise<string> {
+    this.exportHtmlRequests.push(outputPath);
+    return outputPath;
   }
 
   contextUsage() {
@@ -371,6 +377,18 @@ describe("SessionRegistry", () => {
       title: "Session integration",
     });
     expect(session.title).toBe("Session integration");
+  });
+
+  test("exports an open session to the requested HTML path", async () => {
+    const session = new ControllableSession("session-one");
+    const registry = new SessionRegistry(() => {});
+    registry.register(session);
+
+    await expect(registry.exportHtml("session-one", "/tmp/report.html")).resolves.toEqual({
+      sessionId: "session-one",
+      path: "/tmp/report.html",
+    });
+    expect(session.exportHtmlRequests).toEqual(["/tmp/report.html"]);
   });
 
   test("persists a selected Git branch through its handle", () => {
